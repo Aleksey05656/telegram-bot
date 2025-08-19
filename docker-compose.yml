@@ -1,0 +1,73 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: sports_bot_redis
+    # ports:
+    #   - "6379:6379" # Не обязательно открывать наружу
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # - Подключение к пользовательской сети -
+    networks:
+      - sports_bot_network
+  bot:
+    build: .
+    container_name: sports_bot_main
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SPORTMONKS_API_KEY=${SPORTMONKS_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY} # Если используется
+      # - Используем внутреннее имя сервиса 'redis' внутри Docker-сети -
+      - REDIS_URL=redis://redis:6379/0
+      # - REDIS_DB=0 # Опционально, если используется в config.py
+      # - DATABASE_URL=postgresql://user:password@localhost:5432/dbname # Если используется Postgres
+    # === НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЭТАПА 1 ===
+    # 1.2. Docker (опционально — постоянный том под модели)
+    volumes:
+      - ./models:/app/models
+      # - ./logs:/app/logs
+    # === КОНЕЦ НОВЫХ ПАРАМЕТРОВ ===
+    # - Подключение к пользовательской сети -
+    networks:
+      - sports_bot_network
+  worker:
+    build: .
+    container_name: sports_bot_worker
+    # - Команда для запуска RQ Worker с правильным URL Redis -
+    command: rq worker predictions --url redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SPORTMONKS_API_KEY=${SPORTMONKS_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY} # Если используется
+      # - Используем внутреннее имя сервиса 'redis' внутри Docker-сети -
+      - REDIS_URL=redis://redis:6379/0
+      # - REDIS_DB=0 # Опционально, если используется в config.py
+      # - DATABASE_URL=postgresql://user:password@localhost:5432/dbname # Если используется Postgres
+    # === НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЭТАПА 1 ===
+    # 1.2. Docker (опционально — постоянный том под модели)
+    volumes:
+      - ./models:/app/models
+      # - ./logs:/app/logs
+    # === КОНЕЦ НОВЫХ ПАРАМЕТРОВ ===
+    # - Подключение к пользовательской сети -
+    networks:
+      - sports_bot_network
+# - Определение пользовательской сети -
+networks:
+  sports_bot_network:
+    driver: bridge
+volumes:
+  redis_data:
