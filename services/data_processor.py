@@ -11,10 +11,6 @@ import math
 import numpy as np
 import pandas as pd
 
-codex/apply-provided-unified-diff-patches
-# Удаляем дублирующие функции внизу файла
-
-main
 def parse_dt_safe(date_str: str) -> Optional[datetime]:
     """Парсинг даты с обработкой ошибок."""
     try:
@@ -23,54 +19,6 @@ def parse_dt_safe(date_str: str) -> Optional[datetime]:
         print(f"Ошибка парсинга даты: {e}")
         return None
 
-codex/apply-provided-unified-diff-patches
-# data_processor.py
-
-# Удаляем дублирующие функции, которые уже определены внутри класса DataProcessor:
-# 1. Удаляем функцию haversine_km
-# 2. Удаляем функцию style_mismatch
-# 3. Удаляем функцию ewma
-# 4. Удаляем функцию add_missing_ratio
-# 5. Удаляем функцию load_climate_norm
-# 6. Удаляем функцию compute_rest_days
-
-# (Функции ниже уже определены внутри класса DataProcessor и не нужны вне его)
-
-# Удаляем дублирующие функции
-
-# Функция compute_rest_days
-# def compute_rest_days(match_date: datetime, player_last_match: datetime) -> int:
-#     if match_date is None or player_last_match is None:
-#         return 0  # или другое значение по умолчанию
-#     return (match_date - player_last_match).days
-
-# Функция style_mismatch
-# def style_mismatch(team_style: str, opponent_style: str) -> float:
-#     if team_style == opponent_style:
-#         return 0
-#     return 1
-
-# Функция ewma
-# def ewma(values: List[float], alpha: float) -> float:
-#     smoothed_value = values[0]
-#     for value in values[1:]:
-#         smoothed_value = alpha * value + (1 - alpha) * smoothed_value
-#     return smoothed_value
-
-# Функция add_missing_ratio
-# def add_missing_ratio(df) -> float:
-#     total_entries = df.size
-#     if total_entries == 0:
-#         return 0.0
-#     missing_entries = df.isnull().sum().sum()
-#     return missing_entries / total_entries
-
-# Функция load_climate_norm
-# def load_climate_norm(location: str) -> dict:
-#     return {
-#         "temperature": 25,  # Средняя температура
-#         "humidity": 60      # Средняя влажность
-#     }
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Расстояние между двумя точками на Земле по формуле Хаверсина."""
     R = 6371  # Радиус Земли в километрах
@@ -117,7 +65,6 @@ def load_climate_norm(location: str) -> dict:
         "temperature": 25,  # Средняя температура
         "humidity": 60      # Средняя влажность
     }
-main
 
 class DataProcessor:
     """Класс для обработки данных матчей."""
