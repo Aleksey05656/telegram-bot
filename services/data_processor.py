@@ -9,7 +9,64 @@ from services.sportmonks_client import sportmonks_client
 from database.cache_postgres import cache
 import math
 import numpy as np
-import pandas as pd # Перемещен импорт в основную секцию
+import pandas as pd
+
+def parse_dt_safe(date_str: str) -> Optional[datetime]:
+    """Парсинг даты с обработкой ошибок."""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        print(f"Ошибка парсинга даты: {e}")
+        return None
+
+# data_processor.py
+
+# Удаляем дублирующие функции, которые уже определены внутри класса DataProcessor:
+# 1. Удаляем функцию haversine_km
+# 2. Удаляем функцию style_mismatch
+# 3. Удаляем функцию ewma
+# 4. Удаляем функцию add_missing_ratio
+# 5. Удаляем функцию load_climate_norm
+# 6. Удаляем функцию compute_rest_days
+
+# (Функции ниже уже определены внутри класса DataProcessor и не нужны вне его)
+
+# Удаляем дублирующие функции
+
+# Функция compute_rest_days
+# def compute_rest_days(match_date: datetime, player_last_match: datetime) -> int:
+#     if match_date is None or player_last_match is None:
+#         return 0  # или другое значение по умолчанию
+#     return (match_date - player_last_match).days
+
+# Функция style_mismatch
+# def style_mismatch(team_style: str, opponent_style: str) -> float:
+#     if team_style == opponent_style:
+#         return 0
+#     return 1
+
+# Функция ewma
+# def ewma(values: List[float], alpha: float) -> float:
+#     smoothed_value = values[0]
+#     for value in values[1:]:
+#         smoothed_value = alpha * value + (1 - alpha) * smoothed_value
+#     return smoothed_value
+
+# Функция add_missing_ratio
+# def add_missing_ratio(df) -> float:
+#     total_entries = df.size
+#     if total_entries == 0:
+#         return 0.0
+#     missing_entries = df.isnull().sum().sum()
+#     return missing_entries / total_entries
+
+# Функция load_climate_norm
+# def load_climate_norm(location: str) -> dict:
+#     return {
+#         "temperature": 25,  # Средняя температура
+#         "humidity": 60      # Средняя влажность
+#     }
+
 class DataProcessor:
     """Класс для обработки данных матчей."""
     def __init__(self):
