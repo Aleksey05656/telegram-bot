@@ -825,6 +825,13 @@ class DataProcessor:
             logger.error(f"Ошибка при расчете признаков стрик: {e}")
             # Возвращаем значения по умолчанию в случае ошибки
             return {"win_streak": 0, "dry_spell": 0, "burst": 0}
+    def add_missing_ratio(self, df) -> float:
+        total_entries = getattr(df, "size", 0)
+        if total_entries == 0:
+            return 0.0
+        missing_entries = df.isnull().sum().sum()
+        return float(missing_entries) / int(total_entries)
+
     def add_missing_mask(self, features: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, int]]:
         """
         Добавление маски пропущенных значений к признакам.
