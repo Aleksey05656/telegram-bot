@@ -7,7 +7,7 @@ from logger import logger
 from services.sportmonks_client import sportmonks_client
 # Исправлено: Импорт правильного кэша
 from database.cache_postgres import cache
-import math
+# (cleanup) удалён неиспользуемый глобальный импорт math
 import numpy as np
 import pandas as pd
 
@@ -107,6 +107,7 @@ class DataProcessor:
         Returns:
             float: Расстояние в километрах.
         """
+        import math
         try:
             # Проверка на None
             if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
