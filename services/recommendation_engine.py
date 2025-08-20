@@ -1,8 +1,7 @@
 # services/recommendation_engine.py
 """Сервис для генерации комплексных прогнозов и рекомендаций."""
 import asyncio
-import json
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 from dataclasses import dataclass
@@ -252,16 +251,16 @@ class RecommendationEngine:
                 "recommendations_count": 0,
                 "missing_data_info": {"missing_ratio": 0.0, "data_freshness_minutes": 0.0}
             }
-    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> Tuple[float, float]:
+    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> List[float]:
         """Расчет базовых параметров λ."""
         try:
             # В реальной реализации здесь будет расчет λ
             # Например, с использованием poisson_regression_model
             # Для примера возвращаем заглушку
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
         except Exception as e:
             logger.error(f"Ошибка при расчете базовых λ: {e}")
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
     async def _prepare_match_context(self, match_data: Dict, team_stats: Dict) -> Dict[str, Any]:
         """Подготовка контекста матча."""
         try:
@@ -472,10 +471,6 @@ class RecommendationEngine:
 # Создание экземпляра движка рекомендаций
 recommendation_engine = RecommendationEngine()
 
-import numpy as np
-from typing import Any, Dict
-from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LogisticRegression
 
 class ProbabilityCalibrator:
     def __init__(self, method: str = "platt"):
@@ -483,13 +478,15 @@ class ProbabilityCalibrator:
         self.models: Dict[str, Any] = {}
 
     def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
+        from sklearn.isotonic import IsotonicRegression
+        from sklearn.linear_model import LogisticRegression
         for key, p in p_base.items():
             if self.method == "isotonic":
                 m = IsotonicRegression(out_of_bounds="clip")
-                self.models[key] = m.fit(p, (y_true==(key)).astype(float))
+                self.models[key] = m.fit(p, (y_true == (key)).astype(float))
             else:
                 m = LogisticRegression(max_iter=1000)
-                self.models[key] = m.fit(p.reshape(-1,1), (y_true==(key)).astype(int))
+                self.models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
         return self
 
     def predict(self, p_base: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
@@ -500,7 +497,7 @@ class ProbabilityCalibrator:
                 out[key] = p
             else:
                 if hasattr(m, "predict_proba"):
-                    out[key] = m.predict_proba(p.reshape(-1,1))[:,1]
+                    out[key] = m.predict_proba(p.reshape(-1, 1))[:, 1]
                 else:
                     out[key] = m.transform(p)
         # нормализация
@@ -508,15 +505,18 @@ class ProbabilityCalibrator:
             keys = list(out.keys())
             M = np.vstack([out[k] for k in keys]).T
             M = M / M.sum(axis=1, keepdims=True)
-            for i,k in enumerate(keys): out[k] = M[:,i]
+            for i, k in enumerate(keys):
+                out[k] = M[:, i]
         except Exception:
             pass
         return out
 
+
 class EnsembleCombiner:
     def __init__(self):
+        from sklearn.linear_model import LogisticRegression
         self.model = LogisticRegression(max_iter=1000)
-        self.keys: list[str] = []
+        self.keys: List[str] = []
 
     def fit(self, oof_preds: Dict[str, np.ndarray], y_true: np.ndarray) -> "EnsembleCombiner":
         self.keys = sorted(oof_preds.keys())
