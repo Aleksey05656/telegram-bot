@@ -115,6 +115,10 @@ class RecommendationEngine:
         except Exception:
             return 0.0
 
+    def compute_confidence_from_margin(self, probs: Dict[str, float]) -> float:
+        """Совместимый интерфейс для расчёта confidence по словарю вероятностей."""
+        return self._confidence_from_probs(probs)
+
     @staticmethod
     def _penalize_confidence(
         base: float, *, missing_ratio: float = 0.0, freshness_minutes: float = 0.0
@@ -351,61 +355,39 @@ class RecommendationEngine:
                 )
                 rec.confidence = penalized_confidence
                 recommendations.append(rec)
-            # === Totals market ===
+            # === Totals & BTTS markets ===
             over_prob = float(probabilities.get("probability_over_2_5", probabilities.get("over", 0.0)))
             under_prob = float(probabilities.get("probability_under_2_5", probabilities.get("under", 0.0)))
-            total_confidence = self._confidence_from_probs({"over": over_prob, "under": under_prob})
+            total_corr_probs = {"over": over_prob, "under": under_prob}
+            total_confidence = self._confidence_from_probs(total_corr_probs)
             tot_risk = (
                 RiskLevel.HIGH if total_confidence < 0.1 else
                 RiskLevel.MEDIUM if total_confidence < 0.25 else
                 RiskLevel.LOW
             )
-            if over_prob > 0.5:
-                rec = BettingRecommendation(
-                    market="Totals",
-                    selection="Over",
-                    confidence=total_confidence,
-                    risk_level=tot_risk,
-                    reasoning="Высокая вероятность тотала больше 2.5",
-                )
-                penalized_confidence = self._penalize_confidence(
-                    rec.confidence,  # base
-                    missing_ratio=missing_ratio,
-                    freshness_minutes=data_freshness_minutes,
-                )
-                rec.confidence = penalized_confidence
-                recommendations.append(rec)
-            if under_prob > 0.5:
-                rec = BettingRecommendation(
-                    market="Totals",
-                    selection="Under",
-                    confidence=total_confidence,
-                    risk_level=tot_risk,
-                    reasoning="Высокая вероятность тотала меньше 2.5",
-                )
-                penalized_confidence = self._penalize_confidence(
-                    rec.confidence,  # base
-                    missing_ratio=missing_ratio,
-                    freshness_minutes=data_freshness_minutes,
-                )
-                rec.confidence = penalized_confidence
-                recommendations.append(rec)
-            # === BTTS market ===
             btts_yes_prob = float(probabilities.get("probability_btts_yes", probabilities.get("yes", 0.0)))
             btts_no_prob = float(probabilities.get("probability_btts_no", probabilities.get("no", 0.0)))
-            btts_confidence = self._confidence_from_probs({"yes": btts_yes_prob, "no": btts_no_prob})
+            btts_corr_probs = {"yes": btts_yes_prob, "no": btts_no_prob}
+            btts_confidence = self._confidence_from_probs(btts_corr_probs)
             btts_risk = (
                 RiskLevel.HIGH if btts_confidence < 0.1 else
                 RiskLevel.MEDIUM if btts_confidence < 0.25 else
                 RiskLevel.LOW
             )
-            if btts_yes_prob > 0.5:
+            # оцениваем рекомендации на основе скорректированных вероятностей
+            if total_confidence > 0.5:
+                selection = "Over" if over_prob > under_prob else "Under"
+                reasoning = (
+                    "Высокая вероятность тотала больше 2.5"
+                    if selection == "Over"
+                    else "Высокая вероятность тотала меньше 2.5"
+                )
                 rec = BettingRecommendation(
-                    market="BTTS",
-                    selection="Yes",
-                    confidence=btts_confidence,
-                    risk_level=btts_risk,
-                    reasoning="Высокая вероятность того, что обе команды забьют",
+                    market="Totals",
+                    selection=selection,
+                    confidence=total_confidence,
+                    risk_level=tot_risk,
+                    reasoning=reasoning,
                 )
                 penalized_confidence = self._penalize_confidence(
                     rec.confidence,  # base
@@ -414,13 +396,19 @@ class RecommendationEngine:
                 )
                 rec.confidence = penalized_confidence
                 recommendations.append(rec)
-            if btts_no_prob > 0.5:
+            if btts_confidence > 0.5:
+                selection = "Yes" if btts_yes_prob > btts_no_prob else "No"
+                reasoning = (
+                    "Высокая вероятность того, что обе команды забьют"
+                    if selection == "Yes"
+                    else "Высокая вероятность того, что одна из команд не забьёт"
+                )
                 rec = BettingRecommendation(
                     market="BTTS",
-                    selection="No",
+                    selection=selection,
                     confidence=btts_confidence,
                     risk_level=btts_risk,
-                    reasoning="Высокая вероятность того, что одна из команд не забьёт",
+                    reasoning=reasoning,
                 )
                 penalized_confidence = self._penalize_confidence(
                     rec.confidence,  # base
@@ -443,18 +431,18 @@ class RecommendationEngine:
                     btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
                     total_corr_probs = {"over": over_corr, "under": under_corr}
                     # Скорректированные вероятности BTTS/Тоталов (ключи {'yes','no'} и {'over','under'})
-                    btts_conf = self._confidence_from_probs(btts_corr_probs)
-                    total_conf = self._confidence_from_probs(total_corr_probs)
+                    btts_confidence = self.compute_confidence_from_margin(btts_corr_probs)
+                    total_confidence = self.compute_confidence_from_margin(total_corr_probs)
                     if btts_yes_corr > 0.5 and not any(r.market == "BTTS" and r.selection == "Yes" for r in recommendations):
                         risk_level = (
-                            RiskLevel.HIGH if btts_conf < 0.1 else
-                            RiskLevel.MEDIUM if btts_conf < 0.25 else
+                            RiskLevel.HIGH if btts_confidence < 0.1 else
+                            RiskLevel.MEDIUM if btts_confidence < 0.25 else
                             RiskLevel.LOW
                         )
                         rec = BettingRecommendation(
                             market="BTTS",
                             selection="Yes",
-                            confidence=btts_conf,
+                            confidence=btts_confidence,
                             risk_level=risk_level,
                             reasoning="Высокая вероятность 'Обе забьют' (с корреляцией)",
                         )
@@ -467,14 +455,14 @@ class RecommendationEngine:
                         recommendations.append(rec)
                     if over_corr > 0.5 and not any(r.market == "Totals" and r.selection == "Over" for r in recommendations):
                         risk_level = (
-                            RiskLevel.HIGH if total_conf < 0.1 else
-                            RiskLevel.MEDIUM if total_conf < 0.25 else
+                            RiskLevel.HIGH if total_confidence < 0.1 else
+                            RiskLevel.MEDIUM if total_confidence < 0.25 else
                             RiskLevel.LOW
                         )
                         rec = BettingRecommendation(
                             market="Totals",
                             selection="Over",
-                            confidence=total_conf,
+                            confidence=total_confidence,
                             risk_level=risk_level,
                             reasoning="Высокая вероятность Over (с корреляцией)",
                         )
