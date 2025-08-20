@@ -1,14 +1,13 @@
 # services/recommendation_engine.py
 """Сервис для генерации комплексных прогнозов и рекомендаций."""
 import asyncio
-import json
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 from logger import logger
-from config import get_settings
+from config import get_settings, CONFIDENCE
 # Импорт моделей
 from ml.models.poisson_model import poisson_model
 from ml.models.poisson_regression_model import poisson_regression_model
@@ -24,8 +23,59 @@ from services.sportmonks_client import sportmonks_client
 from services.prediction_modifier import prediction_modifier
 from services.data_processor import data_processor
 # Импорт модуля логирования в БД
-from database.db_logging import log_prediction
-settings = get_settings()
+try:
+    from database.db_logging import log_prediction  # async
+except Exception:  # pragma: no cover
+    log_prediction = None
+
+# === Confidence helpers ===
+def _confidence_from_margin(probabilities: Dict[str, float]) -> float:
+    """
+    Базовая уверенность как разница между топ-1 и топ-2 исходом.
+    Ожидаются ключи: 'home_win', 'draw', 'away_win'.
+    """
+    try:
+        vals = [
+            float(probabilities.get("home_win", 0.0)),
+            float(probabilities.get("draw", 0.0)),
+            float(probabilities.get("away_win", 0.0)),
+        ]
+        vals.sort(reverse=True)
+        margin = (vals[0] - vals[1]) if len(vals) >= 2 else 0.0
+        return float(max(0.0, min(1.0, margin)))
+    except Exception:
+        return 0.0
+
+def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
+    """
+    Оцениваем долю пропусков по ключевым фичам с обеих сторон.
+    Ожидаем структуру: {'home': {...}, 'away': {...}}.
+    """
+    try:
+        home = (team_stats or {}).get("home", {}) or {}
+        away = (team_stats or {}).get("away", {}) or {}
+        keys = ["xg", "shots", "ppda", "passes", "pass_accuracy"]
+        vals = [home.get(k) for k in keys] + [away.get(k) for k in keys]
+        miss = sum(1 for v in vals if v is None)
+        return miss / max(1, len(vals))
+    except Exception:
+        return 0.0
+
+def _penalize_confidence(base: float, missing_ratio: float, freshness_minutes: float = 0.0) -> float:
+    """
+    Применяем штрафы за пропуски и устаревшие данные.
+    Параметры берём из config.CONFIDENCE.
+    """
+    try:
+        c = float(base)
+        c *= (1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(missing_ratio))
+        c *= max(
+            0.0,
+            1 - float(CONFIDENCE.get("freshness_penalty_alpha", 0.15)) * (float(freshness_minutes) / 60.0),
+        )
+        return float(max(0.0, min(1.0, c)))
+    except Exception:
+        return base
 class RiskLevel(Enum):
     """Уровень риска ставки."""
     LOW = "низкий"
@@ -117,10 +167,11 @@ class RecommendationEngine:
             if self.regression_model.is_model_outdated():
                 logger.warning("⚠️ Модель регрессии устарела. Прогноз может быть менее точным. "
                                "Рекомендуется запустить переобучение модели.")
+            team_stats = match_data.get("team_stats", {})
             # 1. Расчет базовых λ
-            base_lambdas = await self._calculate_base_lambdas(match_data, {})
+            base_lambdas = await self._calculate_base_lambdas(match_data, team_stats)
             # 2. Подготовка контекста матча
-            match_context = await self._prepare_match_context(match_data, {})
+            match_context = await self._prepare_match_context(match_data, team_stats)
             # 3. Применение модификаторов
             modified_lambdas = await self.modifier.apply_dynamic_modifiers(
                 base_lambdas[0], base_lambdas[1], match_context
@@ -133,16 +184,24 @@ class RecommendationEngine:
                 "away_team": {"team_name": match_data.get("away_team")}
             }
             poisson_result = self.poisson_model.predict(poisson_input)
-            # 5. Подготовка информации о пропущенных данных (заглушка)
+            # 5. Подготовка информации о пропущенных данных
+            missing_ratio = _calc_missing_ratio(team_stats)
             missing_data_info = {
-                "missing_ratio": match_context.get("missing_ratio", 0.0),
-                "data_freshness_minutes": 0.0 # В реальной реализации здесь будет расчет свежести данных
+                "missing_ratio": missing_ratio,
+                "data_freshness_minutes": 0.0  # В реальной реализации здесь будет расчет свежести данных
             }
             # 6. Генерация рекомендаций с учетом пропущенных данных
             recommendations = await self._generate_betting_recommendations(
                 modified_lambdas[0], modified_lambdas[1],
                 poisson_result, match_context, missing_data_info
             )
+            # === Confidence: margin + penalties ===
+            try:
+                base_conf = _confidence_from_margin(poisson_result)
+            except Exception:
+                base_conf = 0.0
+            confidence = _penalize_confidence(base_conf, missing_ratio, freshness_minutes=0.0)
+
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
@@ -152,31 +211,31 @@ class RecommendationEngine:
                 },
                 "probabilities": poisson_result,
                 "best_recommendation": recommendations[0].market + ": " + recommendations[0].selection if recommendations else "Ставки не определены",
-                "confidence": round(recommendations[0].confidence, 3) if recommendations else 0.0,
+                "confidence": round(confidence, 3),
                 "risk_level": recommendations[0].risk_level.value if recommendations else "высокий",
                 "recommendations_count": len(recommendations),
                 "generated_at": datetime.now().isoformat(),
                 "missing_data_info": missing_data_info
             }
-            # 8. Логирование прогноза в базу данных
+            # === Async DB log (best-effort) ===
             try:
-                match_id = match_data.get("id", 0)
-                if match_id:
-                    features_snapshot = {
-                        "home_team": match_data.get("home_team"),
-                        "away_team": match_data.get("away_team"),
-                        # Добавьте другие важные фичи здесь
-                    }
-                    await log_prediction(
-                        match_id=match_id,
-                        features=features_snapshot,
-                        probs=poisson_result,
-                        lam_home=modified_lambdas[0],
-                        lam_away=modified_lambdas[1],
-                        confidence=detailed_prediction["confidence"]
+                if log_prediction is not None:
+                    match_id = (
+                        match_data.get("id")
+                        or match_data.get("fixture_id")
+                        or match_data.get("match_id")
+                        or 0
                     )
-            except Exception as log_error:
-                logger.error(f"Ошибка при логировании прогноза в БД: {log_error}")
+                    await log_prediction(
+                        match_id=int(match_id),
+                        features={"context": match_context},
+                        probs=poisson_result,
+                        lam_home=float(modified_lambdas[0]),
+                        lam_away=float(modified_lambdas[1]),
+                        confidence=float(confidence),
+                    )
+            except Exception as _e:
+                logger.warning("Логирование прогноза не выполнено: %s", _e)
             logger.info("Комплексный прогноз сгенерирован")
             return detailed_prediction
         except Exception as e:
@@ -192,16 +251,16 @@ class RecommendationEngine:
                 "recommendations_count": 0,
                 "missing_data_info": {"missing_ratio": 0.0, "data_freshness_minutes": 0.0}
             }
-    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> Tuple[float, float]:
+    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> List[float]:
         """Расчет базовых параметров λ."""
         try:
             # В реальной реализации здесь будет расчет λ
             # Например, с использованием poisson_regression_model
             # Для примера возвращаем заглушку
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
         except Exception as e:
             logger.error(f"Ошибка при расчете базовых λ: {e}")
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
     async def _prepare_match_context(self, match_data: Dict, team_stats: Dict) -> Dict[str, Any]:
         """Подготовка контекста матча."""
         try:
@@ -412,10 +471,6 @@ class RecommendationEngine:
 # Создание экземпляра движка рекомендаций
 recommendation_engine = RecommendationEngine()
 
-import numpy as np
-from typing import Any, Dict
-from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LogisticRegression
 
 class ProbabilityCalibrator:
     def __init__(self, method: str = "platt"):
@@ -423,13 +478,15 @@ class ProbabilityCalibrator:
         self.models: Dict[str, Any] = {}
 
     def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
+        from sklearn.isotonic import IsotonicRegression
+        from sklearn.linear_model import LogisticRegression
         for key, p in p_base.items():
             if self.method == "isotonic":
                 m = IsotonicRegression(out_of_bounds="clip")
-                self.models[key] = m.fit(p, (y_true==(key)).astype(float))
+                self.models[key] = m.fit(p, (y_true == (key)).astype(float))
             else:
                 m = LogisticRegression(max_iter=1000)
-                self.models[key] = m.fit(p.reshape(-1,1), (y_true==(key)).astype(int))
+                self.models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
         return self
 
     def predict(self, p_base: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
@@ -440,7 +497,7 @@ class ProbabilityCalibrator:
                 out[key] = p
             else:
                 if hasattr(m, "predict_proba"):
-                    out[key] = m.predict_proba(p.reshape(-1,1))[:,1]
+                    out[key] = m.predict_proba(p.reshape(-1, 1))[:, 1]
                 else:
                     out[key] = m.transform(p)
         # нормализация
@@ -448,15 +505,18 @@ class ProbabilityCalibrator:
             keys = list(out.keys())
             M = np.vstack([out[k] for k in keys]).T
             M = M / M.sum(axis=1, keepdims=True)
-            for i,k in enumerate(keys): out[k] = M[:,i]
+            for i, k in enumerate(keys):
+                out[k] = M[:, i]
         except Exception:
             pass
         return out
 
+
 class EnsembleCombiner:
     def __init__(self):
+        from sklearn.linear_model import LogisticRegression
         self.model = LogisticRegression(max_iter=1000)
-        self.keys: list[str] = []
+        self.keys: List[str] = []
 
     def fit(self, oof_preds: Dict[str, np.ndarray], y_true: np.ndarray) -> "EnsembleCombiner":
         self.keys = sorted(oof_preds.keys())
