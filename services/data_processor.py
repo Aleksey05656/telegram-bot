@@ -9,7 +9,21 @@ from services.sportmonks_client import sportmonks_client
 from database.cache_postgres import cache
 import math
 import numpy as np
-import pandas as pd # Перемещен импорт в основную секцию
+import pandas as pd
+
+# (cleanup) удалён мусорный `return None` вне функций
+# (cleanup) удалён артефакт `main`
+# (cleanup) удалены повторные импорты numpy/pandas внизу файла (если присутствовали)
+# (cleanup) удалены глобальные дубликаты утилит:
+# - parse_dt_safe
+# - compute_rest_days
+# - style_mismatch
+# - ewma
+# - add_missing_ratio
+# - load_climate_norm
+# - haversine_km
+# Используйте одноимённые методы/утилиты внутри класса DataProcessor.
+
 class DataProcessor:
     """Класс для обработки данных матчей."""
     def __init__(self):
