@@ -7,7 +7,7 @@ from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 from logger import logger
-from config import get_settings, CONFIDENCE
+from config import CONFIDENCE, get_settings
 # Импорт моделей
 from ml.models.poisson_model import poisson_model
 from ml.models.poisson_regression_model import poisson_regression_model
@@ -57,8 +57,9 @@ class BettingRecommendation:
     reasoning: str
 class RecommendationEngine:
     """Движок для генерации рекомендаций."""
-    def __init__(self):
+    def __init__(self, sportmonks_client, *args, **kwargs):
         """Инициализация Recommendation Engine."""
+        super().__init__(*args, **kwargs)
         self.settings = get_settings()
         self.poisson_model = poisson_model
         self.regression_model = poisson_regression_model
@@ -68,6 +69,18 @@ class RecommendationEngine:
         self.home_advantage_factor = 1.15 # Базовое преимущество домашней команды
         # Инициализация клиента
         self.sportmonks_client = sportmonks_client
+        # Инициализация калибратора вероятностей для 1X2
+        try:
+            self.calibrator = ProbabilityCalibrator(
+                keys=["home_win", "draw", "away_win"],
+                weights={"draw": 0.7},            # пример: чуть мягче калибровать ничью
+                strict_guard=True,
+                max_shift=0.25,
+                max_weight_on_large_shift=0.5,
+            )
+        except Exception:
+            # не блокируем работу движка, если калибратор недоступен
+            self.calibrator = None
         logger.info("RecommendationEngine инициализирован")
 
     @staticmethod
@@ -146,6 +159,27 @@ class RecommendationEngine:
                 "away_team": {"team_name": match_data.get("away_team")}
             }
             poisson_result = self.poisson_model.predict(poisson_input)
+            # ⚙️ Калибруем 1X2 вероятности, если калибратор доступен
+            if hasattr(self, "calibrator") and self.calibrator is not None:
+                try:
+                    # Поддерживаем оба набора ключей: probability_* или home/draw/away
+                    to_calibrate = {
+                        "home_win": float(poisson_result.get("home_win", poisson_result.get("probability_home_win", 0.0))),
+                        "draw": float(poisson_result.get("draw", poisson_result.get("probability_draw", 0.0))),
+                        "away_win": float(poisson_result.get("away_win", poisson_result.get("probability_away_win", 0.0))),
+                    }
+                    calibrated_1x2 = self.calibrator.predict(to_calibrate)
+                    # возвращаем в исходный нейминг, которым далее пользуется код
+                    poisson_result.update({
+                        "home_win": calibrated_1x2.get("home_win", to_calibrate["home_win"]),
+                        "draw": calibrated_1x2.get("draw", to_calibrate["draw"]),
+                        "away_win": calibrated_1x2.get("away_win", to_calibrate["away_win"]),
+                        "probability_home_win": calibrated_1x2.get("home_win", to_calibrate["home_win"]),
+                        "probability_draw": calibrated_1x2.get("draw", to_calibrate["draw"]),
+                        "probability_away_win": calibrated_1x2.get("away_win", to_calibrate["away_win"]),
+                    })
+                except Exception as _e:
+                    logger.warning("Calibrator skipped: %s", _e)
             # 5. Подготовка информации о пропущенных данных
             missing_ratio = _calc_missing_ratio(team_stats)
             missing_data_info = {
@@ -468,10 +502,16 @@ class ProbabilityCalibrator:
         method: str = "platt",
         keys: Optional[List[str]] = None,
         weights: Optional[Dict[str, float]] = None,
+        strict_guard: bool = True,
+        max_shift: float = 0.25,
+        max_weight_on_large_shift: float = 0.5,
     ):
         self.method = method
         self.keys = keys or []
         self.weights = weights or {}
+        self.strict_guard = bool(strict_guard)
+        self.max_shift = float(max(0.0, max_shift))
+        self.max_weight_on_large_shift = float(min(1.0, max(0.0, max_weight_on_large_shift)))
         self._models: Dict[str, Any] = {}
 
     def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
@@ -487,32 +527,61 @@ class ProbabilityCalibrator:
         return self
 
     def predict(self, probs: Dict[str, float]) -> Dict[str, float]:
-        """Калибруем вероятности по ключам с учётом моделей и весов."""
+        """
+        Калибруем вероятности по ключам.
+        - Если у модели есть predict_proba → используем вероятность положительного класса ([:, 1]).
+        - Иначе, если есть predict (напр. IsotonicRegression) → используем её вывод.
+        - Иначе, если есть transform → пробуем transform.
+        - Иначе оставляем исходное p.
+        Дополнительно поддерживается блендинг по весам: final = w*calibrated + (1-w)*original, w∈[0,1].
+        Если self.keys указан, калибруем только эти ключи; прочие — pass-through.
+        """
         calibrated: Dict[str, float] = {}
 
-        # определяем, какие ключи калибровать
+        # набор ключей для прохода: либо заданные, либо все из probs
         iter_keys = list(self.keys) if self.keys else list(probs.keys())
 
         for k in iter_keys:
             if k not in probs:
+                # ключ не задан во входе — пропускаем
                 continue
             original_p = float(probs[k])
             m = self._models.get(k)
+
+            # по умолчанию — исходная вероятность
             cal_p = original_p
 
             if m is not None:
                 try:
+                    # 1) Классификаторы с predict_proba (например, LogisticRegression)
                     if hasattr(m, "predict_proba"):
                         proba = m.predict_proba([[original_p]])
-                        if hasattr(proba, "shape") and len(getattr(proba, "shape", [])) == 2 and proba.shape[1] >= 2:
+                        # Надёжный разбор без лишних shape-предикатов
+                        try:
+                            # классическая форма (1, 2)
                             cal_p = float(proba[0][1])
-                        else:
-                            cal_p = float(proba.squeeze())
+                        except Exception:
+                            try:
+                                # если это numpy-подобный объект
+                                cal_p = float(getattr(proba, "squeeze", lambda: proba)())
+                            except Exception:
+                                # списки/кортежи и пр.
+                                if isinstance(proba, (list, tuple)):
+                                    if proba and isinstance(proba[0], (list, tuple)) and len(proba[0]) >= 2:
+                                        cal_p = float(proba[0][1])
+                                    elif proba:
+                                        cal_p = float(proba[0])
+                                else:
+                                    cal_p = original_p
+                    # 2) Регрессоры/калибраторы с predict (напр. IsotonicRegression)
                     elif hasattr(m, "predict"):
                         y = m.predict([[original_p]])
+                        # y может быть массивом/списком или скаляром
                         cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
+                    # 3) Редкий случай — только transform
                     elif hasattr(m, "transform"):
                         y = m.transform([[original_p]])
+                        # часто transform возвращает 2D; берём [0][0] при наличии
                         if hasattr(y, "__len__"):
                             try:
                                 cal_p = float(y[0][0])
@@ -521,26 +590,54 @@ class ProbabilityCalibrator:
                         else:
                             cal_p = float(y)
                 except Exception:
+                    # на любой ошибке откатываемся к исходной вероятности
                     cal_p = original_p
 
+            # приводим в [0,1]
             cal_p = max(0.0, min(1.0, cal_p))
 
+            # применяем блендинг по весу (сила калибровки)
             w = float(self.weights.get(k, 1.0))
+            # зажимаем вес в [0,1] на всякий случай
             if w < 0.0:
                 w = 0.0
             elif w > 1.0:
                 w = 1.0
+            # сторожок: если калибровка слишком далеко ушла от исходной p — ограничим влияние
+            if self.strict_guard and abs(cal_p - original_p) > self.max_shift:
+                w = min(w, self.max_weight_on_large_shift)
             final_p = w * cal_p + (1.0 - w) * original_p
 
             calibrated[k] = float(max(0.0, min(1.0, final_p)))
 
+        # Для ключей, не попавших в iter_keys (когда self.keys задан), перенесём как есть:
         if self.keys:
             for k, p in probs.items():
                 if k not in calibrated:
                     calibrated[k] = float(max(0.0, min(1.0, p)))
 
+        # гарантируем присутствие всех ключей из self.keys,
+        # даже если каких-то значений нет во входе probs
+        if self.keys:
+            for k in self.keys:
+                if k not in calibrated:
+                    calibrated[k] = float(max(0.0, min(1.0, float(probs.get(k, 0.0)))))
+        # если после добора словарь всё ещё пуст (например, и self.keys, и probs фактически пустые)
+        if not calibrated:
+            if self.keys:
+                # инициализируем ключи из self.keys нулями, чтобы не падать на нормализации
+                for k in self.keys:
+                    if k not in calibrated:
+                        calibrated[k] = 0.0
+            else:
+                # переносим всё, что есть в probs, приводя к [0,1]
+                for k, p in probs.items():
+                    calibrated[k] = float(max(0.0, min(1.0, float(p))))
+
+        # безопасная нормализация
         s = sum(calibrated.values())
         if s <= 0:
+            # возвращаем корректную «нулевую» дистрибуцию по имеющимся ключам
             return {k: 0.0 for k in calibrated}
         return {k: (v / s) for k, v in calibrated.items()}
 
