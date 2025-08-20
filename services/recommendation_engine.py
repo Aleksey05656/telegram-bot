@@ -57,9 +57,8 @@ class BettingRecommendation:
     reasoning: str
 class RecommendationEngine:
     """Движок для генерации рекомендаций."""
-    def __init__(self, sportmonks_client, *args, **kwargs):
+    def __init__(self, sportmonks_client):
         """Инициализация Recommendation Engine."""
-        super().__init__(*args, **kwargs)
         self.settings = get_settings()
         self.poisson_model = poisson_model
         self.regression_model = poisson_regression_model
@@ -493,7 +492,7 @@ class RecommendationEngine:
             logger.error(f"Ошибка при генерации рекомендаций: {e}")
             return []
 # Создание экземпляра движка рекомендаций
-recommendation_engine = RecommendationEngine()
+recommendation_engine = RecommendationEngine(sportmonks_client)
 
 
 class ProbabilityCalibrator:
