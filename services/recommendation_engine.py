@@ -487,17 +487,58 @@ class ProbabilityCalibrator:
         return self
 
     def predict(self, probs: Dict[str, float]) -> Dict[str, float]:
-        """Калибруем вероятности по ключам (home_win/draw/away_win или аналогичным)."""
-        calibrated = {}
-        for k, p in probs.items():
-            m = self._models.get(k)
-            if m is None:
-                calibrated[k] = float(p)
+        """Калибруем вероятности по ключам с учётом моделей и весов."""
+        calibrated: Dict[str, float] = {}
+
+        # определяем, какие ключи калибровать
+        iter_keys = list(self.keys) if self.keys else list(probs.keys())
+
+        for k in iter_keys:
+            if k not in probs:
                 continue
-            try:
-                calibrated[k] = float(m.predict([[p]])[0])
-            except Exception:
-                calibrated[k] = float(p)
+            original_p = float(probs[k])
+            m = self._models.get(k)
+            cal_p = original_p
+
+            if m is not None:
+                try:
+                    if hasattr(m, "predict_proba"):
+                        proba = m.predict_proba([[original_p]])
+                        if hasattr(proba, "shape") and len(getattr(proba, "shape", [])) == 2 and proba.shape[1] >= 2:
+                            cal_p = float(proba[0][1])
+                        else:
+                            cal_p = float(proba.squeeze())
+                    elif hasattr(m, "predict"):
+                        y = m.predict([[original_p]])
+                        cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
+                    elif hasattr(m, "transform"):
+                        y = m.transform([[original_p]])
+                        if hasattr(y, "__len__"):
+                            try:
+                                cal_p = float(y[0][0])
+                            except Exception:
+                                cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
+                        else:
+                            cal_p = float(y)
+                except Exception:
+                    cal_p = original_p
+
+            cal_p = max(0.0, min(1.0, cal_p))
+
+            w = float(self.weights.get(k, 1.0))
+            if w < 0.0:
+                w = 0.0
+            elif w > 1.0:
+                w = 1.0
+            final_p = w * cal_p + (1.0 - w) * original_p
+
+            calibrated[k] = float(max(0.0, min(1.0, final_p)))
+
+        if self.keys:
+            for k, p in probs.items():
+                if k not in calibrated:
+                    calibrated[k] = float(max(0.0, min(1.0, p)))
+
         s = sum(calibrated.values())
         if s <= 0:
             return {k: 0.0 for k in calibrated}
