@@ -11,14 +11,6 @@ import math
 import numpy as np
 import pandas as pd
 
-def parse_dt_safe(date_str: str) -> Optional[datetime]:
-    """Парсинг даты с обработкой ошибок."""
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-    except Exception as e:
-        print(f"Ошибка парсинга даты: {e}")
-        return None
-
 class DataProcessor:
     """Класс для обработки данных матчей."""
     def __init__(self):
