@@ -18,6 +18,21 @@ class DataProcessor:
         self.client = sportmonks_client
         # Исправлено: Используем правильный экземпляр кэша
         self.cache = cache
+
+    def parse_dt_safe(self, date_str: str):
+        """Парсинг даты с обработкой ошибок (без print, через логер)."""
+        if not date_str:
+            return None
+        try:
+            # быстрый ISO-путь
+            if "T" in date_str or "Z" in date_str:
+                ds = date_str.replace("Z", "").replace("T", " ")[:19]
+                return datetime.fromisoformat(ds)
+            # fallback на формат "%Y-%m-%d %H:%M:%S"
+            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            logger.warning("parse_dt_safe: failed to parse %r: %s", date_str, e)
+            return None
     def compute_rest_days(self, prev_match_dt: datetime, next_match_dt: datetime) -> int:
         """
         Вычисление количества дней отдыха между матчами.
