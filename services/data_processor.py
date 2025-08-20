@@ -9,7 +9,21 @@ from services.sportmonks_client import sportmonks_client
 from database.cache_postgres import cache
 import math
 import numpy as np
-import pandas as pd # Перемещен импорт в основную секцию
+import pandas as pd
+
+# (cleanup) удалён мусорный `return None` вне функций
+# (cleanup) удалён артефакт `main`
+# (cleanup) удалены повторные импорты numpy/pandas внизу файла (если присутствовали)
+# (cleanup) удалены глобальные дубликаты утилит:
+# - parse_dt_safe
+# - compute_rest_days
+# - style_mismatch
+# - ewma
+# - add_missing_ratio
+# - load_climate_norm
+# - haversine_km
+# Используйте одноимённые методы/утилиты внутри класса DataProcessor.
+
 class DataProcessor:
     """Класс для обработки данных матчей."""
     def __init__(self):
@@ -17,6 +31,21 @@ class DataProcessor:
         self.client = sportmonks_client
         # Исправлено: Используем правильный экземпляр кэша
         self.cache = cache
+
+    def parse_dt_safe(self, date_str: str):
+        """Парсинг даты с обработкой ошибок (без print, через логер)."""
+        if not date_str:
+            return None
+        try:
+            # быстрый ISO-путь
+            if "T" in date_str or "Z" in date_str:
+                ds = date_str.replace("Z", "").replace("T", " ")[:19]
+                return datetime.fromisoformat(ds)
+            # fallback на формат "%Y-%m-%d %H:%M:%S"
+            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            logger.warning("parse_dt_safe: failed to parse %r: %s", date_str, e)
+            return None
     def compute_rest_days(self, prev_match_dt: datetime, next_match_dt: datetime) -> int:
         """
         Вычисление количества дней отдыха между матчами.
@@ -809,6 +838,13 @@ class DataProcessor:
             logger.error(f"Ошибка при расчете признаков стрик: {e}")
             # Возвращаем значения по умолчанию в случае ошибки
             return {"win_streak": 0, "dry_spell": 0, "burst": 0}
+    def add_missing_ratio(self, df) -> float:
+        total_entries = getattr(df, "size", 0)
+        if total_entries == 0:
+            return 0.0
+        missing_entries = df.isnull().sum().sum()
+        return float(missing_entries) / int(total_entries)
+
     def add_missing_mask(self, features: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, int]]:
         """
         Добавление маски пропущенных значений к признакам.
