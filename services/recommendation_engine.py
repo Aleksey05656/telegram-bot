@@ -28,8 +28,6 @@ try:
 except Exception:  # pragma: no cover
     log_prediction = None
 
-# === Confidence helpers (defined inside RecommendationEngine) ===
-
 def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
     """
     Оцениваем долю пропусков по ключевым фичам с обеих сторон.
@@ -132,18 +130,6 @@ class RecommendationEngine:
         except Exception:
             return base
 
-    def compute_confidence_from_margin(self, probs: Dict[str, float]) -> float:
-        """Публичная обёртка для расчёта уверенности по марже."""
-        return self._confidence_from_probs(probs)
-
-    def penalize_confidence(
-        self, base: float, missing_ratio: float, freshness_minutes: float = 0.0
-    ) -> float:
-        """Применение штрафов к уверенности (доступно как метод экземпляра)."""
-        return self._penalize_confidence(
-            base, missing_ratio=missing_ratio, freshness_minutes=freshness_minutes
-        )
-
     async def generate_comprehensive_prediction(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
         """Генерация комплексного прогноза."""
         try:
@@ -184,13 +170,6 @@ class RecommendationEngine:
             )
             # === Confidence: margin + penalties ===
             try:
-                base_conf = self.compute_confidence_from_margin(poisson_result)
-            except Exception:
-                base_conf = 0.0
-            confidence = self.penalize_confidence(
-                base_conf, missing_ratio, freshness_minutes=0.0
-            )
-
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
@@ -287,7 +266,7 @@ class RecommendationEngine:
                 "probability_draw": draw_prob,
                 "probability_away_win": away_win_prob
             }
-            result_confidence = self.compute_confidence_from_margin(result_probs)
+            result_confidence = self._confidence_from_probs(result_probs)
             # Простая логика рекомендаций
             if home_win_prob > 0.5 and home_win_prob > draw_prob and home_win_prob > away_win_prob:
                 reasoning = "Высокая вероятность победы домашней команды"
@@ -327,7 +306,7 @@ class RecommendationEngine:
                 "probability_over_2_5": over_prob,
                 "probability_under_2_5": under_prob
             }
-            total_confidence = self.compute_confidence_from_margin(total_probs)
+            total_confidence = self._confidence_from_probs(total_probs)
             if over_prob > 0.55:
                 reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Over"
                 risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
@@ -356,7 +335,7 @@ class RecommendationEngine:
                 "probability_btts_yes": btts_yes_prob,
                 "probability_btts_no": btts_no_prob
             }
-            btts_confidence = self.compute_confidence_from_margin(btts_probs)
+            btts_confidence = self._confidence_from_probs(btts_probs)
             if btts_yes_prob > 0.55:
                 reasoning = "Высокая вероятность того, что обе команды забьют"
                 risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
@@ -399,7 +378,7 @@ class RecommendationEngine:
                         if not btts_exists:
                             # Вычисляем уверенность для скорректированного BTTS
                             btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
-                            btts_corr_confidence = self.compute_confidence_from_margin(btts_corr_probs)
+                            btts_corr_confidence = self._confidence_from_probs(btts_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Обе забьют",
                                 selection="Да",
@@ -415,7 +394,7 @@ class RecommendationEngine:
                         if not over_exists:
                             # Вычисляем уверенность для скорректированного тотала
                             total_corr_probs = {"over": over_corr, "under": under_corr}
-                            total_corr_confidence = self.compute_confidence_from_margin(total_corr_probs)
+                            total_corr_confidence = self._confidence_from_probs(total_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Тотал голов",
                                 selection="Больше",
@@ -435,9 +414,6 @@ class RecommendationEngine:
                     # Применяем штраф к уверенности каждой рекомендации
                     updated_recommendations = []
                     for rec in recommendations:
-                        penalized_confidence = self.penalize_confidence(
-                            rec.confidence,
-                            missing_ratio,
                             freshness_minutes=data_freshness_minutes,
                         )
                         # Создаем новую рекомендацию с обновленной уверенностью
@@ -499,21 +475,11 @@ class ProbabilityCalibrator:
         try:
             keys = list(out.keys())
             M = np.vstack([out[k] for k in keys]).T
-            row_sums = M.sum(axis=1, keepdims=True)
-            row_sums[row_sums <= 0] = 1.0
-            M = M / row_sums
             for i, k in enumerate(keys):
                 out[k] = M[:, i]
         except Exception:
             pass
         return out
-
-
-class EnsembleCombiner:
-    def __init__(self, keys: List[str], weights: Optional[Dict[str, float]] = None):
-        self.keys = keys
-        self.weights = weights or {}
-
     def predict(self, preds: Dict[str, Dict[str, float]]) -> Dict[str, float]:
         """
         preds: {'modelA': {'home_win':..., 'draw':..., 'away_win':...}, 'modelB': {...}, ...}
