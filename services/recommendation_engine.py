@@ -1,8 +1,8 @@
 # services/recommendation_engine.py
 """Сервис для генерации комплексных прогнозов и рекомендаций."""
-import asyncio
+# (cleanup) удалены неиспользуемые импорты asyncio и timedelta
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass
 import numpy as np
@@ -71,42 +71,32 @@ class RecommendationEngine:
         logger.info("RecommendationEngine инициализирован")
 
     @staticmethod
-    def _normalize_three_way_keys(probs: Dict[str, float]) -> Dict[str, float]:
-        """Приводим ключи к единому виду для 3-исходов."""
-        if {"home_win", "draw", "away_win"}.issubset(probs.keys()):
-            return {
-                "home_win": float(probs.get("home_win", 0.0)),
-                "draw": float(probs.get("draw", 0.0)),
-                "away_win": float(probs.get("away_win", 0.0)),
-            }
-        return {
-            "home_win": float(probs.get("probability_home_win", 0.0)),
-            "draw": float(probs.get("probability_draw", 0.0)),
-            "away_win": float(probs.get("probability_away_win", 0.0)),
-        }
-
-    @staticmethod
     def _confidence_from_probs(probs: Dict[str, float]) -> float:
-        """Универсальный расчёт уверенности для 2- и 3-исходов."""
+        """
+        Универсальный расчёт confidence:
+        - 3-исход: margin(top1 - top2) для {home_win,draw,away_win} или probability_*.
+        - 2-исход: |p1 - p2| для {yes,no} или {over,under} или {p1,p2}.
+        """
         keys = set(probs.keys())
-        if {"home_win", "draw", "away_win"}.issubset(keys) or {
-            "probability_home_win",
-            "probability_draw",
-            "probability_away_win",
-        }.issubset(keys):
-            norm = RecommendationEngine._normalize_three_way_keys(probs)
-            vals = sorted([norm["home_win"], norm["draw"], norm["away_win"]], reverse=True)
-            margin = vals[0] - vals[1] if len(vals) >= 2 else 0.0
-            return float(max(0.0, min(1.0, margin)))
-        two = None
+        # 3-way
+        if {"home_win", "draw", "away_win"}.issubset(keys) or \
+           {"probability_home_win", "probability_draw", "probability_away_win"}.issubset(keys):
+            h = float(probs.get("home_win", probs.get("probability_home_win", 0.0)))
+            d = float(probs.get("draw", probs.get("probability_draw", 0.0)))
+            a = float(probs.get("away_win", probs.get("probability_away_win", 0.0)))
+            vals = sorted([h, d, a], reverse=True)
+            return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
+        # 2-way
         if {"yes", "no"}.issubset(keys):
-            two = (float(probs["yes"]), float(probs["no"]))
-        elif {"over", "under"}.issubset(keys):
-            two = (float(probs["over"]), float(probs["under"]))
-        elif {"p1", "p2"}.issubset(keys):
-            two = (float(probs["p1"]), float(probs["p2"]))
-        if two is not None:
-            return float(max(0.0, min(1.0, abs(two[0] - two[1]))))
+            p1, p2 = float(probs["yes"]), float(probs["no"])
+            return float(max(0.0, min(1.0, abs(p1 - p2))))
+        if {"over", "under"}.issubset(keys):
+            p1, p2 = float(probs["over"]), float(probs["under"])
+            return float(max(0.0, min(1.0, abs(p1 - p2))))
+        if {"p1", "p2"}.issubset(keys):
+            p1, p2 = float(probs["p1"]), float(probs["p2"])
+            return float(max(0.0, min(1.0, abs(p1 - p2))))
+        # fallback
         try:
             vals = sorted([float(v) for v in probs.values()], reverse=True)
             return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
@@ -169,6 +159,15 @@ class RecommendationEngine:
             )
             # === Confidence: margin + penalties ===
             try:
+                base_conf = self._confidence_from_probs(poisson_result)
+                confidence = self._penalize_confidence(
+                    base_conf,
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=missing_data_info.get("data_freshness_minutes", 0.0),
+                )
+            except Exception as _e:
+                logger.warning("Ошибка при расчёте confidence: %s", _e)
+                confidence = 0.0
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
@@ -246,189 +245,215 @@ class RecommendationEngine:
         except Exception as e:
             logger.error(f"Ошибка при подготовке контекста матча: {e}")
             return {}
-    async def _generate_betting_recommendations(self, lambda_home: float, lambda_away: float,
-                                                probabilities: Dict[str, float],
-                                                match_context: Dict[str, Any],
-                                                missing_data_info: Optional[Dict[str, Any]] = None) -> List[BettingRecommendation]:
+    async def _generate_betting_recommendations(
+        self,
+        lambda_home: float,
+        lambda_away: float,
+        probabilities: Dict[str, float],
+        match_context: Dict[str, Any],
+        missing_data_info: Optional[Dict[str, Any]] = None,
+    ) -> List[BettingRecommendation]:
         """Генерация рекомендаций по ставкам."""
         try:
             logger.debug("Генерация рекомендаций по ставкам")
-            recommendations = []
-            total_goals = lambda_home + lambda_away
-            # 1. Рекомендация по результату матча
-            home_win_prob = probabilities.get('probability_home_win', 0)
-            draw_prob = probabilities.get('probability_draw', 0)
-            away_win_prob = probabilities.get('probability_away_win', 0)
-            # Вычисляем уверенность на основе маржи для результата матча
-            result_probs = {
-                "probability_home_win": home_win_prob,
+            recommendations: List[BettingRecommendation] = []
+            missing_ratio = (missing_data_info or {}).get("missing_ratio", 0.0)
+            data_freshness_minutes = (missing_data_info or {}).get("data_freshness_minutes", 0.0)
+            # === Result market ===
+            home_prob = float(probabilities.get("probability_home_win", probabilities.get("home_win", 0.0)))
+            draw_prob = float(probabilities.get("probability_draw", probabilities.get("draw", 0.0)))
+            away_prob = float(probabilities.get("probability_away_win", probabilities.get("away_win", 0.0)))
+            result_confidence = self._confidence_from_probs({
+                "probability_home_win": home_prob,
                 "probability_draw": draw_prob,
-                "probability_away_win": away_win_prob
-            }
-            result_confidence = self._confidence_from_probs(result_probs)
-            # Простая логика рекомендаций
-            if home_win_prob > 0.5 and home_win_prob > draw_prob and home_win_prob > away_win_prob:
-                reasoning = "Высокая вероятность победы домашней команды"
-                risk_level = RiskLevel.HIGH if result_confidence < 0.15 else RiskLevel.MEDIUM if result_confidence < 0.3 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Результат матча",
-                    selection="Победа домашней команды",
+                "probability_away_win": away_prob,
+            })
+            res_risk = (
+                RiskLevel.HIGH if result_confidence < 0.15 else
+                RiskLevel.MEDIUM if result_confidence < 0.3 else
+                RiskLevel.LOW
+            )
+            if home_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="1X2",
+                    selection="Home",
                     confidence=result_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            elif away_win_prob > 0.5 and away_win_prob > draw_prob and away_win_prob > home_win_prob:
-                reasoning = "Высокая вероятность победы гостевой команды"
-                risk_level = RiskLevel.HIGH if result_confidence < 0.15 else RiskLevel.MEDIUM if result_confidence < 0.3 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Результат матча",
-                    selection="Победа гостевой команды",
+                    risk_level=res_risk,
+                    reasoning="Высокая вероятность победы домашней команды",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            if draw_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="1X2",
+                    selection="Draw",
                     confidence=result_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            elif draw_prob > 0.4:
-                reasoning = "Высокая вероятность ничьей"
-                risk_level = RiskLevel.HIGH # Ничья обычно рискованнее
-                recommendations.append(BettingRecommendation(
-                    market="Результат матча",
-                    selection="Ничья",
-                    confidence=draw_prob,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            # 2. Рекомендация по тоталу
-            over_prob = probabilities.get('probability_over_2_5', 0)
-            under_prob = probabilities.get('probability_under_2_5', 0)
-            # Вычисляем уверенность на основе маржи для тотала
-            total_probs = {
-                "probability_over_2_5": over_prob,
-                "probability_under_2_5": under_prob
-            }
-                reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Over"
-                risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Тотал голов",
-                    selection="Больше 2.5",
+                    risk_level=RiskLevel.HIGH,
+                    reasoning="Высокая вероятность ничьей",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            if away_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="1X2",
+                    selection="Away",
+                    confidence=result_confidence,
+                    risk_level=res_risk,
+                    reasoning="Высокая вероятность победы гостевой команды",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            # === Totals market ===
+            over_prob = float(probabilities.get("probability_over_2_5", probabilities.get("over", 0.0)))
+            under_prob = float(probabilities.get("probability_under_2_5", probabilities.get("under", 0.0)))
+            total_confidence = self._confidence_from_probs({"over": over_prob, "under": under_prob})
+            tot_risk = (
+                RiskLevel.HIGH if total_confidence < 0.1 else
+                RiskLevel.MEDIUM if total_confidence < 0.25 else
+                RiskLevel.LOW
+            )
+            if over_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="Totals",
+                    selection="Over",
                     confidence=total_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            elif under_prob > 0.5:
-                reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Under"
-                risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Тотал голов",
-                    selection="Меньше 2.5",
+                    risk_level=tot_risk,
+                    reasoning="Высокая вероятность тотала больше 2.5",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            if under_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="Totals",
+                    selection="Under",
                     confidence=total_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            # 3. Рекомендация по обе забьют (BTTS)
-            btts_yes_prob = probabilities.get('probability_btts_yes', 0)
-            btts_no_prob = probabilities.get('probability_btts_no', 0)
-            # Вычисляем уверенность на основе маржи для BTTS
-            btts_probs = {
-                "probability_btts_yes": btts_yes_prob,
-                "probability_btts_no": btts_no_prob
-            }
-                reasoning = "Высокая вероятность того, что обе команды забьют"
-                risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Обе забьют",
-                    selection="Да",
+                    risk_level=tot_risk,
+                    reasoning="Высокая вероятность тотала меньше 2.5",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            # === BTTS market ===
+            btts_yes_prob = float(probabilities.get("probability_btts_yes", probabilities.get("yes", 0.0)))
+            btts_no_prob = float(probabilities.get("probability_btts_no", probabilities.get("no", 0.0)))
+            btts_confidence = self._confidence_from_probs({"yes": btts_yes_prob, "no": btts_no_prob})
+            btts_risk = (
+                RiskLevel.HIGH if btts_confidence < 0.1 else
+                RiskLevel.MEDIUM if btts_confidence < 0.25 else
+                RiskLevel.LOW
+            )
+            if btts_yes_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="BTTS",
+                    selection="Yes",
                     confidence=btts_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            elif btts_no_prob > 0.5:
-                reasoning = "Высокая вероятность того, что одна из команд не забьет"
-                risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
-                recommendations.append(BettingRecommendation(
-                    market="Обе забьют",
-                    selection="Нет",
+                    risk_level=btts_risk,
+                    reasoning="Высокая вероятность того, что обе команды забьют",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            if btts_no_prob > 0.5:
+                rec = BettingRecommendation(
+                    market="BTTS",
+                    selection="No",
                     confidence=btts_confidence,
-                    risk_level=risk_level,
-                    reasoning=reasoning
-                ))
-            # 4. Использование Bivariate Poisson (если включено)
+                    risk_level=btts_risk,
+                    reasoning="Высокая вероятность того, что одна из команд не забьёт",
+                )
+                penalized_confidence = self._penalize_confidence(
+                    rec.confidence,  # base
+                    missing_ratio=missing_ratio,
+                    freshness_minutes=data_freshness_minutes,
+                )
+                rec.confidence = penalized_confidence
+                recommendations.append(rec)
+            # === Bivariate Poisson adjustment ===
             if self.settings.MODEL_FLAGS.get("enable_bivariate_poisson", False) and HAS_BIVARIATE_POISSON:
                 try:
-                    # Оценка rho на основе контекста матча (безопасный доступ)
+                    # Bivariate Poisson коррекции (безопасный вызов)
                     try:
                         rho = estimate_rho(match_context)
                     except Exception:
                         rho = 0.0
-                    # Создание Bivariate Poisson модели
                     bivar_model = BivariatePoisson(lambda_home, lambda_away, rho)
-                    # Вычисление BTTS с корреляцией
                     btts_yes_corr, btts_no_corr = bivar_model.calculate_btts()
-                    # Вычисление тоталов с корреляцией
                     over_corr, under_corr = bivar_model.calculate_totals()
-                    logger.debug(f"Bivariate Poisson: BTTS(Да)={btts_yes_corr:.3f}, "
-                                f"Over={over_corr:.3f}, ρ={rho:.2f}")
-                    # Обновление рекомендаций с учетом корреляции
-                    if btts_yes_corr > 0.5:
-                        reasoning = f"Высокая вероятность 'Обе забьют' (с корреляцией)"
-                        risk_level = RiskLevel.HIGH if btts_yes_corr < 0.6 else RiskLevel.MEDIUM if btts_yes_corr < 0.7 else RiskLevel.LOW
-                        # Проверяем, есть ли уже такая рекомендация
-                        btts_exists = any(r.market == "Обе забьют" and r.selection == "Да" for r in recommendations)
-                        if not btts_exists:
-                            # Вычисляем уверенность для скорректированного BTTS
-                            btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
-                            btts_corr_confidence = self._confidence_from_probs(btts_corr_probs)
-                            recommendations.append(BettingRecommendation(
-                                market="Обе забьют",
-                                selection="Да",
-                                confidence=btts_corr_confidence,
-                                risk_level=risk_level,
-                                reasoning=reasoning
-                            ))
-                    if over_corr > 0.5:
-                        reasoning = f"Высокая вероятность Over (с корреляцией)"
-                        risk_level = RiskLevel.HIGH if over_corr < 0.6 else RiskLevel.MEDIUM if over_corr < 0.7 else RiskLevel.LOW
-                        # Проверяем, есть ли уже такая рекомендация
-                        over_exists = any(r.market == "Тотал голов" and r.selection == "Больше" for r in recommendations)
-                        if not over_exists:
-                            # Вычисляем уверенность для скорректированного тотала
-                            total_corr_probs = {"over": over_corr, "under": under_corr}
-                            total_corr_confidence = self._confidence_from_probs(total_corr_probs)
-                            recommendations.append(BettingRecommendation(
-                                market="Тотал голов",
-                                selection="Больше",
-                                confidence=total_corr_confidence,
-                                risk_level=risk_level,
-                                reasoning=reasoning
-                            ))
-                except Exception as bivar_error:
-                    logger.error(f"Ошибка при использовании Bivariate Poisson: {bivar_error}")
-            # 5. Применение штрафа к уверенности на основе пропущенных данных
-            if missing_data_info and recommendations:
-                try:
-                    # Получаем долю пропущенных данных
-                    missing_ratio = missing_data_info.get("missing_ratio", 0.0)
-                    # Получаем свежесть данных (в минутах)
-                    data_freshness_minutes = missing_data_info.get("data_freshness_minutes", 0.0)
-                    # Применяем штраф к уверенности каждой рекомендации
-                    updated_recommendations = []
-                    for rec in recommendations:
+                    btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
+                    total_corr_probs = {"over": over_corr, "under": under_corr}
+                    # Скорректированные вероятности BTTS/Тоталов (ключи {'yes','no'} и {'over','under'})
+                    btts_conf = self._confidence_from_probs(btts_corr_probs)
+                    total_conf = self._confidence_from_probs(total_corr_probs)
+                    if btts_yes_corr > 0.5 and not any(r.market == "BTTS" and r.selection == "Yes" for r in recommendations):
+                        risk_level = (
+                            RiskLevel.HIGH if btts_conf < 0.1 else
+                            RiskLevel.MEDIUM if btts_conf < 0.25 else
+                            RiskLevel.LOW
+                        )
+                        rec = BettingRecommendation(
+                            market="BTTS",
+                            selection="Yes",
+                            confidence=btts_conf,
+                            risk_level=risk_level,
+                            reasoning="Высокая вероятность 'Обе забьют' (с корреляцией)",
+                        )
+                        penalized_confidence = self._penalize_confidence(
+                            rec.confidence,  # base
+                            missing_ratio=missing_ratio,
                             freshness_minutes=data_freshness_minutes,
                         )
-                        # Создаем новую рекомендацию с обновленной уверенностью
-                        updated_rec = BettingRecommendation(
-                            market=rec.market,
-                            selection=rec.selection,
-                            confidence=penalized_confidence,
-                            risk_level=rec.risk_level,
-                            reasoning=rec.reasoning + f" (скорректировано: пропуски={missing_ratio:.1%})"
+                        rec.confidence = penalized_confidence
+                        recommendations.append(rec)
+                    if over_corr > 0.5 and not any(r.market == "Totals" and r.selection == "Over" for r in recommendations):
+                        risk_level = (
+                            RiskLevel.HIGH if total_conf < 0.1 else
+                            RiskLevel.MEDIUM if total_conf < 0.25 else
+                            RiskLevel.LOW
                         )
-                        updated_recommendations.append(updated_rec)
-                    recommendations = updated_recommendations
-                    logger.debug(f"Применены штрафы к уверенности: пропуски={missing_ratio:.1%}, "
-                                 f"свежесть={data_freshness_minutes:.1f}мин")
-                except Exception as penalty_error:
-                    logger.error(f"Ошибка при применении штрафов к уверенности: {penalty_error}")
-                    # Возвращаем оригинальные рекомендации в случае ошибки
+                        rec = BettingRecommendation(
+                            market="Totals",
+                            selection="Over",
+                            confidence=total_conf,
+                            risk_level=risk_level,
+                            reasoning="Высокая вероятность Over (с корреляцией)",
+                        )
+                        penalized_confidence = self._penalize_confidence(
+                            rec.confidence,  # base
+                            missing_ratio=missing_ratio,
+                            freshness_minutes=data_freshness_minutes,
+                        )
+                        rec.confidence = penalized_confidence
+                        recommendations.append(rec)
+                except Exception as bivar_error:
+                    logger.error(f"Ошибка при использовании Bivariate Poisson: {bivar_error}")
             return recommendations
         except Exception as e:
             logger.error(f"Ошибка при генерации рекомендаций: {e}")
@@ -438,9 +463,16 @@ recommendation_engine = RecommendationEngine()
 
 
 class ProbabilityCalibrator:
-    def __init__(self, method: str = "platt"):
+    def __init__(
+        self,
+        method: str = "platt",
+        keys: Optional[List[str]] = None,
+        weights: Optional[Dict[str, float]] = None,
+    ):
         self.method = method
-        self.models: Dict[str, Any] = {}
+        self.keys = keys or []
+        self.weights = weights or {}
+        self._models: Dict[str, Any] = {}
 
     def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
         from sklearn.isotonic import IsotonicRegression
@@ -448,47 +480,27 @@ class ProbabilityCalibrator:
         for key, p in p_base.items():
             if self.method == "isotonic":
                 m = IsotonicRegression(out_of_bounds="clip")
-                self.models[key] = m.fit(p, (y_true == (key)).astype(float))
+                self._models[key] = m.fit(p, (y_true == (key)).astype(float))
             else:
                 m = LogisticRegression(max_iter=1000)
-                self.models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
+                self._models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
         return self
 
-    def predict(self, p_base: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        out = {}
-        for key, p in p_base.items():
-            m = self.models.get(key)
+    def predict(self, probs: Dict[str, float]) -> Dict[str, float]:
+        """Калибруем вероятности по ключам (home_win/draw/away_win или аналогичным)."""
+        calibrated = {}
+        for k, p in probs.items():
+            m = self._models.get(k)
             if m is None:
-                out[key] = p
-            else:
-                if hasattr(m, "predict_proba"):
-                    out[key] = m.predict_proba(p.reshape(-1, 1))[:, 1]
-                else:
-                    # IsotonicRegression не имеет transform → используем predict
-                    try:
-                        out[key] = m.predict(p)
-                    except Exception:
-                        out[key] = p
-        # нормализация с защитой от нулевой суммы
-        try:
-            keys = list(out.keys())
-            M = np.vstack([out[k] for k in keys]).T
-            for i, k in enumerate(keys):
-                out[k] = M[:, i]
-        except Exception:
-            pass
-        return out
-    def predict(self, preds: Dict[str, Dict[str, float]]) -> Dict[str, float]:
-        """
-        preds: {'modelA': {'home_win':..., 'draw':..., 'away_win':...}, 'modelB': {...}, ...}
-        """
-        out = {k: 0.0 for k in self.keys}
-        for model_name, model_probs in preds.items():
-            w = float(self.weights.get(model_name, 1.0))
-            for key in self.keys:
-                v = float(model_probs.get(key, 0.0))
-                out[key] += w * v
-        s = sum(out.values())
+                calibrated[k] = float(p)
+                continue
+            try:
+                calibrated[k] = float(m.predict([[p]])[0])
+            except Exception:
+                calibrated[k] = float(p)
+        s = sum(calibrated.values())
         if s <= 0:
-            return {k: 0.0 for k in out}
-        return {k: (v / s) for k, v in out.items()}
+            return {k: 0.0 for k in calibrated}
+        return {k: (v / s) for k, v in calibrated.items()}
+
+    # Для ансамблирования нескольких моделей используйте EnsembleCombiner.
