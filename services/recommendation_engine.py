@@ -414,9 +414,6 @@ class RecommendationEngine:
                     # Применяем штраф к уверенности каждой рекомендации
                     updated_recommendations = []
                     for rec in recommendations:
-                        penalized_confidence = self._penalize_confidence(
-                            rec.confidence,
-                            missing_ratio=missing_ratio,
                             freshness_minutes=data_freshness_minutes,
                         )
                         # Создаем новую рекомендацию с обновленной уверенностью
@@ -483,11 +480,6 @@ class ProbabilityCalibrator:
         except Exception:
             pass
         return out
-class EnsembleCombiner:
-    def __init__(self, keys: List[str], weights: Optional[Dict[str, float]] = None):
-        self.keys = keys
-        self.weights = weights or {}
-
     def predict(self, preds: Dict[str, Dict[str, float]]) -> Dict[str, float]:
         """
         preds: {'modelA': {'home_win':..., 'draw':..., 'away_win':...}, 'modelB': {...}, ...}
