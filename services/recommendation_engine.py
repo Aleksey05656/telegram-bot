@@ -27,7 +27,6 @@ try:
     from database.db_logging import log_prediction  # async
 except Exception:  # pragma: no cover
     log_prediction = None
-
 def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
     """
     Оцениваем долю пропусков по ключевым фичам с обеих сторон.
@@ -306,8 +305,6 @@ class RecommendationEngine:
                 "probability_over_2_5": over_prob,
                 "probability_under_2_5": under_prob
             }
-            total_confidence = self._confidence_from_probs(total_probs)
-            if over_prob > 0.55:
                 reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Over"
                 risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
                 recommendations.append(BettingRecommendation(
@@ -317,7 +314,7 @@ class RecommendationEngine:
                     risk_level=risk_level,
                     reasoning=reasoning
                 ))
-            elif under_prob > 0.55:
+            elif under_prob > 0.5:
                 reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Under"
                 risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
                 recommendations.append(BettingRecommendation(
@@ -335,8 +332,6 @@ class RecommendationEngine:
                 "probability_btts_yes": btts_yes_prob,
                 "probability_btts_no": btts_no_prob
             }
-            btts_confidence = self._confidence_from_probs(btts_probs)
-            if btts_yes_prob > 0.55:
                 reasoning = "Высокая вероятность того, что обе команды забьют"
                 risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
                 recommendations.append(BettingRecommendation(
@@ -346,7 +341,7 @@ class RecommendationEngine:
                     risk_level=risk_level,
                     reasoning=reasoning
                 ))
-            elif btts_no_prob > 0.55:
+            elif btts_no_prob > 0.5:
                 reasoning = "Высокая вероятность того, что одна из команд не забьет"
                 risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
                 recommendations.append(BettingRecommendation(
@@ -359,8 +354,11 @@ class RecommendationEngine:
             # 4. Использование Bivariate Poisson (если включено)
             if self.settings.MODEL_FLAGS.get("enable_bivariate_poisson", False) and HAS_BIVARIATE_POISSON:
                 try:
-                    # Оценка rho на основе контекста матча
-                    rho = estimate_rho(match_context)
+                    # Оценка rho на основе контекста матча (безопасный доступ)
+                    try:
+                        rho = estimate_rho(match_context)
+                    except Exception:
+                        rho = 0.0
                     # Создание Bivariate Poisson модели
                     bivar_model = BivariatePoisson(lambda_home, lambda_away, rho)
                     # Вычисление BTTS с корреляцией
@@ -370,7 +368,7 @@ class RecommendationEngine:
                     logger.debug(f"Bivariate Poisson: BTTS(Да)={btts_yes_corr:.3f}, "
                                 f"Over={over_corr:.3f}, ρ={rho:.2f}")
                     # Обновление рекомендаций с учетом корреляции
-                    if btts_yes_corr > 0.55:
+                    if btts_yes_corr > 0.5:
                         reasoning = f"Высокая вероятность 'Обе забьют' (с корреляцией)"
                         risk_level = RiskLevel.HIGH if btts_yes_corr < 0.6 else RiskLevel.MEDIUM if btts_yes_corr < 0.7 else RiskLevel.LOW
                         # Проверяем, есть ли уже такая рекомендация
@@ -386,7 +384,7 @@ class RecommendationEngine:
                                 risk_level=risk_level,
                                 reasoning=reasoning
                             ))
-                    if over_corr > 0.55:
+                    if over_corr > 0.5:
                         reasoning = f"Высокая вероятность Over (с корреляцией)"
                         risk_level = RiskLevel.HIGH if over_corr < 0.6 else RiskLevel.MEDIUM if over_corr < 0.7 else RiskLevel.LOW
                         # Проверяем, есть ли уже такая рекомендация
