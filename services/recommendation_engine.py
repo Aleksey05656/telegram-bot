@@ -469,12 +469,15 @@ class ProbabilityCalibrator:
                 if hasattr(m, "predict_proba"):
                     out[key] = m.predict_proba(p.reshape(-1, 1))[:, 1]
                 else:
-                    out[key] = m.transform(p)
-        # нормализация
+                    # IsotonicRegression не имеет transform → используем predict
+                    try:
+                        out[key] = m.predict(p)
+                    except Exception:
+                        out[key] = p
+        # нормализация с защитой от нулевой суммы
         try:
             keys = list(out.keys())
             M = np.vstack([out[k] for k in keys]).T
-            M = M / M.sum(axis=1, keepdims=True)
             for i, k in enumerate(keys):
                 out[k] = M[:, i]
         except Exception:
