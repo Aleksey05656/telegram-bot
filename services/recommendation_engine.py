@@ -28,24 +28,6 @@ try:
 except Exception:  # pragma: no cover
     log_prediction = None
 
-# === Confidence helpers ===
-def _confidence_from_margin(probabilities: Dict[str, float]) -> float:
-    """
-    Базовая уверенность как разница между топ-1 и топ-2 исходом.
-    Ожидаются ключи: 'home_win', 'draw', 'away_win'.
-    """
-    try:
-        vals = [
-            float(probabilities.get("home_win", 0.0)),
-            float(probabilities.get("draw", 0.0)),
-            float(probabilities.get("away_win", 0.0)),
-        ]
-        vals.sort(reverse=True)
-        margin = (vals[0] - vals[1]) if len(vals) >= 2 else 0.0
-        return float(max(0.0, min(1.0, margin)))
-    except Exception:
-        return 0.0
-
 def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
     """
     Оцениваем долю пропусков по ключевым фичам с обеих сторон.
@@ -61,21 +43,6 @@ def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
     except Exception:
         return 0.0
 
-def _penalize_confidence(base: float, missing_ratio: float, freshness_minutes: float = 0.0) -> float:
-    """
-    Применяем штрафы за пропуски и устаревшие данные.
-    Параметры берём из config.CONFIDENCE.
-    """
-    try:
-        c = float(base)
-        c *= (1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(missing_ratio))
-        c *= max(
-            0.0,
-            1 - float(CONFIDENCE.get("freshness_penalty_alpha", 0.15)) * (float(freshness_minutes) / 60.0),
-        )
-        return float(max(0.0, min(1.0, c)))
-    except Exception:
-        return base
 class RiskLevel(Enum):
     """Уровень риска ставки."""
     LOW = "низкий"
@@ -103,60 +70,66 @@ class RecommendationEngine:
         # Инициализация клиента
         self.sportmonks_client = sportmonks_client
         logger.info("RecommendationEngine инициализирован")
-    def compute_confidence_from_margin(self, probs: Dict[str, float]) -> float:
-        """Вычисление уверенности на основе маржи вероятностей.
-        Args:
-            probs (Dict[str, float]): Вероятности исходов
-        Returns:
-            float: Уровень уверенности (0-1)
-        """
+
+    @staticmethod
+    def _normalize_three_way_keys(probs: Dict[str, float]) -> Dict[str, float]:
+        """Приводим ключи к единому виду для 3-исходов."""
+        if {"home_win", "draw", "away_win"}.issubset(probs.keys()):
+            return {
+                "home_win": float(probs.get("home_win", 0.0)),
+                "draw": float(probs.get("draw", 0.0)),
+                "away_win": float(probs.get("away_win", 0.0)),
+            }
+        return {
+            "home_win": float(probs.get("probability_home_win", 0.0)),
+            "draw": float(probs.get("probability_draw", 0.0)),
+            "away_win": float(probs.get("probability_away_win", 0.0)),
+        }
+
+    @staticmethod
+    def _confidence_from_probs(probs: Dict[str, float]) -> float:
+        """Универсальный расчёт уверенности для 2- и 3-исходов."""
+        keys = set(probs.keys())
+        if {"home_win", "draw", "away_win"}.issubset(keys) or {
+            "probability_home_win",
+            "probability_draw",
+            "probability_away_win",
+        }.issubset(keys):
+            norm = RecommendationEngine._normalize_three_way_keys(probs)
+            vals = sorted([norm["home_win"], norm["draw"], norm["away_win"]], reverse=True)
+            margin = vals[0] - vals[1] if len(vals) >= 2 else 0.0
+            return float(max(0.0, min(1.0, margin)))
+        two = None
+        if {"yes", "no"}.issubset(keys):
+            two = (float(probs["yes"]), float(probs["no"]))
+        elif {"over", "under"}.issubset(keys):
+            two = (float(probs["over"]), float(probs["under"]))
+        elif {"p1", "p2"}.issubset(keys):
+            two = (float(probs["p1"]), float(probs["p2"]))
+        if two is not None:
+            return float(max(0.0, min(1.0, abs(two[0] - two[1]))))
         try:
-            # Максимальная вероятность
-            max_prob = max(probs.get("probability_home_win", 0),
-                           probs.get("probability_draw", 0),
-                           probs.get("probability_away_win", 0))
-            # Минимальная вероятность среди основных исходов
-            min_prob = min(probs.get("probability_home_win", 1),
-                           probs.get("probability_draw", 1),
-                           probs.get("probability_away_win", 1))
-            # Маржа как разница
-            margin = max_prob - min_prob
-            # Нормализуем уверенность (пример)
-            confidence = max(0.0, min(1.0, margin * 2)) # Пример нормализации
-            return confidence
-        except Exception as e:
-            logger.error(f"Ошибка при вычислении уверенности: {e}")
+            vals = sorted([float(v) for v in probs.values()], reverse=True)
+            return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
+        except Exception:
             return 0.0
-    def penalize_confidence(self, confidence: float, missing_ratio: float, data_freshness_minutes: float) -> float:
-        """Применение штрафа к уверенности на основе пропусков и свежести данных.
-        Args:
-            confidence (float): Исходная уверенность (0-1).
-            missing_ratio (float): Доля пропущенных значений (0-1).
-            data_freshness_minutes (float): Свежесть данных в минутах.
-        Returns:
-            float: Скорректированная уверенность (0-1).
-        """
+
+    @staticmethod
+    def _penalize_confidence(
+        base: float, *, missing_ratio: float = 0.0, freshness_minutes: float = 0.0
+    ) -> float:
+        """Применяем штрафы за пропуски и устаревшие данные."""
         try:
-            # Получаем параметры штрафов из конфигурации
-            missing_penalty_alpha = getattr(self.settings, 'CONFIDENCE', {}).get('missing_penalty_alpha', 0.2)
-            freshness_penalty_alpha = getattr(self.settings, 'CONFIDENCE', {}).get('freshness_penalty_alpha', 0.15)
-            # Применяем штраф за пропуски
-            missing_penalty = 1.0 - (missing_ratio * missing_penalty_alpha)
-            # Применяем штраф за свежесть (например, после 60 минут начинаем штрафовать)
-            freshness_base_minutes = getattr(self.settings, 'CONFIDENCE', {}).get('freshness_base_minutes', 60)
-            if data_freshness_minutes > freshness_base_minutes:
-                extra_minutes = data_freshness_minutes - freshness_base_minutes
-                freshness_penalty = 1.0 - ((extra_minutes / 60.0) * freshness_penalty_alpha)
-                freshness_penalty = max(0.5, freshness_penalty) # Минимум 50%
-            else:
-                freshness_penalty = 1.0
-            # Комбинируем штрафы
-            final_confidence = confidence * missing_penalty * freshness_penalty
-            final_confidence = max(0.0, min(1.0, final_confidence))
-            return final_confidence
-        except Exception as penalty_error:
-            logger.error(f"Ошибка при применении штрафов к уверенности: {penalty_error}")
-            return confidence
+            c = float(base)
+            c *= 1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(missing_ratio)
+            freshness_penalty = float(CONFIDENCE.get("freshness_penalty_alpha", 0.15)) * (
+                float(freshness_minutes) / 60.0
+            )
+            c *= max(0.0, 1 - freshness_penalty)
+            return float(max(0.0, min(1.0, c)))
+        except Exception:
+            return base
+
     async def generate_comprehensive_prediction(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
         """Генерация комплексного прогноза."""
         try:
@@ -197,11 +170,6 @@ class RecommendationEngine:
             )
             # === Confidence: margin + penalties ===
             try:
-                base_conf = _confidence_from_margin(poisson_result)
-            except Exception:
-                base_conf = 0.0
-            confidence = _penalize_confidence(base_conf, missing_ratio, freshness_minutes=0.0)
-
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
@@ -298,7 +266,7 @@ class RecommendationEngine:
                 "probability_draw": draw_prob,
                 "probability_away_win": away_win_prob
             }
-            result_confidence = self.compute_confidence_from_margin(result_probs)
+            result_confidence = self._confidence_from_probs(result_probs)
             # Простая логика рекомендаций
             if home_win_prob > 0.5 and home_win_prob > draw_prob and home_win_prob > away_win_prob:
                 reasoning = "Высокая вероятность победы домашней команды"
@@ -338,7 +306,7 @@ class RecommendationEngine:
                 "probability_over_2_5": over_prob,
                 "probability_under_2_5": under_prob
             }
-            total_confidence = self.compute_confidence_from_margin(total_probs)
+            total_confidence = self._confidence_from_probs(total_probs)
             if over_prob > 0.55:
                 reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Over"
                 risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
@@ -367,7 +335,7 @@ class RecommendationEngine:
                 "probability_btts_yes": btts_yes_prob,
                 "probability_btts_no": btts_no_prob
             }
-            btts_confidence = self.compute_confidence_from_margin(btts_probs)
+            btts_confidence = self._confidence_from_probs(btts_probs)
             if btts_yes_prob > 0.55:
                 reasoning = "Высокая вероятность того, что обе команды забьют"
                 risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
@@ -410,7 +378,7 @@ class RecommendationEngine:
                         if not btts_exists:
                             # Вычисляем уверенность для скорректированного BTTS
                             btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
-                            btts_corr_confidence = self.compute_confidence_from_margin(btts_corr_probs)
+                            btts_corr_confidence = self._confidence_from_probs(btts_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Обе забьют",
                                 selection="Да",
@@ -426,7 +394,7 @@ class RecommendationEngine:
                         if not over_exists:
                             # Вычисляем уверенность для скорректированного тотала
                             total_corr_probs = {"over": over_corr, "under": under_corr}
-                            total_corr_confidence = self.compute_confidence_from_margin(total_corr_probs)
+                            total_corr_confidence = self._confidence_from_probs(total_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Тотал голов",
                                 selection="Больше",
@@ -446,8 +414,10 @@ class RecommendationEngine:
                     # Применяем штраф к уверенности каждой рекомендации
                     updated_recommendations = []
                     for rec in recommendations:
-                        penalized_confidence = self.penalize_confidence(
-                            rec.confidence, missing_ratio, data_freshness_minutes
+                        penalized_confidence = self._penalize_confidence(
+                            rec.confidence,
+                            missing_ratio=missing_ratio,
+                            freshness_minutes=data_freshness_minutes,
                         )
                         # Создаем новую рекомендацию с обновленной уверенностью
                         updated_rec = BettingRecommendation(
