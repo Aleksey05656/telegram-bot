@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Optional
 
 from psycopg2 import pool as pg_pool
@@ -24,53 +23,39 @@ class DBLogger:
         self.db_user = db_user or parsed_url.username
         self.db_password = db_password or parsed_url.password
         self.db_name = db_name or parsed_url.path[1:]
-        self.pool = pg_pool.SimpleConnectionPool(
-            1,
-            10,
-            dbname=self.db_name,
-            user=self.db_user,
-            password=self.db_password,
-            host=self.db_url,
-            port=self.db_port,
-        )
-        self.connection = None
-        self.cursor = None
+        # Пул соединений создается при первом подключении
+        self.pool = None
 
     def connect(self):
         """Подключение к базе данных через пул соединений."""
+        if self.pool is None:
+            self.pool = pg_pool.SimpleConnectionPool(
+                1,
+                10,
+                dbname=self.db_name,
+                user=self.db_user,
+                password=self.db_password,
+                host=self.db_url,
+                port=self.db_port,
+            )
         try:
             self.connection = self.pool.getconn()
-            self.cursor = self.connection.cursor()
+            self.cursor = self.connection.cursor()  # Создание нового курсора
             logger.info("Подключение к базе данных успешно установлено.")
         except Exception as e:
-            logger.error("Ошибка при подключении к базе данных: %s", e)
+            logger.error(f"Ошибка при подключении к базе данных: {e}")
 
-    def execute_query(self, query: str, params: Optional[tuple] = None, retries: int = 3):
-        """Выполнение SQL-запроса с возможностью повторной попытки."""
-        attempt = 0
-        while attempt < retries:
-            try:
-                self.cursor.execute(query, params)
+    def execute_query(self, query: str, params: Optional[tuple] = None):
+        """Выполнение SQL-запроса с проверкой наличия соединения перед rollback."""
+        try:
+            with self.connection.cursor() as cursor:  # Новый курсор для каждого запроса
+                cursor.execute(query, params)
                 self.connection.commit()
-                logger.info("Успешное выполнение запроса: %s", query)
-                return
-            except Exception as e:
+                logger.info(f"Успешное выполнение запроса: {query}")
+        except Exception as e:
+            if getattr(self, "connection", None):
                 self.connection.rollback()
-                attempt += 1
-                logger.error(
-                    "Ошибка при выполнении запроса %s: %s. Попытка %d/%d",
-                    query,
-                    e,
-                    attempt,
-                    retries,
-                )
-                if attempt >= retries:
-                    logger.error(
-                        "Превышено количество попыток для запроса %s",
-                        query,
-                    )
-                    break
-                time.sleep(1)  # небольшая задержка перед повтором
+            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
 
     def fetch_one(self, query: str, params: Optional[tuple] = None):
         """Получение одного результата."""
@@ -103,21 +88,23 @@ class DBLogger:
             return []
 
     def close(self):
-        """Закрытие соединения с базой данных."""
+        """Закрытие соединения с базой данных и возвращение соединения в пул."""
         try:
-            if self.cursor:
-                self.cursor.close()
+            cursor = getattr(self, "cursor", None)
+            if cursor:
+                cursor.close()
                 self.cursor = None
-            if self.connection:
+            connection = getattr(self, "connection", None)
+            if connection:
                 if self.pool:
-                    self.pool.putconn(self.connection)
+                    self.pool.putconn(connection)
                 else:
-                    self.connection.close()
+                    connection.close()
                 self.connection = None
             # Пул соединений сохраняется для повторного использования
             logger.info("Соединение с базой данных закрыто.")
         except Exception as e:
-            logger.error("Ошибка при закрытии соединения: %s", e)
+            logger.error(f"Ошибка при закрытии соединения: {e}")
 
     def __enter__(self):
         self.connect()
@@ -125,3 +112,4 @@ class DBLogger:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+        # Не закрываем пул соединений, только соединение
