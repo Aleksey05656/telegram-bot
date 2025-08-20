@@ -483,19 +483,22 @@ class ProbabilityCalibrator:
         except Exception:
             pass
         return out
-
-
 class EnsembleCombiner:
-    def __init__(self):
-        from sklearn.linear_model import LogisticRegression
-        self.model = LogisticRegression(max_iter=1000)
-        self.keys: List[str] = []
+    def __init__(self, keys: List[str], weights: Optional[Dict[str, float]] = None):
+        self.keys = keys
+        self.weights = weights or {}
 
-    def fit(self, oof_preds: Dict[str, np.ndarray], y_true: np.ndarray) -> "EnsembleCombiner":
-        self.keys = sorted(oof_preds.keys())
-        X = np.vstack([oof_preds[k] for k in self.keys]).T
-        self.model.fit(X, y_true); return self
-
-    def predict(self, preds: Dict[str, np.ndarray]) -> np.ndarray:
-        X = np.vstack([preds[k] for k in self.keys]).T
-        return self.model.predict_proba(X)[:,1]
+    def predict(self, preds: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+        """
+        preds: {'modelA': {'home_win':..., 'draw':..., 'away_win':...}, 'modelB': {...}, ...}
+        """
+        out = {k: 0.0 for k in self.keys}
+        for model_name, model_probs in preds.items():
+            w = float(self.weights.get(model_name, 1.0))
+            for key in self.keys:
+                v = float(model_probs.get(key, 0.0))
+                out[key] += w * v
+        s = sum(out.values())
+        if s <= 0:
+            return {k: 0.0 for k in out}
+        return {k: (v / s) for k, v in out.items()}
