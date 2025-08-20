@@ -25,6 +25,8 @@ class DBLogger:
         self.db_name = db_name or parsed_url.path[1:]
         # Пул соединений создается при первом подключении
         self.pool = None
+        self.connection = None
+        self.cursor = None  # Используем курсор как атрибут класса
 
     def connect(self):
         """Подключение к базе данных через пул соединений."""
@@ -40,7 +42,7 @@ class DBLogger:
             )
         try:
             self.connection = self.pool.getconn()
-            self.cursor = self.connection.cursor()  # Создание нового курсора
+            self.cursor = self.connection.cursor()  # Создаем курсор как атрибут
             logger.info("Подключение к базе данных успешно установлено.")
         except Exception as e:
             logger.error(f"Ошибка при подключении к базе данных: {e}")
@@ -48,44 +50,48 @@ class DBLogger:
     def execute_query(self, query: str, params: Optional[tuple] = None):
         """Выполнение SQL-запроса с проверкой наличия соединения перед rollback."""
         try:
-            with self.connection.cursor() as cursor:  # Новый курсор для каждого запроса
-                cursor.execute(query, params)
-                self.connection.commit()
-                logger.info(f"Успешное выполнение запроса: {query}")
+            self.cursor.execute(query, params)
+            self.connection.commit()
+            logger.info(f"Успешное выполнение запроса: {query}")
         except Exception as e:
-            if getattr(self, "connection", None):
+            if self.connection:
                 self.connection.rollback()
             logger.error(f"Ошибка при выполнении запроса {query}: {e}")
+        finally:
+            if hasattr(self, 'cursor') and self.cursor:
+                self.cursor.close()  # Закрываем курсор после работы
 
     def fetch_one(self, query: str, params: Optional[tuple] = None):
-        """Получение одного результата."""
+        """Получение одного результата с новым курсором."""
         try:
-            self.cursor.execute(query, params)
-            result = self.cursor.fetchone()
-            logger.info("Запрос выполнен успешно: %s", query)
-            return result
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params)
+                result = cursor.fetchone()
+                logger.info(f"Запрос выполнен успешно: {query}")
+                return result
         except Exception as e:
-            logger.error(
-                "Ошибка при выполнении запроса %s: %s",
-                query,
-                e,
-            )
+            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
             return None
+        finally:
+            if hasattr(self, "cursor") and self.cursor:
+                self.cursor.close()  # Закрываем курсор после работы
+                self.cursor = None
 
     def fetch_all(self, query: str, params: Optional[tuple] = None):
-        """Получение всех результатов."""
+        """Получение всех результатов с новым курсором."""
         try:
-            self.cursor.execute(query, params)
-            results = self.cursor.fetchall()
-            logger.info("Запрос выполнен успешно: %s", query)
-            return results
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                logger.info(f"Запрос выполнен успешно: {query}")
+                return results
         except Exception as e:
-            logger.error(
-                "Ошибка при выполнении запроса %s: %s",
-                query,
-                e,
-            )
+            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
             return []
+        finally:
+            if hasattr(self, "cursor") and self.cursor:
+                self.cursor.close()  # Закрываем курсор после работы
+                self.cursor = None
 
     def close(self):
         """Закрытие соединения с базой данных и возвращение соединения в пул."""
