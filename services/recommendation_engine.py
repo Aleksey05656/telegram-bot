@@ -28,8 +28,6 @@ try:
 except Exception:  # pragma: no cover
     log_prediction = None
 
-# === Confidence helpers (defined inside RecommendationEngine) ===
-
 def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
     """
     Оцениваем долю пропусков по ключевым фичам с обеих сторон.
@@ -172,11 +170,6 @@ class RecommendationEngine:
             )
             # === Confidence: margin + penalties ===
             try:
-                base_conf = self._confidence_from_probs(poisson_result)
-            except Exception:
-                base_conf = 0.0
-            confidence = self._penalize_confidence(base_conf, missing_ratio=missing_ratio, freshness_minutes=0.0)
-
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
