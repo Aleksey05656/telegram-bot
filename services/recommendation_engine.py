@@ -1,14 +1,13 @@
 # services/recommendation_engine.py
 """Сервис для генерации комплексных прогнозов и рекомендаций."""
 import asyncio
-import json
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 from logger import logger
-from config import get_settings
+from config import get_settings, CONFIDENCE
 # Импорт моделей
 from ml.models.poisson_model import poisson_model
 from ml.models.poisson_regression_model import poisson_regression_model
@@ -24,8 +23,28 @@ from services.sportmonks_client import sportmonks_client
 from services.prediction_modifier import prediction_modifier
 from services.data_processor import data_processor
 # Импорт модуля логирования в БД
-from database.db_logging import log_prediction
-settings = get_settings()
+try:
+    from database.db_logging import log_prediction  # async
+except Exception:  # pragma: no cover
+    log_prediction = None
+
+# === Confidence helpers (defined inside RecommendationEngine) ===
+
+def _calc_missing_ratio(team_stats: Dict[str, Any]) -> float:
+    """
+    Оцениваем долю пропусков по ключевым фичам с обеих сторон.
+    Ожидаем структуру: {'home': {...}, 'away': {...}}.
+    """
+    try:
+        home = (team_stats or {}).get("home", {}) or {}
+        away = (team_stats or {}).get("away", {}) or {}
+        keys = ["xg", "shots", "ppda", "passes", "pass_accuracy"]
+        vals = [home.get(k) for k in keys] + [away.get(k) for k in keys]
+        miss = sum(1 for v in vals if v is None)
+        return miss / max(1, len(vals))
+    except Exception:
+        return 0.0
+
 class RiskLevel(Enum):
     """Уровень риска ставки."""
     LOW = "низкий"
@@ -53,60 +72,66 @@ class RecommendationEngine:
         # Инициализация клиента
         self.sportmonks_client = sportmonks_client
         logger.info("RecommendationEngine инициализирован")
-    def compute_confidence_from_margin(self, probs: Dict[str, float]) -> float:
-        """Вычисление уверенности на основе маржи вероятностей.
-        Args:
-            probs (Dict[str, float]): Вероятности исходов
-        Returns:
-            float: Уровень уверенности (0-1)
-        """
+
+    @staticmethod
+    def _normalize_three_way_keys(probs: Dict[str, float]) -> Dict[str, float]:
+        """Приводим ключи к единому виду для 3-исходов."""
+        if {"home_win", "draw", "away_win"}.issubset(probs.keys()):
+            return {
+                "home_win": float(probs.get("home_win", 0.0)),
+                "draw": float(probs.get("draw", 0.0)),
+                "away_win": float(probs.get("away_win", 0.0)),
+            }
+        return {
+            "home_win": float(probs.get("probability_home_win", 0.0)),
+            "draw": float(probs.get("probability_draw", 0.0)),
+            "away_win": float(probs.get("probability_away_win", 0.0)),
+        }
+
+    @staticmethod
+    def _confidence_from_probs(probs: Dict[str, float]) -> float:
+        """Универсальный расчёт уверенности для 2- и 3-исходов."""
+        keys = set(probs.keys())
+        if {"home_win", "draw", "away_win"}.issubset(keys) or {
+            "probability_home_win",
+            "probability_draw",
+            "probability_away_win",
+        }.issubset(keys):
+            norm = RecommendationEngine._normalize_three_way_keys(probs)
+            vals = sorted([norm["home_win"], norm["draw"], norm["away_win"]], reverse=True)
+            margin = vals[0] - vals[1] if len(vals) >= 2 else 0.0
+            return float(max(0.0, min(1.0, margin)))
+        two = None
+        if {"yes", "no"}.issubset(keys):
+            two = (float(probs["yes"]), float(probs["no"]))
+        elif {"over", "under"}.issubset(keys):
+            two = (float(probs["over"]), float(probs["under"]))
+        elif {"p1", "p2"}.issubset(keys):
+            two = (float(probs["p1"]), float(probs["p2"]))
+        if two is not None:
+            return float(max(0.0, min(1.0, abs(two[0] - two[1]))))
         try:
-            # Максимальная вероятность
-            max_prob = max(probs.get("probability_home_win", 0),
-                           probs.get("probability_draw", 0),
-                           probs.get("probability_away_win", 0))
-            # Минимальная вероятность среди основных исходов
-            min_prob = min(probs.get("probability_home_win", 1),
-                           probs.get("probability_draw", 1),
-                           probs.get("probability_away_win", 1))
-            # Маржа как разница
-            margin = max_prob - min_prob
-            # Нормализуем уверенность (пример)
-            confidence = max(0.0, min(1.0, margin * 2)) # Пример нормализации
-            return confidence
-        except Exception as e:
-            logger.error(f"Ошибка при вычислении уверенности: {e}")
+            vals = sorted([float(v) for v in probs.values()], reverse=True)
+            return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
+        except Exception:
             return 0.0
-    def penalize_confidence(self, confidence: float, missing_ratio: float, data_freshness_minutes: float) -> float:
-        """Применение штрафа к уверенности на основе пропусков и свежести данных.
-        Args:
-            confidence (float): Исходная уверенность (0-1).
-            missing_ratio (float): Доля пропущенных значений (0-1).
-            data_freshness_minutes (float): Свежесть данных в минутах.
-        Returns:
-            float: Скорректированная уверенность (0-1).
-        """
+
+    @staticmethod
+    def _penalize_confidence(
+        base: float, *, missing_ratio: float = 0.0, freshness_minutes: float = 0.0
+    ) -> float:
+        """Применяем штрафы за пропуски и устаревшие данные."""
         try:
-            # Получаем параметры штрафов из конфигурации
-            missing_penalty_alpha = getattr(self.settings, 'CONFIDENCE', {}).get('missing_penalty_alpha', 0.2)
-            freshness_penalty_alpha = getattr(self.settings, 'CONFIDENCE', {}).get('freshness_penalty_alpha', 0.15)
-            # Применяем штраф за пропуски
-            missing_penalty = 1.0 - (missing_ratio * missing_penalty_alpha)
-            # Применяем штраф за свежесть (например, после 60 минут начинаем штрафовать)
-            freshness_base_minutes = getattr(self.settings, 'CONFIDENCE', {}).get('freshness_base_minutes', 60)
-            if data_freshness_minutes > freshness_base_minutes:
-                extra_minutes = data_freshness_minutes - freshness_base_minutes
-                freshness_penalty = 1.0 - ((extra_minutes / 60.0) * freshness_penalty_alpha)
-                freshness_penalty = max(0.5, freshness_penalty) # Минимум 50%
-            else:
-                freshness_penalty = 1.0
-            # Комбинируем штрафы
-            final_confidence = confidence * missing_penalty * freshness_penalty
-            final_confidence = max(0.0, min(1.0, final_confidence))
-            return final_confidence
-        except Exception as penalty_error:
-            logger.error(f"Ошибка при применении штрафов к уверенности: {penalty_error}")
-            return confidence
+            c = float(base)
+            c *= 1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(missing_ratio)
+            freshness_penalty = float(CONFIDENCE.get("freshness_penalty_alpha", 0.15)) * (
+                float(freshness_minutes) / 60.0
+            )
+            c *= max(0.0, 1 - freshness_penalty)
+            return float(max(0.0, min(1.0, c)))
+        except Exception:
+            return base
+
     async def generate_comprehensive_prediction(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
         """Генерация комплексного прогноза."""
         try:
@@ -117,10 +142,11 @@ class RecommendationEngine:
             if self.regression_model.is_model_outdated():
                 logger.warning("⚠️ Модель регрессии устарела. Прогноз может быть менее точным. "
                                "Рекомендуется запустить переобучение модели.")
+            team_stats = match_data.get("team_stats", {})
             # 1. Расчет базовых λ
-            base_lambdas = await self._calculate_base_lambdas(match_data, {})
+            base_lambdas = await self._calculate_base_lambdas(match_data, team_stats)
             # 2. Подготовка контекста матча
-            match_context = await self._prepare_match_context(match_data, {})
+            match_context = await self._prepare_match_context(match_data, team_stats)
             # 3. Применение модификаторов
             modified_lambdas = await self.modifier.apply_dynamic_modifiers(
                 base_lambdas[0], base_lambdas[1], match_context
@@ -133,16 +159,24 @@ class RecommendationEngine:
                 "away_team": {"team_name": match_data.get("away_team")}
             }
             poisson_result = self.poisson_model.predict(poisson_input)
-            # 5. Подготовка информации о пропущенных данных (заглушка)
+            # 5. Подготовка информации о пропущенных данных
+            missing_ratio = _calc_missing_ratio(team_stats)
             missing_data_info = {
-                "missing_ratio": match_context.get("missing_ratio", 0.0),
-                "data_freshness_minutes": 0.0 # В реальной реализации здесь будет расчет свежести данных
+                "missing_ratio": missing_ratio,
+                "data_freshness_minutes": 0.0  # В реальной реализации здесь будет расчет свежести данных
             }
             # 6. Генерация рекомендаций с учетом пропущенных данных
             recommendations = await self._generate_betting_recommendations(
                 modified_lambdas[0], modified_lambdas[1],
                 poisson_result, match_context, missing_data_info
             )
+            # === Confidence: margin + penalties ===
+            try:
+                base_conf = self._confidence_from_probs(poisson_result)
+            except Exception:
+                base_conf = 0.0
+            confidence = self._penalize_confidence(base_conf, missing_ratio=missing_ratio, freshness_minutes=0.0)
+
             # 7. Агрегация результатов
             detailed_prediction = {
                 "model": "ThreeLevelPoisson",
@@ -152,31 +186,31 @@ class RecommendationEngine:
                 },
                 "probabilities": poisson_result,
                 "best_recommendation": recommendations[0].market + ": " + recommendations[0].selection if recommendations else "Ставки не определены",
-                "confidence": round(recommendations[0].confidence, 3) if recommendations else 0.0,
+                "confidence": round(confidence, 3),
                 "risk_level": recommendations[0].risk_level.value if recommendations else "высокий",
                 "recommendations_count": len(recommendations),
                 "generated_at": datetime.now().isoformat(),
                 "missing_data_info": missing_data_info
             }
-            # 8. Логирование прогноза в базу данных
+            # === Async DB log (best-effort) ===
             try:
-                match_id = match_data.get("id", 0)
-                if match_id:
-                    features_snapshot = {
-                        "home_team": match_data.get("home_team"),
-                        "away_team": match_data.get("away_team"),
-                        # Добавьте другие важные фичи здесь
-                    }
-                    await log_prediction(
-                        match_id=match_id,
-                        features=features_snapshot,
-                        probs=poisson_result,
-                        lam_home=modified_lambdas[0],
-                        lam_away=modified_lambdas[1],
-                        confidence=detailed_prediction["confidence"]
+                if log_prediction is not None:
+                    match_id = (
+                        match_data.get("id")
+                        or match_data.get("fixture_id")
+                        or match_data.get("match_id")
+                        or 0
                     )
-            except Exception as log_error:
-                logger.error(f"Ошибка при логировании прогноза в БД: {log_error}")
+                    await log_prediction(
+                        match_id=int(match_id),
+                        features={"context": match_context},
+                        probs=poisson_result,
+                        lam_home=float(modified_lambdas[0]),
+                        lam_away=float(modified_lambdas[1]),
+                        confidence=float(confidence),
+                    )
+            except Exception as _e:
+                logger.warning("Логирование прогноза не выполнено: %s", _e)
             logger.info("Комплексный прогноз сгенерирован")
             return detailed_prediction
         except Exception as e:
@@ -192,16 +226,16 @@ class RecommendationEngine:
                 "recommendations_count": 0,
                 "missing_data_info": {"missing_ratio": 0.0, "data_freshness_minutes": 0.0}
             }
-    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> Tuple[float, float]:
+    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> List[float]:
         """Расчет базовых параметров λ."""
         try:
             # В реальной реализации здесь будет расчет λ
             # Например, с использованием poisson_regression_model
             # Для примера возвращаем заглушку
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
         except Exception as e:
             logger.error(f"Ошибка при расчете базовых λ: {e}")
-            return 1.5, 1.2 # Значения по умолчанию
+            return [1.5, 1.2]  # Значения по умолчанию
     async def _prepare_match_context(self, match_data: Dict, team_stats: Dict) -> Dict[str, Any]:
         """Подготовка контекста матча."""
         try:
@@ -239,7 +273,7 @@ class RecommendationEngine:
                 "probability_draw": draw_prob,
                 "probability_away_win": away_win_prob
             }
-            result_confidence = self.compute_confidence_from_margin(result_probs)
+            result_confidence = self._confidence_from_probs(result_probs)
             # Простая логика рекомендаций
             if home_win_prob > 0.5 and home_win_prob > draw_prob and home_win_prob > away_win_prob:
                 reasoning = "Высокая вероятность победы домашней команды"
@@ -279,7 +313,7 @@ class RecommendationEngine:
                 "probability_over_2_5": over_prob,
                 "probability_under_2_5": under_prob
             }
-            total_confidence = self.compute_confidence_from_margin(total_probs)
+            total_confidence = self._confidence_from_probs(total_probs)
             if over_prob > 0.55:
                 reasoning = f"Ожидаемый тотал {total_goals:.2f} голов, высокая вероятность Over"
                 risk_level = RiskLevel.HIGH if total_confidence < 0.1 else RiskLevel.MEDIUM if total_confidence < 0.25 else RiskLevel.LOW
@@ -308,7 +342,7 @@ class RecommendationEngine:
                 "probability_btts_yes": btts_yes_prob,
                 "probability_btts_no": btts_no_prob
             }
-            btts_confidence = self.compute_confidence_from_margin(btts_probs)
+            btts_confidence = self._confidence_from_probs(btts_probs)
             if btts_yes_prob > 0.55:
                 reasoning = "Высокая вероятность того, что обе команды забьют"
                 risk_level = RiskLevel.HIGH if btts_confidence < 0.1 else RiskLevel.MEDIUM if btts_confidence < 0.25 else RiskLevel.LOW
@@ -351,7 +385,7 @@ class RecommendationEngine:
                         if not btts_exists:
                             # Вычисляем уверенность для скорректированного BTTS
                             btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
-                            btts_corr_confidence = self.compute_confidence_from_margin(btts_corr_probs)
+                            btts_corr_confidence = self._confidence_from_probs(btts_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Обе забьют",
                                 selection="Да",
@@ -367,7 +401,7 @@ class RecommendationEngine:
                         if not over_exists:
                             # Вычисляем уверенность для скорректированного тотала
                             total_corr_probs = {"over": over_corr, "under": under_corr}
-                            total_corr_confidence = self.compute_confidence_from_margin(total_corr_probs)
+                            total_corr_confidence = self._confidence_from_probs(total_corr_probs)
                             recommendations.append(BettingRecommendation(
                                 market="Тотал голов",
                                 selection="Больше",
@@ -387,8 +421,10 @@ class RecommendationEngine:
                     # Применяем штраф к уверенности каждой рекомендации
                     updated_recommendations = []
                     for rec in recommendations:
-                        penalized_confidence = self.penalize_confidence(
-                            rec.confidence, missing_ratio, data_freshness_minutes
+                        penalized_confidence = self._penalize_confidence(
+                            rec.confidence,
+                            missing_ratio=missing_ratio,
+                            freshness_minutes=data_freshness_minutes,
                         )
                         # Создаем новую рекомендацию с обновленной уверенностью
                         updated_rec = BettingRecommendation(
@@ -412,10 +448,6 @@ class RecommendationEngine:
 # Создание экземпляра движка рекомендаций
 recommendation_engine = RecommendationEngine()
 
-import numpy as np
-from typing import Any, Dict
-from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LogisticRegression
 
 class ProbabilityCalibrator:
     def __init__(self, method: str = "platt"):
@@ -423,13 +455,15 @@ class ProbabilityCalibrator:
         self.models: Dict[str, Any] = {}
 
     def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
+        from sklearn.isotonic import IsotonicRegression
+        from sklearn.linear_model import LogisticRegression
         for key, p in p_base.items():
             if self.method == "isotonic":
                 m = IsotonicRegression(out_of_bounds="clip")
-                self.models[key] = m.fit(p, (y_true==(key)).astype(float))
+                self.models[key] = m.fit(p, (y_true == (key)).astype(float))
             else:
                 m = LogisticRegression(max_iter=1000)
-                self.models[key] = m.fit(p.reshape(-1,1), (y_true==(key)).astype(int))
+                self.models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
         return self
 
     def predict(self, p_base: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
@@ -440,23 +474,32 @@ class ProbabilityCalibrator:
                 out[key] = p
             else:
                 if hasattr(m, "predict_proba"):
-                    out[key] = m.predict_proba(p.reshape(-1,1))[:,1]
+                    out[key] = m.predict_proba(p.reshape(-1, 1))[:, 1]
                 else:
-                    out[key] = m.transform(p)
-        # нормализация
+                    # IsotonicRegression не имеет transform → используем predict
+                    try:
+                        out[key] = m.predict(p)
+                    except Exception:
+                        out[key] = p
+        # нормализация с защитой от нулевой суммы
         try:
             keys = list(out.keys())
             M = np.vstack([out[k] for k in keys]).T
-            M = M / M.sum(axis=1, keepdims=True)
-            for i,k in enumerate(keys): out[k] = M[:,i]
+            row_sums = M.sum(axis=1, keepdims=True)
+            row_sums[row_sums <= 0] = 1.0
+            M = M / row_sums
+            for i, k in enumerate(keys):
+                out[k] = M[:, i]
         except Exception:
             pass
         return out
 
+
 class EnsembleCombiner:
     def __init__(self):
+        from sklearn.linear_model import LogisticRegression
         self.model = LogisticRegression(max_iter=1000)
-        self.keys: list[str] = []
+        self.keys: List[str] = []
 
     def fit(self, oof_preds: Dict[str, np.ndarray], y_true: np.ndarray) -> "EnsembleCombiner":
         self.keys = sorted(oof_preds.keys())
