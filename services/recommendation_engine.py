@@ -228,6 +228,19 @@ class RecommendationEngine:
                 "cache_version": getattr(self.settings, "CACHE_VERSION", None),
                 "model_flags": getattr(self.settings, "MODEL_FLAGS", None),
             }
+            # где-то выше у тебя есть результат Пуассона (poisson_result) с λ
+            # например: {"lambda_home": ..., "lambda_away": ..., ...}
+            try:
+                lambda_home = float(poisson_result.get("lambda_home", 0.0))
+                lambda_away = float(poisson_result.get("lambda_away", 0.0))
+            except Exception:
+                lambda_home, lambda_away = 0.0, 0.0
+            expected_total = float(lambda_home + lambda_away)
+
+            # Добавляем ожидаемый тотал в детальный ответ, чтобы он попал в БД (в JSON-мету)
+            # В таблице predictions также есть STORED-колонка expected_total (λh+λa), но хранить значение
+            # в detailed_prediction удобно для внешних интеграций/логов.
+            detailed_prediction["expected_total"] = expected_total
             # === Async DB log (best-effort) ===
             try:
                 if log_prediction is not None:
