@@ -1,121 +1,174 @@
 import logging
-from typing import Optional
+import os
+import time
+from typing import Optional, Any, Tuple, List
 
+import psycopg2
 from psycopg2 import pool as pg_pool
-from urllib.parse import urlparse
 
-# Настройка логирования
+# --- Логирование: не переопределяем глобальный уровень, не плодим хендлеры ---
 logger = logging.getLogger(__name__)
-# Проверка, чтобы не добавлять обработчик, если он уже существует
 if not logger.handlers:
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(_h)
+
 
 class DBLogger:
-    def __init__(self, db_url: str, db_user: str = None, db_password: str = None, db_name: str = None):
-        # Разбираем DB_URL, если он передан как полный URL
-        parsed_url = urlparse(db_url)
-        self.db_url = parsed_url.hostname
-        self.db_port = parsed_url.port
-        self.db_user = db_user or parsed_url.username
-        self.db_password = db_password or parsed_url.password
-        self.db_name = db_name or parsed_url.path[1:]
-        # Пул соединений создается при первом подключении
-        self.pool = None
-        self.connection = None
-        self.cursor = None  # Используем курсор как атрибут класса
+    """
+    Безопасная обёртка для PostgreSQL:
+    - Пул соединений создаётся лениво (при первом обращении)
+    - На каждый вызов берём новое соединение и курсор; никаких self.cursor / self.connection
+    - Обязательный возврат соединения в пул в finally
+    - Надёжные rollback/commit с проверками
+    """
 
-    def connect(self):
-        """Подключение к базе данных через пул соединений."""
-        if self.pool is None:
-            self.pool = pg_pool.SimpleConnectionPool(
-                1,
-                10,
-                dbname=self.db_name,
-                user=self.db_user,
-                password=self.db_password,
-                host=self.db_url,
-                port=self.db_port,
-            )
-        try:
-            self.connection = self.pool.getconn()
-            self.cursor = self.connection.cursor()  # Создаем курсор как атрибут
-            logger.info("Подключение к базе данных успешно установлено.")
-        except Exception as e:
-            logger.error(f"Ошибка при подключении к базе данных: {e}")
+    def __init__(
+        self,
+        dsn: Optional[str] = None,
+        *,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        dbname: Optional[str] = None,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        minconn: int = 1,
+        maxconn: int = 10,
+    ) -> None:
+        # Можно передать готовый DSN или компоненты; компоненты берём из ENV по умолчанию
+        self._dsn: Optional[str] = dsn or os.getenv("DATABASE_URL")
+        self._host = host or os.getenv("DB_HOST")
+        self._port = port or (int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None)
+        self._dbname = dbname or os.getenv("DB_NAME")
+        self._user = user or os.getenv("DB_USER")
+        self._password = password or os.getenv("DB_PASSWORD")
+        self._minconn = int(minconn)
+        self._maxconn = int(maxconn)
+        self._pool: Optional[pg_pool.SimpleConnectionPool] = None
 
-    def execute_query(self, query: str, params: Optional[tuple] = None):
-        """Выполнение SQL-запроса с проверкой наличия соединения перед rollback."""
+    # ---------- Внутренняя инфраструктура ----------
+    def _ensure_pool(self) -> None:
+        """Создать пул, если он ещё не создан."""
+        if self._pool is not None:
+            return
         try:
-            self.cursor.execute(query, params)
-            self.connection.commit()
-            logger.info(f"Успешное выполнение запроса: {query}")
+            if self._dsn:
+                self._pool = pg_pool.SimpleConnectionPool(self._minconn, self._maxconn, dsn=self._dsn)
+            else:
+                # Требуем хотя бы host/dbname/user; port и password опциональны
+                kwargs: dict[str, Any] = {}
+                if self._host:
+                    kwargs["host"] = self._host
+                if self._port:
+                    kwargs["port"] = self._port
+                if self._dbname:
+                    kwargs["dbname"] = self._dbname
+                if self._user:
+                    kwargs["user"] = self._user
+                if self._password:
+                    kwargs["password"] = self._password
+                self._pool = pg_pool.SimpleConnectionPool(self._minconn, self._maxconn, **kwargs)  # type: ignore[arg-type]
+            logger.info("DB connection pool initialized (min=%d, max=%d)", self._minconn, self._maxconn)
         except Exception as e:
-            if self.connection:
-                self.connection.rollback()
-            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
-        finally:
-            if hasattr(self, 'cursor') and self.cursor:
-                self.cursor.close()  # Закрываем курсор после работы
+            logger.error("Failed to initialize DB pool: %s", e)
+            raise
 
-    def fetch_one(self, query: str, params: Optional[tuple] = None):
-        """Получение одного результата с новым курсором."""
+    def _acquire(self):
+        """Взять соединение из пула (с ленивой инициализацией пула)."""
+        self._ensure_pool()
+        assert self._pool is not None
+        return self._pool.getconn()
+
+    def _release(self, conn) -> None:
+        """Вернуть соединение в пул (тихо игнорируем, если пула уже нет)."""
         try:
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                result = cursor.fetchone()
-                logger.info(f"Запрос выполнен успешно: {query}")
-                return result
+            if self._pool is not None and conn is not None:
+                self._pool.putconn(conn)
         except Exception as e:
-            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
+            logger.error("Failed to release connection back to pool: %s", e)
+
+    # ---------- Публичные методы ----------
+    def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None, retries: int = 2) -> bool:
+        """
+        Выполнить запрос без выборки. Возвращает True при успехе.
+        Всегда: своё соединение, свой курсор; никаких self.cursor.
+        """
+        attempt = 0
+        while attempt <= retries:
+            conn = None
+            try:
+                conn = self._acquire()
+                with conn.cursor() as cur:
+                    cur.execute(query, params)
+                conn.commit()
+                logger.info("SQL OK: %s", query)
+                return True
+            except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                attempt += 1
+                logger.error("SQL error (attempt %d/%d) for %s: %s", attempt, retries, query, e)
+                if attempt > retries:
+                    return False
+                time.sleep(min(0.25 * (2 ** (attempt - 1)), 2.0))
+            finally:
+                if conn:
+                    self._release(conn)
+
+    def fetch_one(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> Optional[Tuple[Any, ...]]:
+        """Выполнить SELECT и вернуть одну строку (или None)."""
+        conn = None
+        try:
+            conn = self._acquire()
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                row = cur.fetchone()
+            logger.info("SQL fetch_one OK: %s", query)
+            return row
+        except Exception as e:
+            logger.error("SQL fetch_one error for %s: %s", query, e)
             return None
         finally:
-            if hasattr(self, "cursor") and self.cursor:
-                self.cursor.close()  # Закрываем курсор после работы
-                self.cursor = None
+            if conn:
+                self._release(conn)
 
-    def fetch_all(self, query: str, params: Optional[tuple] = None):
-        """Получение всех результатов с новым курсором."""
+    def fetch_all(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> List[Tuple[Any, ...]]:
+        """Выполнить SELECT и вернуть все строки (или пустой список)."""
+        conn = None
         try:
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                results = cursor.fetchall()
-                logger.info(f"Запрос выполнен успешно: {query}")
-                return results
+            conn = self._acquire()
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+            logger.info("SQL fetch_all OK: %s", query)
+            return rows
         except Exception as e:
-            logger.error(f"Ошибка при выполнении запроса {query}: {e}")
+            logger.error("SQL fetch_all error for %s: %s", query, e)
             return []
         finally:
-            if hasattr(self, "cursor") and self.cursor:
-                self.cursor.close()  # Закрываем курсор после работы
-                self.cursor = None
+            if conn:
+                self._release(conn)
 
-    def close(self):
-        """Закрытие соединения с базой данных и возвращение соединения в пул."""
-        try:
-            cursor = getattr(self, "cursor", None)
-            if cursor:
-                cursor.close()
-                self.cursor = None
-            connection = getattr(self, "connection", None)
-            if connection:
-                if self.pool:
-                    self.pool.putconn(connection)
-                else:
-                    connection.close()
-                self.connection = None
-            # Пул соединений сохраняется для повторного использования
-            logger.info("Соединение с базой данных закрыто.")
-        except Exception as e:
-            logger.error(f"Ошибка при закрытии соединения: {e}")
-
-    def __enter__(self):
-        self.connect()
+    # ---------- Контекст-менеджер ----------
+    def __enter__(self) -> "DBLogger":
+        # Ничего не берём заранее, только гарантируем наличие пула к моменту использования
+        self._ensure_pool()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        # Не закрываем пул соединений, только соединение
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        # Пул намеренно не закрываем, чтобы переиспользовать между контекстами
+        # Закрытие пула — отдельным вызовом close_pool()
+        return None
+
+    def close_pool(self) -> None:
+        """Явно закрыть пул (например, при остановке приложения)."""
+        if self._pool is not None:
+            try:
+                self._pool.closeall()
+                logger.info("DB connection pool closed.")
+            finally:
+                self._pool = None
+
