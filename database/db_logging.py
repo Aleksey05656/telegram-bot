@@ -152,6 +152,98 @@ class DBLogger:
             if conn:
                 self._release(conn)
 
+    def upsert_prediction(self, payload: dict[str, Any]) -> bool:
+        """
+        Сохранить прогноз с UPSERT по (fixture_id, model_version).
+        Ожидает в payload как минимум:
+        fixture_id, model_version, lambda_home, lambda_away,
+        prob_home_win, prob_draw, prob_away_win, confidence.
+        Остальные поля опциональны.
+        """
+        required = [
+            "fixture_id",
+            "model_version",
+            "lambda_home",
+            "lambda_away",
+            "probability_home_win",
+            "probability_draw",
+            "probability_away_win",
+            "confidence",
+        ]
+
+        # Поддержка альтернативных ключей
+        if "prob_home_win" in payload:
+            payload.setdefault("probability_home_win", payload["prob_home_win"])
+        if "prob_away_win" in payload:
+            payload.setdefault("probability_away_win", payload["prob_away_win"])
+        if "prob_draw" in payload:
+            payload.setdefault("probability_draw", payload["prob_draw"])
+
+        missing = [k for k in required if k not in payload]
+        if missing:
+            logger.error("upsert_prediction: missing fields: %s", ", ".join(missing))
+            return False
+
+        sql = """
+        INSERT INTO predictions (
+            fixture_id, league_id, season_id, home_team_id, away_team_id,
+            match_start, model_name, model_version, cache_version, calibration_method, model_flags,
+            lambda_home, lambda_away, prob_home_win, prob_draw, prob_away_win,
+            totals_probs, btts_probs, totals_corr_probs, btts_corr_probs,
+            confidence, missing_ratio, data_freshness_min, penalties,
+            recommendations, features_snapshot, meta
+        ) VALUES (
+            %(fixture_id)s, %(league_id)s, %(season_id)s, %(home_team_id)s, %(away_team_id)s,
+            %(match_start)s, %(model_name)s, %(model_version)s, %(cache_version)s, %(calibration_method)s, %(model_flags)s,
+            %(lambda_home)s, %(lambda_away)s, %(probability_home_win)s, %(probability_draw)s, %(probability_away_win)s,
+            %(totals_probs)s, %(btts_probs)s, %(totals_corr_probs)s, %(btts_corr_probs)s,
+            %(confidence)s, %(missing_ratio)s, %(data_freshness_min)s, %(penalties)s,
+            %(recommendations)s, %(features_snapshot)s, %(meta)s
+        )
+        ON CONFLICT (fixture_id, model_version) DO UPDATE SET
+            updated_at = NOW(),
+            lambda_home = EXCLUDED.lambda_home,
+            lambda_away = EXCLUDED.lambda_away,
+            prob_home_win = EXCLUDED.prob_home_win,
+            prob_draw = EXCLUDED.prob_draw,
+            prob_away_win = EXCLUDED.prob_away_win,
+            totals_probs = COALESCE(EXCLUDED.totals_probs, predictions.totals_probs),
+            btts_probs = COALESCE(EXCLUDED.btts_probs, predictions.btts_probs),
+            totals_corr_probs = COALESCE(EXCLUDED.totals_corr_probs, predictions.totals_corr_probs),
+            btts_corr_probs = COALESCE(EXCLUDED.btts_corr_probs, predictions.btts_corr_probs),
+            confidence = EXCLUDED.confidence,
+            missing_ratio = COALESCE(EXCLUDED.missing_ratio, predictions.missing_ratio),
+            data_freshness_min = COALESCE(EXCLUDED.data_freshness_min, predictions.data_freshness_min),
+            penalties = COALESCE(EXCLUDED.penalties, predictions.penalties),
+            recommendations = COALESCE(EXCLUDED.recommendations, predictions.recommendations),
+            features_snapshot = COALESCE(EXCLUDED.features_snapshot, predictions.features_snapshot),
+            meta = COALESCE(EXCLUDED.meta, predictions.meta)
+        ;
+        """
+        conn = None
+        try:
+            conn = self._acquire()
+            with conn.cursor() as cur:
+                cur.execute(sql, payload)
+            conn.commit()
+            logger.info(
+                "UPSERT predictions OK for fixture_id=%s, model_version=%s",
+                payload.get("fixture_id"),
+                payload.get("model_version"),
+            )
+            return True
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            logger.error("UPSERT predictions error: %s", e)
+            return False
+        finally:
+            if conn:
+                self._release(conn)
+
     # ---------- Контекст-менеджер ----------
     def __enter__(self) -> "DBLogger":
         # Ничего не берём заранее, только гарантируем наличие пула к моменту использования
