@@ -30,7 +30,8 @@ class Settings(BaseSettings):
 
     # === НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЭТАПА 1 ===
     MODELS_DIR: str = "models"
-    MODEL_VERSION: Optional[str] = None  # если None — генерируется как vYYYYMMDD
+    MODEL_VERSION: Optional[str] = None  # если None — генерируется по MODEL_VERSION_FORMAT
+    MODEL_VERSION_FORMAT: str = "%Y%m%d%H%M"  # точность до минут по умолчанию; можно сменить в .env
     CALIBRATION_METHOD: str = "platt"  # 'platt' | 'isotonic' | 'beta'
     CV_N_SPLITS: int = 6
     CV_GAP_DAYS: int = 0
@@ -109,7 +110,13 @@ class Settings(BaseSettings):
     @classmethod
     def set_default_model_version(cls, v):
         if v is None:
-            return f"v{datetime.now().strftime('%Y%m%d')}"
+            # формат можно задать через .env -> MODEL_VERSION_FORMAT
+            fmt = getattr(cls, 'MODEL_VERSION_FORMAT', "%Y%m%d%H%M")
+            try:
+                return f"v{datetime.now().strftime(fmt)}"
+            except Exception:
+                # на случай некорректного формата — запасной вариант по дате
+                return f"v{datetime.now().strftime('%Y%m%d')}"
         return v
 
     # --- Конфигурация Pydantic ---

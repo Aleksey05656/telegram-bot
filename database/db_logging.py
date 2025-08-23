@@ -152,7 +152,7 @@ class DBLogger:
             if conn:
                 self._release(conn)
 
-    def upsert_prediction(self, payload: dict[str, Any]) -> bool:
+    def upsert_prediction(self, payload: dict) -> bool:
         """
         Сохранить прогноз с UPSERT по (fixture_id, model_version).
         Ожидает в payload как минимум:
@@ -160,18 +160,10 @@ class DBLogger:
         prob_home_win, prob_draw, prob_away_win, confidence.
         Остальные поля опциональны.
         """
-        required = [
-            "fixture_id",
-            "model_version",
-            "lambda_home",
-            "lambda_away",
-            "probability_home_win",
-            "probability_draw",
-            "probability_away_win",
-            "confidence",
-        ]
+        required = ["fixture_id", "model_version", "lambda_home", "lambda_away",
+                    "probability_home_win", "probability_draw", "probability_away_win", "confidence"]
 
-        # Поддержка альтернативных ключей
+        # поддержка альтернативных ключей
         if "prob_home_win" in payload:
             payload.setdefault("probability_home_win", payload["prob_home_win"])
         if "prob_away_win" in payload:

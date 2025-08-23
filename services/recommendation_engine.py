@@ -210,15 +210,23 @@ class RecommendationEngine:
                 "model": "ThreeLevelPoisson",
                 "expected_goals": {
                     "home": round(modified_lambdas[0], 3),
-                    "away": round(modified_lambdas[1], 3)
+                    "away": round(modified_lambdas[1], 3),
                 },
                 "probabilities": poisson_result,
-                "best_recommendation": recommendations[0].market + ": " + recommendations[0].selection if recommendations else "Ставки не определены",
+                "best_recommendation": (
+                    recommendations[0].market + ": " + recommendations[0].selection
+                    if recommendations
+                    else "Ставки не определены"
+                ),
                 "confidence": round(confidence, 3),
                 "risk_level": recommendations[0].risk_level.value if recommendations else "высокий",
                 "recommendations_count": len(recommendations),
                 "generated_at": datetime.now().isoformat(),
-                "missing_data_info": missing_data_info
+                "missing_data_info": missing_data_info,
+                "model_name": "poisson",
+                "model_version": self.settings.MODEL_VERSION,
+                "cache_version": getattr(self.settings, "CACHE_VERSION", None),
+                "model_flags": getattr(self.settings, "MODEL_FLAGS", None),
             }
             # === Async DB log (best-effort) ===
             try:
@@ -236,6 +244,10 @@ class RecommendationEngine:
                         lam_home=float(modified_lambdas[0]),
                         lam_away=float(modified_lambdas[1]),
                         confidence=float(confidence),
+                        model_name="poisson",
+                        model_version=self.settings.MODEL_VERSION,
+                        cache_version=getattr(self.settings, "CACHE_VERSION", None),
+                        model_flags=getattr(self.settings, "MODEL_FLAGS", None),
                     )
             except Exception as _e:
                 logger.warning("Логирование прогноза не выполнено: %s", _e)
