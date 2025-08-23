@@ -135,6 +135,14 @@ class RecommendationEngine:
         except Exception:
             return base
 
+    def penalize_confidence(
+        self, base: float, *, missing_ratio: float = 0.0, freshness_minutes: float = 0.0
+    ) -> float:
+        """Публичный интерфейс для штрафов уверенности."""
+        return self._penalize_confidence(
+            base, missing_ratio=missing_ratio, freshness_minutes=freshness_minutes
+        )
+
     async def generate_comprehensive_prediction(self, match_data: Dict[str, Any]) -> Dict[str, Any]:
         """Генерация комплексного прогноза."""
         try:

@@ -17,9 +17,16 @@ from logger import logger
 from workers.task_manager import task_manager
 # Импортируем кэш из Postgres
 from database.cache_postgres import cache
-# Импортируем модуль логирования в БД
-from database.db_logging import log_prediction
+# Импортируем RecommendationEngine и DBLogger
+from services.recommendation_engine import RecommendationEngine
+from services.sportmonks_client import sportmonks_client
+from database.db_logging import DBLogger
 router = Router()
+
+recommendation_engine = RecommendationEngine(sportmonks_client)
+db_logger = DBLogger()
+
+
 class PredictionStates(StatesGroup):
     waiting_for_teams = State()
 def process_team_names(text: str) -> Optional[Tuple[str, str]]:
@@ -83,76 +90,6 @@ def compute_probs(lambda_home: float, lambda_away: float,
     except Exception as e:
         logger.error(f"Ошибка при вычислении вероятностей: {e}", exc_info=True)
         return {}
-def compute_confidence_from_margin(probs: Dict[str, float]) -> float:
-    """Вычисление уверенности на основе маржи между вероятностями.
-    Args:
-        probs (Dict[str, float]): Словарь вероятностей {"home": p1, "draw": p2, "away": p3}
-    Returns:
-        float: Уровень уверенности (0-1)
-    """
-    try:
-        import numpy as np
-        if not probs:
-            logger.warning("Пустой словарь вероятностей для расчета уверенности")
-            return 0.0
-        # Получаем значения вероятностей
-        prob_values = [
-            probs.get("probability_home_win", 0),
-            probs.get("probability_draw", 0),
-            probs.get("probability_away_win", 0)
-        ]
-        non_zero_probs = [p for p in prob_values if p > 0]
-        if not non_zero_probs:
-            logger.warning("Все вероятности равны 0 для расчета уверенности")
-            return 0.0
-        max_prob = max(prob_values)
-        min_prob = min(non_zero_probs)  # Минимум среди ненулевых
-        # Расчет маржи
-        margin = max_prob - min_prob
-        # Нормализация уверенности (простой способ)
-        # Можно заменить на более сложную формулу
-        confidence = max(0.0, min(1.0, margin * 2))  # Пример нормализации
-        logger.debug(f"Рассчитана уверенность: {confidence:.3f} (маржа: {margin:.3f})")
-        return confidence
-    except Exception as e:
-        logger.error(f"Ошибка при вычислении уверенности: {e}", exc_info=True)
-        return 0.0
-def penalize_confidence(confidence: float, missing_ratio: float, freshness_minutes: float, settings: Any) -> float:
-    """Применение штрафа к уверенности на основе пропусков и свежести данных.
-    Args:
-        confidence (float): Исходная уверенность (0-1).
-        missing_ratio (float): Доля пропущенных значений (0-1).
-        freshness_minutes (float): Свежесть данных в минутах.
-        settings (Any): Объект настроек
-    Returns:
-        float: Скорректированная уверенность (0-1).
-    """
-    try:
-        # Получаем параметры штрафов из конфигурации
-        missing_penalty_alpha = getattr(settings, 'CONFIDENCE', {}).get('missing_penalty_alpha', 0.2)
-        freshness_penalty_alpha = getattr(settings, 'CONFIDENCE', {}).get('freshness_penalty_alpha', 0.15)
-        # Применяем штраф за пропуски
-        missing_penalty = 1.0 - (missing_ratio * missing_penalty_alpha)
-        # Применяем штраф за свежесть (например, после 60 минут начинаем штрафовать)
-        freshness_base_minutes = getattr(settings, 'CONFIDENCE', {}).get('freshness_base_minutes', 60)
-        if freshness_minutes > freshness_base_minutes:
-            extra_minutes = freshness_minutes - freshness_base_minutes
-            freshness_penalty = 1.0 - ((extra_minutes / 60.0) * freshness_penalty_alpha)
-            freshness_penalty = max(0.5, freshness_penalty)  # Минимум 50%
-        else:
-            freshness_penalty = 1.0
-        # Комбинируем штрафы
-        final_confidence = confidence * missing_penalty * freshness_penalty
-        final_confidence = max(0.0, min(1.0, final_confidence))
-        logger.debug(f"Применены штрафы к уверенности: "
-                     f"исходная={confidence:.3f}, "
-                     f"пропуски={missing_ratio:.2f} (штраф: x{missing_penalty:.3f}), "
-                     f"свежесть={freshness_minutes:.1f}мин (штраф: x{freshness_penalty:.3f}), "
-                     f"итоговая={final_confidence:.3f}")
-        return final_confidence
-    except Exception as e:
-        logger.error(f"Ошибка при применении штрафа к уверенности: {e}")
-        return confidence
 def apply_calibrators(probabilities: Dict[str, float]) -> Dict[str, float]:
     """Применение калибраторов вероятностей (например, изотонная регрессия).
     Args:
@@ -186,15 +123,18 @@ async def log_prediction_to_db(match_id: int, features: Dict[str, Any],
         bool: Успешность операции
     """
     try:
-        from database.db_logging import log_prediction
-        success = await log_prediction(
-            match_id=match_id,
-            features=features,
-            probs=probs,
-            lam_home=lam_home,
-            lam_away=lam_away,
-            confidence=confidence
-        )
+        payload = {
+            "fixture_id": match_id,
+            "model_version": settings.MODEL_VERSION,
+            "lambda_home": lam_home,
+            "lambda_away": lam_away,
+            "probability_home_win": probs.get("probability_home_win", 0.0),
+            "probability_draw": probs.get("probability_draw", 0.0),
+            "probability_away_win": probs.get("probability_away_win", 0.0),
+            "confidence": confidence,
+        }
+        loop = asyncio.get_running_loop()
+        success = await loop.run_in_executor(None, db_logger.upsert_prediction, payload)
         if success:
             logger.info(f"[{match_id}] Прогноз успешно записан в БД")
         else:
@@ -275,14 +215,16 @@ async def generate_full_prediction(match_id: int, home_team: str, away_team: str
         use_bivariate = settings.MODEL_FLAGS.get("enable_bivariate_poisson", False)
         probabilities = compute_probs(lambda_home, lambda_away, use_bivariate)
         # === 5. Вычисление уверенности на основе маржи (margin-based confidence) ===
-        confidence = compute_confidence_from_margin(probabilities)
+        confidence = recommendation_engine.compute_confidence_from_margin(probabilities)
         # === 6. Применение калибровки (если включено) ===
         if settings.MODEL_FLAGS.get("enable_calibration", False):
             probabilities = apply_calibrators(probabilities)
         # === 7. Применение штрафов к уверенности (missing/freshness) ===
         missing_ratio = features.get("missing_ratio", 0.0)
         freshness_minutes = features.get("freshness_minutes", 0.0)  # Теперь используем реальное значение
-        confidence = penalize_confidence(confidence, missing_ratio, freshness_minutes, settings)
+        confidence = recommendation_engine.penalize_confidence(
+            confidence, missing_ratio=missing_ratio, freshness_minutes=freshness_minutes
+        )
         # === 8. Логирование прогноза в БД (db_logging) ===
         await log_prediction_to_db(match_id, features, probabilities, lambda_home, lambda_away, confidence)
         # === 9. Формирование финального прогноза ===
