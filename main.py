@@ -5,6 +5,7 @@ import sys
 from contextlib import asynccontextmanager
 from logger import logger
 from config import settings
+from observability import init_observability
 
 # --- Импорты, выполненные в начале файла ---
 from database.cache_postgres import init_cache
@@ -22,6 +23,7 @@ async def app_lifespan():
     setup_signal_handlers()
     logger.info(f"Запуск бота в режиме DEBUG={settings.DEBUG_MODE}")
     logger.info(f"Уровень логирования: {settings.LOG_LEVEL}")
+    init_observability()
 
     # Инициализация кэша и модели
     logger.info("Инициализация PostgreSQL кэша")

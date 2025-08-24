@@ -1,0 +1,127 @@
+"""
+@file: metrics.py
+@description: Prometheus metrics and rolling ECE/LogLoss calculations.
+@dependencies: prometheus_client, sentry_sdk
+@created: 2025-08-24
+"""
+
+from collections import deque
+from typing import Deque, Dict, Tuple, Optional
+
+try:
+    import sentry_sdk  # type: ignore
+except Exception:  # pragma: no cover
+    class _SentryStub:
+        @staticmethod
+        def capture_message(*args, **kwargs):
+            pass
+
+    sentry_sdk = _SentryStub()
+
+try:
+    from prometheus_client import Counter, Gauge, Histogram
+except Exception:  # pragma: no cover
+    class _DummyMetric:
+        def __init__(self, *args, **kwargs):
+            self.value = 0.0
+
+        def labels(self, **kwargs):  # type: ignore
+            return self
+
+        def inc(self, amount=1):  # type: ignore
+            self.value += amount
+
+        def observe(self, value):  # type: ignore
+            self.value = value
+
+        def set(self, value):  # type: ignore
+            self.value = value
+
+        @property
+        def _value(self):  # type: ignore
+            class _Val:
+                def __init__(self, parent):
+                    self.parent = parent
+
+                def get(self):
+                    return self.parent.value
+
+            return _Val(self)
+
+    Counter = Gauge = Histogram = _DummyMetric
+
+WINDOW_SIZE = 200
+
+pred_total = Counter("pred_total", "Total predictions", ["market", "league"])
+prob_bins = Histogram(
+    "prob_bins",
+    "Prediction probability distribution",
+    ["market", "league"],
+    buckets=[i / 10 for i in range(11)],
+)
+rolling_ece = Gauge("rolling_ece", "Rolling Expected Calibration Error", ["market", "league"])
+rolling_logloss = Gauge("rolling_logloss", "Rolling LogLoss", ["market", "league"])
+
+_windows: Dict[Tuple[str, str], Deque[Tuple[float, int]]] = {}
+
+
+def _get_window(key: Tuple[str, str]) -> Deque[Tuple[float, int]]:
+    window = _windows.get(key)
+    if window is None:
+        window = deque(maxlen=WINDOW_SIZE)
+        _windows[key] = window
+    return window
+
+
+def _calc_ece(items: Deque[Tuple[float, int]]) -> float:
+    n_bins = 10
+    bin_totals = [0] * n_bins
+    bin_correct = [0] * n_bins
+    for prob, label in items:
+        idx = min(int(prob * n_bins), n_bins - 1)
+        bin_totals[idx] += 1
+        bin_correct[idx] += label
+    total = len(items)
+    ece = 0.0
+    for i in range(n_bins):
+        if bin_totals[i] == 0:
+            continue
+        avg_conf = (i + 0.5) / n_bins
+        acc = bin_correct[i] / bin_totals[i]
+        ece += abs(acc - avg_conf) * bin_totals[i] / total
+    return ece
+
+
+def _calc_logloss(items: Deque[Tuple[float, int]]) -> float:
+    import math
+
+    eps = 1e-15
+    total = 0.0
+    for prob, label in items:
+        p = min(max(prob, eps), 1 - eps)
+        total += -(label * math.log(p) + (1 - label) * math.log(1 - p))
+    return total / len(items)
+
+
+def record_prediction(market: str, league: str, y_prob: float, y_true: Optional[int]) -> None:
+    """Record prediction and update rolling metrics."""
+    key = (market, league)
+    pred_total.labels(market=market, league=league).inc()
+    prob_bins.labels(market=market, league=league).observe(y_prob)
+    window = _get_window(key)
+    if y_true is None:
+        ece = _calc_ece(window) if window else 0.0
+        logloss = _calc_logloss(window) if window else 0.0
+        rolling_ece.labels(market=market, league=league).set(ece)
+        rolling_logloss.labels(market=market, league=league).set(logloss)
+        return
+
+    window.append((y_prob, y_true))
+    ece = _calc_ece(window)
+    logloss = _calc_logloss(window)
+    rolling_ece.labels(market=market, league=league).set(ece)
+    rolling_logloss.labels(market=market, league=league).set(logloss)
+    if len(window) >= WINDOW_SIZE and ece > 0.05:
+        sentry_sdk.capture_message(
+            f"High ECE {ece:.3f} for {league}/{market}", level="warning"
+        )

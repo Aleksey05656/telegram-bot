@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     DEBUG_MODE: bool = False
     APP_ENV: str = "development"
 
+    # --- Observability ---
+    SENTRY_DSN: Optional[str] = None
+    PROMETHEUS_PORT: int = 8008
+
     # --- Кэширование ---
     CACHE_VERSION: str = "v3"  # Обновлять при изменении логики или фич
 
