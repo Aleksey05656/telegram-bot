@@ -2,9 +2,8 @@
 """Обработчик команды /predict для прогнозирования результатов матчей."""
 import asyncio
 import json
-import re
 import uuid
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from datetime import datetime
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
@@ -21,6 +20,7 @@ from database.cache_postgres import cache
 from services.recommendation_engine import RecommendationEngine
 from services.sportmonks_client import sportmonks_client
 from database.db_logging import DBLogger
+from telegram.models import CommandWithoutArgs, PredictCommand
 router = Router()
 
 recommendation_engine = RecommendationEngine(sportmonks_client)
@@ -29,32 +29,19 @@ db_logger = DBLogger()
 
 class PredictionStates(StatesGroup):
     waiting_for_teams = State()
-def process_team_names(text: str) -> Optional[Tuple[str, str]]:
-    """Извлекает названия команд из текста сообщения."""
-    try:
-        # Убираем команду /predict и лишние пробелы
-        command_part = "/predict"
-        if text.startswith(command_part):
-            message_text = text[len(command_part):].strip()
-        else:
-            message_text = text.strip()
-        # Разделяем по тире
-        parts = [p.strip() for p in message_text.split(' - ') if p.strip()]
-        if len(parts) == 2:
-            return parts[0], parts[1]
-        else:
-            # Попробуем обработать случаи с лишними дефисами или пробелами
-            # Например, "Команда1 - - Команда2" или "Команда1-Команда2"
-            # Разделяем по шаблону: один или несколько дефисов, возможно окружены пробелами
-            parts = re.split(r'\s*-\s*', message_text)
-            parts = [p for p in parts if p] # Убираем пустые строки
-            if len(parts) >= 2:
-                return parts[0], parts[-1] # Берем первую и последнюю как названия
-            else:
-                return None
-    except Exception as e:
-        logger.error(f"Ошибка при извлечении названий команд: {e}")
-        return None
+
+
+async def _start_prediction(message: Message, cmd: PredictCommand) -> None:
+    """Постановка задачи прогнозирования и уведомление пользователя."""
+    await message.answer(f"⚽ Ищу матч: {cmd.home_team} - {cmd.away_team}")
+    task_id = await enqueue_prediction(cmd.home_team, cmd.away_team)
+    if task_id:
+        await message.answer(
+            f"⏳ Задача принята. ID: `{task_id}`\nОжидайте результат...",
+            parse_mode="Markdown",
+        )
+    else:
+        await message.answer("❌ Произошла ошибка. Попробуйте позже.")
 def compute_probs(lambda_home: float, lambda_away: float,
                   use_bivariate: bool = False) -> Dict[str, float]:
     """Вычисление вероятностей рынков.
@@ -147,9 +134,18 @@ async def log_prediction_to_db(match_id: int, features: Dict[str, Any],
 async def cmd_predict(message: Message, state: FSMContext):
     """Обработчик команды /predict."""
     try:
+        args_text = message.text.replace("/predict", "", 1).strip()
+        if args_text:
+            cmd = PredictCommand.parse(args_text)
+            await _start_prediction(message, cmd)
+            return
+        CommandWithoutArgs.parse(message.text)
         logger.info(f"Пользователь {message.from_user.id} запустил команду /predict")
         await message.answer("Введите названия команд в формате:\n`Команда 1 - Команда 2`", parse_mode="Markdown")
         await state.set_state(PredictionStates.waiting_for_teams)
+    except ValueError as e:
+        await message.answer(f"❌ {e}", parse_mode="HTML")
+        await state.clear()
     except Exception as e:
         logger.error(f"Ошибка в обработчике cmd_predict для пользователя {message.from_user.id}: {e}")
         await message.answer("❌ Произошла ошибка. Попробуйте позже.")
@@ -158,25 +154,19 @@ async def cmd_predict(message: Message, state: FSMContext):
 async def process_teams_input(message: Message, state: FSMContext):
     """Обработка ввода названий команд."""
     try:
-        text = message.text.strip()
-        teams = process_team_names(text)
-        if not teams:
-            await message.answer("❌ Неверный формат. Пожалуйста, введите в формате:\n`Команда 1 - Команда 2`", parse_mode="Markdown")
-            return
-        home_team, away_team = teams
-        await message.answer(f"⚽ Ищу матч: {home_team} - {away_team}")
-        # Создаем уникальный ID задачи
-        task_id = str(uuid.uuid4())
-        logger.info(f"Создана задача прогнозирования {task_id} для матча {home_team} - {away_team}")
-        # Отправляем задачу в очередь
-        await task_manager.add_task(task_id, 'predict_match', {
-            'home_team': home_team,
-            'away_team': away_team
-        })
-        await message.answer(f"⏳ Задача принята. ID: `{task_id}`\nОжидайте результат...", parse_mode="Markdown")
+        cmd = PredictCommand.parse(message.text.strip())
+        await _start_prediction(message, cmd)
         await state.clear()
+    except ValueError:
+        await message.answer(
+            "❌ Неверный формат. Пожалуйста, введите в формате:\n`Команда 1 - Команда 2`",
+            parse_mode="Markdown",
+        )
     except Exception as e:
-        logger.error(f"Критическая ошибка в обработчике process_teams_input для пользователя {message.from_user.id}: {e}", exc_info=True)
+        logger.error(
+            f"Критическая ошибка в обработчике process_teams_input для пользователя {message.from_user.id}: {e}",
+            exc_info=True,
+        )
         await message.answer("❌ Произошла ошибка при обработке вашего запроса. Попробуйте еще раз.")
         await state.clear()
 # Основная функция прогнозирования (интеграция всего пайплайна)

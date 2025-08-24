@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramBadRequest # Добавлен импорт
 from logger import logger
+from telegram.models import CommandWithoutArgs
 
 # Исправленный импорт кэша
 from database.cache_postgres import cache
@@ -20,6 +21,7 @@ router = Router()
 async def cmd_help(message: Message):
     """Обработчик команд /help, /examples, /stats."""
     try:
+        CommandWithoutArgs.parse(message.text)
         command = message.get_command(pure=True).lstrip('/')
         logger.debug(f"Пользователь {message.from_user.id} запросил {command}")
 
@@ -70,6 +72,8 @@ async def cmd_help(message: Message):
 
         await message.answer(help_text, parse_mode="HTML")
         logger.info(f"{command.capitalize()} отправлен(-а) пользователю {message.from_user.id}")
+    except ValueError as e:
+        await message.answer(f"❌ {e}", parse_mode="HTML")
     except Exception as e:
         error_msg = f"Ошибка при отправке {command} пользователю {message.from_user.id}"
         logger.error(f"{error_msg}: {e}", exc_info=True)

@@ -8,6 +8,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramBadRequest # Добавлен импорт
 from logger import logger
+from telegram.models import CommandWithoutArgs
 
 # Импорт текста дисклеймера из terms.py
 from telegram.handlers.terms import DISCLAIMER_TEXT
@@ -79,11 +80,14 @@ async def edit_or_send_main_menu(callback: CallbackQuery):
 async def cmd_start(message: Message):
     """Обработчик команды /start."""
     try:
+        CommandWithoutArgs.parse(message.text)
         logger.info(f"Пользователь {message.from_user.id} ({message.from_user.username or 'N/A'}) начал работу с ботом")
         # Отправляем приветственное сообщение
         await message.answer(START_MESSAGE, parse_mode="HTML")
         # Отправляем главное меню как новое сообщение
         await send_main_menu(message)
+    except ValueError as e:
+        await message.answer(f"❌ {e}", parse_mode="HTML")
     except Exception as e:
         logger.error(f"Ошибка в обработчике /start для пользователя {message.from_user.id}: {e}")
         await message.answer("❌ Произошла ошибка при запуске бота. Попробуйте позже.", parse_mode="HTML")

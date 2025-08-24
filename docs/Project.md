@@ -42,6 +42,8 @@ telegram-bot/
 │  ├─ sportmonks_client.py        # API с ретраями/лимитами
 ├─ telegram/
 │  ├─ bot.py
+│  ├─ models.py               | Pydantic модели команд
+│  ├─ middlewares.py          | Rate-limit middleware
 │  ├─ handlers/ (start, predict, help, terms)
 │  └─ utils/formatter.py
 ├─ workers/
@@ -98,8 +100,8 @@ Rolling/walk-forward CV; LogLoss, Brier, ECE.
 Недельные отчёты.
 
 ## 7. Безопасность
-Секреты: только ENV/secret-manager. Роли БД: rw и read-only; минимальные привилегии.  
-Логи без PII. Rate-limit команд бота. Circuit-breaker API.  
+Секреты: только ENV/secret-manager. Роли БД: rw и read-only; минимальные привилегии.
+Логи без PII. RateLimitMiddleware ограничивает частоту команд бота. Circuit-breaker API.
 Валидация входящих данных (pydantic-схемы).
 
 ## 8. Производительность и надёжность
