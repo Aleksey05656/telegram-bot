@@ -1,3 +1,11 @@
+## [2025-08-24] - Очистка конфликтов и обновление зависимостей
+### Добавлено
+- —
+### Изменено
+- Сведены зависимости в requirements.txt без повторов.
+### Исправлено
+- Удалены конфликтные маркеры в main.py и requirements.txt.
+
 ## [2025-08-23] - Рефакторинг ML-слоёв
 ### Добавлено
 - Модули `ml/base_poisson_glm.py`, `ml/modifiers_model.py`, `ml/calibration.py`, `ml/montecarlo_simulator.py`.
