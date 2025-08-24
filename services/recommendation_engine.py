@@ -20,8 +20,10 @@ except ImportError:
     logger.warning("Bivariate Poisson модель не доступна")
 # Импорт сервисов
 from services.sportmonks_client import sportmonks_client
-from services.prediction_modifier import prediction_modifier
+from ml.modifiers_model import prediction_modifier
 from services.data_processor import data_processor
+from ml.base_poisson_glm import BasePoissonModel, base_poisson_model
+from ml.calibration import ProbabilityCalibrator
 # Импорт модуля логирования в БД
 try:
     from database.db_logging import log_prediction  # async
@@ -57,11 +59,12 @@ class BettingRecommendation:
     reasoning: str
 class RecommendationEngine:
     """Движок для генерации рекомендаций."""
-    def __init__(self, sportmonks_client):
+    def __init__(self, sportmonks_client, base_model: BasePoissonModel | None = None):
         """Инициализация Recommendation Engine."""
         self.settings = get_settings()
         self.poisson_model = poisson_model
         self.regression_model = poisson_regression_model
+        self.base_model = base_model or base_poisson_model
         # Инициализация сервисов
         self.data_processor = data_processor
         self.modifier = prediction_modifier
@@ -155,7 +158,7 @@ class RecommendationEngine:
                                "Рекомендуется запустить переобучение модели.")
             team_stats = match_data.get("team_stats", {})
             # 1. Расчет базовых λ
-            base_lambdas = await self._calculate_base_lambdas(match_data, team_stats)
+            base_lambdas = await self.base_model.estimate(match_data, team_stats)
             # 2. Подготовка контекста матча
             match_context = await self._prepare_match_context(match_data, team_stats)
             # 3. Применение модификаторов
@@ -287,13 +290,6 @@ class RecommendationEngine:
                 "recommendations_count": 0,
                 "missing_data_info": {"missing_ratio": 0.0, "data_freshness_minutes": 0.0}
             }
-    async def _calculate_base_lambdas(self, match_data: Dict, team_stats: Dict) -> List[float]:
-        """Расчет базовых параметров λ."""
-        try:
-            # В реальной реализации здесь будет расчет λ
-            # Например, с использованием poisson_regression_model
-            # Для примера возвращаем заглушку
-            return [1.5, 1.2]  # Значения по умолчанию
         except Exception as e:
             logger.error(f"Ошибка при расчете базовых λ: {e}")
             return [1.5, 1.2]  # Значения по умолчанию
@@ -516,149 +512,3 @@ class RecommendationEngine:
 recommendation_engine = RecommendationEngine(sportmonks_client)
 
 
-class ProbabilityCalibrator:
-    def __init__(
-        self,
-        method: str = "platt",
-        keys: Optional[List[str]] = None,
-        weights: Optional[Dict[str, float]] = None,
-        strict_guard: bool = True,
-        max_shift: float = 0.25,
-        max_weight_on_large_shift: float = 0.5,
-    ):
-        self.method = method
-        self.keys = keys or []
-        self.weights = weights or {}
-        self.strict_guard = bool(strict_guard)
-        self.max_shift = float(max(0.0, max_shift))
-        self.max_weight_on_large_shift = float(min(1.0, max(0.0, max_weight_on_large_shift)))
-        self._models: Dict[str, Any] = {}
-
-    def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
-        from sklearn.isotonic import IsotonicRegression
-        from sklearn.linear_model import LogisticRegression
-        for key, p in p_base.items():
-            if self.method == "isotonic":
-                m = IsotonicRegression(out_of_bounds="clip")
-                self._models[key] = m.fit(p, (y_true == (key)).astype(float))
-            else:
-                m = LogisticRegression(max_iter=1000)
-                self._models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
-        return self
-
-    def predict(self, probs: Dict[str, float]) -> Dict[str, float]:
-        """
-        Калибруем вероятности по ключам.
-        - Если у модели есть predict_proba → используем вероятность положительного класса ([:, 1]).
-        - Иначе, если есть predict (напр. IsotonicRegression) → используем её вывод.
-        - Иначе, если есть transform → пробуем transform.
-        - Иначе оставляем исходное p.
-        Дополнительно поддерживается блендинг по весам: final = w*calibrated + (1-w)*original, w∈[0,1].
-        Если self.keys указан, калибруем только эти ключи; прочие — pass-through.
-        """
-        calibrated: Dict[str, float] = {}
-
-        # набор ключей для прохода: либо заданные, либо все из probs
-        iter_keys = list(self.keys) if self.keys else list(probs.keys())
-
-        for k in iter_keys:
-            if k not in probs:
-                # ключ не задан во входе — пропускаем
-                continue
-            original_p = float(probs[k])
-            m = self._models.get(k)
-
-            # по умолчанию — исходная вероятность
-            cal_p = original_p
-
-            if m is not None:
-                try:
-                    # 1) Классификаторы с predict_proba (например, LogisticRegression)
-                    if hasattr(m, "predict_proba"):
-                        proba = m.predict_proba([[original_p]])
-                        # Надёжный разбор без лишних shape-предикатов
-                        try:
-                            # классическая форма (1, 2)
-                            cal_p = float(proba[0][1])
-                        except Exception:
-                            try:
-                                # если это numpy-подобный объект
-                                cal_p = float(getattr(proba, "squeeze", lambda: proba)())
-                            except Exception:
-                                # списки/кортежи и пр.
-                                if isinstance(proba, (list, tuple)):
-                                    if proba and isinstance(proba[0], (list, tuple)) and len(proba[0]) >= 2:
-                                        cal_p = float(proba[0][1])
-                                    elif proba:
-                                        cal_p = float(proba[0])
-                                else:
-                                    cal_p = original_p
-                    # 2) Регрессоры/калибраторы с predict (напр. IsotonicRegression)
-                    elif hasattr(m, "predict"):
-                        y = m.predict([[original_p]])
-                        # y может быть массивом/списком или скаляром
-                        cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
-                    # 3) Редкий случай — только transform
-                    elif hasattr(m, "transform"):
-                        y = m.transform([[original_p]])
-                        # часто transform возвращает 2D; берём [0][0] при наличии
-                        if hasattr(y, "__len__"):
-                            try:
-                                cal_p = float(y[0][0])
-                            except Exception:
-                                cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
-                        else:
-                            cal_p = float(y)
-                except Exception:
-                    # на любой ошибке откатываемся к исходной вероятности
-                    cal_p = original_p
-
-            # приводим в [0,1]
-            cal_p = max(0.0, min(1.0, cal_p))
-
-            # применяем блендинг по весу (сила калибровки)
-            w = float(self.weights.get(k, 1.0))
-            # зажимаем вес в [0,1] на всякий случай
-            if w < 0.0:
-                w = 0.0
-            elif w > 1.0:
-                w = 1.0
-            # сторожок: если калибровка слишком далеко ушла от исходной p — ограничим влияние
-            if self.strict_guard and abs(cal_p - original_p) > self.max_shift:
-                w = min(w, self.max_weight_on_large_shift)
-            final_p = w * cal_p + (1.0 - w) * original_p
-
-            calibrated[k] = float(max(0.0, min(1.0, final_p)))
-
-        # Для ключей, не попавших в iter_keys (когда self.keys задан), перенесём как есть:
-        if self.keys:
-            for k, p in probs.items():
-                if k not in calibrated:
-                    calibrated[k] = float(max(0.0, min(1.0, p)))
-
-        # гарантируем присутствие всех ключей из self.keys,
-        # даже если каких-то значений нет во входе probs
-        if self.keys:
-            for k in self.keys:
-                if k not in calibrated:
-                    calibrated[k] = float(max(0.0, min(1.0, float(probs.get(k, 0.0)))))
-        # если после добора словарь всё ещё пуст (например, и self.keys, и probs фактически пустые)
-        if not calibrated:
-            if self.keys:
-                # инициализируем ключи из self.keys нулями, чтобы не падать на нормализации
-                for k in self.keys:
-                    if k not in calibrated:
-                        calibrated[k] = 0.0
-            else:
-                # переносим всё, что есть в probs, приводя к [0,1]
-                for k, p in probs.items():
-                    calibrated[k] = float(max(0.0, min(1.0, float(p))))
-
-        # безопасная нормализация
-        s = sum(calibrated.values())
-        if s <= 0:
-            # возвращаем корректную «нулевую» дистрибуцию по имеющимся ключам
-            return {k: 0.0 for k in calibrated}
-        return {k: (v / s) for k, v in calibrated.items()}
-
-    # Для ансамблирования нескольких моделей используйте EnsembleCombiner.

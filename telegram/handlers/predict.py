@@ -334,7 +334,7 @@ def apply_weather_field(lambda_home: float, lambda_away: float,
         Tuple[float, float]: Скорректированные λ
     """
     try:
-        from services.prediction_modifier import prediction_modifier
+        from ml.modifiers_model import prediction_modifier
         # Применяем модификаторы погоды и поля
         modified_lambda_home, modified_lambda_away = prediction_modifier.apply_weather_field(
             lambda_home, lambda_away, weather, pitch_type
@@ -358,7 +358,7 @@ def apply_lineup_uncertainty(lambda_home: float, lambda_away: float,
         Tuple[float, float]: Скорректированные λ
     """
     try:
-        from services.prediction_modifier import prediction_modifier
+        from ml.modifiers_model import prediction_modifier
         # Применяем модификатор неопределенности состава
         modified_lambda_home, modified_lambda_away = prediction_modifier.apply_lineup_uncertainty(
             lambda_home, lambda_away, core_home, core_away
@@ -444,7 +444,7 @@ def load_artifacts(league: str, market: str, version: Optional[str] = None) -> T
             if os.path.isfile(bm): base_model = joblib.load(bm)
             mp = os.path.join(path, "modifier.joblib")
             if os.path.isfile(mp):
-                from prediction_modifier import CalibrationLayer
+                from ml.modifiers_model import CalibrationLayer
                 modifier = CalibrationLayer.load(mp)
             cp = os.path.join(path, "calibrator.joblib")
             if os.path.isfile(cp): calibrator = joblib.load(cp)

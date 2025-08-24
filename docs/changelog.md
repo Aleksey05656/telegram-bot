@@ -1,3 +1,12 @@
+## [2025-08-23] - Рефакторинг ML-слоёв
+### Добавлено
+- Модули `ml/base_poisson_glm.py`, `ml/modifiers_model.py`, `ml/calibration.py`, `ml/montecarlo_simulator.py`.
+- Реэкспорт PredictionModifier в `ml.modifiers_model`.
+### Изменено
+- RecommendationEngine получает базовую модель через DI, обновлены импорты сервисов и скриптов.
+- Добавлен недостающий импорт CalibrationLayer в train_model.py.
+### Исправлено
+- Удалены устаревшие импорты калибрации и модификаторов.
 ## [2025-08-23] - Обновление структуры tasktracker
 ### Добавлено
 - Добавлены задачи по ML-пайплайну (GLM, модификаторы, Монте-Карло) в новом формате.

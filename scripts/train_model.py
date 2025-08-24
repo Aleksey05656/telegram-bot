@@ -12,12 +12,13 @@ from typing import List, Tuple, Optional, Dict, Any
 import json
 import os
 from sklearn.metrics import log_loss, brier_score_loss
-from sklearn.isotonic import IsotonicRegression
 import matplotlib.pyplot as plt
 import io
 import base64
 # Импортируем правильный класс модели
 from ml.models.poisson_regression_model import PoissonRegressionModel, save_artifacts
+from ml.calibration import calibrate_probs, apply_calibration, ProbabilityCalibrator
+from ml.modifiers_model import CalibrationLayer
 import joblib # Для сохранения калибратора
 # Создаем экземпляр модели
 poisson_regression_model = PoissonRegressionModel(alpha=0.001, max_iter=300)  # Можно настроить параметры
@@ -25,50 +26,6 @@ def estimate_rho_from_history(samples):
     # эвристика: корреляция остатков по тоталам/BTTS
     # верните значение в [0..min(lam_home, lam_away)]
     return float(np.clip(np.corrcoef(samples["resid_home"], samples["resid_away"])[0,1], 0, 0.8))
-def calibrate_probs(y_true: np.ndarray, p_pred: np.ndarray) -> IsotonicRegression:
-    """
-    Калибровка вероятностей с использованием изотонической регрессии.
-    Args:
-        y_true (np.ndarray): Истинные метки (0 или 1)
-        p_pred (np.ndarray): Предсказанные вероятности
-    Returns:
-        IsotonicRegression: Обученный калибратор
-    """
-    try:
-        logger.info("Начало калибровки вероятностей с использованием изотонической регрессии")
-        # Создаем и обучаем изотоническую регрессию
-        ir = IsotonicRegression(out_of_bounds="clip")
-        ir.fit(p_pred, y_true)
-        logger.info("Калибровка вероятностей завершена успешно")
-        return ir
-    except Exception as e:
-        logger.error(f"Ошибка при калибровке вероятностей: {e}")
-        # Возвращаем тривиальный калибратор в случае ошибки
-        return None
-def apply_calibration(ir: IsotonicRegression, p: np.ndarray) -> np.ndarray:
-    """
-    Применение калибратора к вероятностям.
-    Args:
-        ir (IsotonicRegression): Обученный калибратор
-        p (np.ndarray): Предсказанные вероятности
-    Returns:
-        np.ndarray: Откалиброванные вероятности
-    """
-    try:
-        if ir is None:
-            logger.warning("Калибратор не инициализирован, возвращаются исходные вероятности")
-            return np.clip(p, 1e-6, 1-1e-6)
-        # Применяем калибровку
-        calibrated_probs = ir.predict(p)
-        # Обрезаем значения до допустимого диапазона
-        calibrated_probs = np.clip(calibrated_probs, 1e-6, 1-1e-6)
-        logger.debug(f"Применена калибровка: среднее исходное={np.mean(p):.4f}, "
-                    f"среднее откалиброванное={np.mean(calibrated_probs):.4f}")
-        return calibrated_probs
-    except Exception as e:
-        logger.error(f"Ошибка при применении калибровки: {e}")
-        # Возвращаем обрезанные исходные вероятности в случае ошибки
-        return np.clip(p, 1e-6, 1-1e-6)
 async def fetch_training_data(season_id: int = 23855) -> pd.DataFrame:
     """Получение данных для обучения модели.
     Args:
@@ -654,8 +611,6 @@ try:
     from poisson_regression_model import PoissonRegressionModel
 except Exception:
     PoissonRegressionModel = None
-from prediction_modifier import CalibrationLayer
-from recommendation_engine import ProbabilityCalibrator
 from data_processor import build_features, compute_time_decay_weights, make_time_series_splits
 
 DEFAULT_ALPHA_GRID = [0.001,0.003,0.01,0.03,0.1,0.3,1.0,3.0]
