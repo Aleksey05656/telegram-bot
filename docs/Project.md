@@ -57,16 +57,19 @@ telegram-bot/
 
 ## 4. Модель и алгоритмы
 ### 4.1 Шаг 1 — Базовые λ
+Реализация: `ml/base_poisson_glm.py`, DI в `RecommendationEngine`.
 Источник: SportMonks (1–2 сезона), признаки xG/xGA, HFA, среднее по лиге.  
 Модель: Poisson-GLM (log-link), L2, recency-веса, шринк новичков.  
 Выход: λ_base_home, λ_base_away; артефакт модели + `model_info.json`.
 
 ### 4.2 Шаг 2 — Динамические модификаторы
+Реализация: `ml/modifiers_model.py` (PredictionModifier, CalibrationLayer).
 Контекст: стадия/мотивация, календарь/усталость, травмы/дисквалификации, ΔxGOT.  
 Подход: обучаемый мультипликатор к log(λ_base): `log(λ_final) = log(λ_base) + f(context)` (GLM с оффсетом или GBDT c монотонными ограничениями); каппинг 0.7–1.4.  
 Выход: λ_final_home, λ_final_away; фиксация факторов для аудита.
 
 ### 4.3 Шаг 3 — Монте-Карло и рынки
+Реализация: `ml/montecarlo_simulator.py`, калибровка в `ml/calibration.py`.
 ≥10k итераций Пуассона по λ_final; при корреляциях — Bi-Variate Poisson/копула.  
 Калибровка: Platt/Isotonic; online-контроль ECE/LogLoss.  
 Рынки: 1X2, Totals (2.5 + расширение), BTTS, точные счёта (топ-N).  
