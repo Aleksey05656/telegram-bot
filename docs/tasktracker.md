@@ -59,3 +59,12 @@
   - [x] Создать base_poisson_glm, modifiers_model, calibration, montecarlo_simulator
   - [x] Обновить импорты в services, scripts и telegram
 - **Зависимости**: Project.md (разделы 3-4)
+
+## Задача: Логирование времени и Redis-lock
+- **Статус**: Завершена
+- **Описание**: Добавить middleware для измерения времени обработки и Redis-lock при генерации прогнозов.
+- **Шаги выполнения**:
+  - [x] Реализовано middleware замера времени и логирования p95/avg
+  - [x] Подключено middleware в Dispatcher
+  - [x] Добавлен Redis-lock в prediction_worker
+- **Зависимости**: —

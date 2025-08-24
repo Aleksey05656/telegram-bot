@@ -8,7 +8,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from logger import logger
 from config import settings
-from database.cache_postgres import init_cache
+from database.cache_postgres import cache, init_cache
 from services.data_processor import DataProcessor
 from services.recommendation_engine import recommendation_engine
 from telegram.utils.formatter import format_prediction_result
@@ -72,6 +72,19 @@ class PredictionWorker:
         """
         start_time = time.time()
         logger.info(f"[{job_id}] Начало обработки прогноза для {home_team} vs {away_team}")
+        lock = None
+        if cache and cache.redis_client:
+            lock_key = f"prediction_lock:{home_team}:{away_team}"
+            lock = cache.redis_client.lock(lock_key, timeout=60)
+            if not await lock.acquire(blocking=False):
+                logger.warning(
+                    f"[{job_id}] Прогноз уже генерируется для {home_team} vs {away_team}"
+                )
+                await self._send_message(
+                    chat_id,
+                    "⚠️ Прогноз уже генерируется для этого матча. Попробуйте позже.",
+                )
+                return False
         
         try:
             # Проверка актуальности модели
@@ -111,12 +124,18 @@ class PredictionWorker:
             logger.info(f"[{job_id}] ✅ Прогноз успешно сгенерирован за {processing_time:.2f} секунд")
             self.processed_jobs += 1
             return True
-            
+
         except Exception as e:
             logger.error(f"[{job_id}] Критическая ошибка в worker: {e}", exc_info=True)
             await self._send_error_message(chat_id)
             self.failed_jobs += 1
             return False
+        finally:
+            if lock and lock.locked():
+                try:
+                    await lock.release()
+                except Exception as e:  # pragma: no cover - non-critical
+                    logger.error(f"[{job_id}] Ошибка освобождения Redis-lock: {e}")
 
     async def _send_message(self, chat_id: int, text: str) -> None:
         """Вспомогательный метод для отправки сообщений."""
