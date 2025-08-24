@@ -11,7 +11,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import BotCommand
-from telegram.middlewares import RateLimitMiddleware
+from telegram.middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 
 from config import settings
 from logger import logger
@@ -64,6 +64,9 @@ class TelegramBot:
             self.dp = Dispatcher()
             self.dp.message.middleware.register(RateLimitMiddleware())
             self.dp.callback_query.middleware.register(RateLimitMiddleware())
+            timing = ProcessingTimeMiddleware()
+            self.dp.message.middleware.register(timing)
+            self.dp.callback_query.middleware.register(timing)
 
             # Регистрируем обработчики команд и коллбэков
             await self._register_handlers()
