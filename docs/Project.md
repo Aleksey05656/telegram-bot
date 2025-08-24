@@ -26,6 +26,9 @@
 telegram-bot/
 ├─ config.py                 | настройки, MODEL_VERSION, env
 ├─ logger.py                 | логирование (Loguru JSON + Sentry)
+├─ observability.py          | инициализация Sentry и Prometheus
+├─ metrics/                  | ECE/LogLoss метрики
+│  └─ metrics.py
 ├─ database/                 | PostgreSQL+Redis, миграции
 │  ├─ cache.py
 │  ├─ db_logging.py
@@ -98,9 +101,10 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 Инвалидация при апдейтах составов/ключевых новостей; rate-limit/backoff в клиенте.
 
 ## 6. Качество, калибровка и мониторинг
-Rolling/walk-forward CV; LogLoss, Brier, ECE.  
-Онлайн-метрики: ECE по декаилям, LogLoss vs baseline, PSI по фичам.  
-Алёрты: ECE>0.05 или LogLoss↑>15% от референса; PSI>0.25.  
+Rolling/walk-forward CV; LogLoss, Brier, ECE.
+Онлайн-метрики: ECE по декаилям, LogLoss vs baseline, PSI по фичам.
+Алёрты: ECE>0.05 или LogLoss↑>15% от референса; PSI>0.25.
+Мониторинг: Prometheus (pred_total, prob_bins, rolling_ece, rolling_logloss) и Sentry.
 Недельные отчёты.
 
 ## 7. Безопасность

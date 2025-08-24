@@ -13,6 +13,8 @@ from services.data_processor import DataProcessor
 from services.recommendation_engine import recommendation_engine
 from telegram.utils.formatter import format_prediction_result
 from ml.models.poisson_regression_model import poisson_regression_model
+from observability import init_observability
+from metrics import record_prediction
 
 # Константы для сообщений
 ERROR_MESSAGE = "❌ Произошла внутренняя ошибка при генерации прогноза. Попробуйте позже."
@@ -40,6 +42,8 @@ class PredictionWorker:
         try:
             if not settings.TELEGRAM_BOT_TOKEN:
                 raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
+
+            init_observability()
             
             # Инициализация бота
             self.bot = Bot(
@@ -116,6 +120,12 @@ class PredictionWorker:
 
             # Форматирование результата
             formatted_result = format_prediction_result(prediction, match_data, team_stats, h2h_data)
+
+            league = match_data.get("league", "unknown")
+            prob_home = float(
+                prediction.get("probabilities", {}).get("probability_home_win", 0.0)
+            )
+            record_prediction("1x2", league, prob_home, None)
 
             # Отправка результата пользователю
             await self._send_message(chat_id, formatted_result)
