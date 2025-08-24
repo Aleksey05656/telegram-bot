@@ -11,6 +11,16 @@ from database.cache_postgres import cache
 import numpy as np
 import pandas as pd
 
+# Ожидаемые колонки для построения фичей
+REQUIRED_FEATURE_COLUMNS = {
+    "home_xg",
+    "away_xg",
+    "home_form",
+    "away_form",
+    "league_id",
+    "season_id",
+}
+
 class DataProcessor:
     """Класс для обработки данных матчей."""
     def __init__(self):
@@ -1138,6 +1148,20 @@ class DataProcessor:
 # === НОВЫЕ УТИЛИТЫ ДЛЯ ЭТАПА 2.1 ===
 # Импорты перемещены в начало файла
 def build_features(fixtures: pd.DataFrame) -> pd.DataFrame:
+    """Формирование фичей из сырых данных о матчах.
+
+    Ожидаемые колонки:
+        - home_xg, away_xg
+        - home_form, away_form
+        - league_id, season_id
+
+    Raises:
+        ValueError: если отсутствуют обязательные колонки.
+    """
+    missing = REQUIRED_FEATURE_COLUMNS - set(fixtures.columns)
+    if missing:
+        logger.error(f"Отсутствуют обязательные колонки: {sorted(missing)}")
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
     df = fixtures.copy()
     # Примеры безопасных фичей (дообогатите по доступным полям из SportMonks)
     if "home_xg" in df.columns and "away_xg" in df.columns:
