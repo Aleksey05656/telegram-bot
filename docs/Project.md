@@ -78,7 +78,11 @@ telegram-bot/
 Value: `fair_odds = 1/p`; сравнение с внешними котировками (если подключено).
 
 ## 5. Данные и хранилища
-**PostgreSQL / predictions:**  
+**Охват данных:**
+- Лиги: Premier League, La Liga, Bundesliga, Serie A, Ligue 1.
+- Исторический горизонт: 5 сезонов (с 2018/19).
+
+**PostgreSQL / predictions:**
 - fixture_id BIGINT, model_version TEXT, UNIQUE(fixture_id, model_version)  
 - lambda_base_home/away, lambda_final_home/away NUMERIC(8,4)  
 - expected_total NUMERIC(8,4) = λ_final_home + λ_final_away (инвариант приложением)  
