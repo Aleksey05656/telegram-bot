@@ -1,0 +1,12 @@
+[project]
+name = "telegram-bot"
+version = "0.1.0"
+dependencies = [
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+    "fastapi>=0.110",
+    "uvicorn>=0.23",
+    "prometheus-client>=0.20",
+    "sentry-sdk>=2",
+    "python-dotenv>=1.0",
+]
