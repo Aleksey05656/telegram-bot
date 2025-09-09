@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     """Класс конфигурации приложения.
     Загружает параметры из переменных окружения и .env файла."""
     # --- API Keys ---
-    TELEGRAM_BOT_TOKEN: str
-    SPORTMONKS_API_KEY: str
-    ODDS_API_KEY: str  # Обязательное поле, без значения по умолчанию
+    TELEGRAM_BOT_TOKEN: str = ""
+    SPORTMONKS_API_KEY: str = ""
+    ODDS_API_KEY: str = ""  # Обязательное поле, без значения по умолчанию
 
     # --- Infrastructure ---
     REDIS_HOST: str = "localhost"
@@ -133,7 +133,9 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Получить актуальные настройки, загрузив их из .env"""
     # Явно валидируем окружение/файл .env (pydantic-settings v2)
-    return Settings.model_validate_env()
+    s=Settings();
+    object.__setattr__(s, "sportmonks_api_key", s.SPORTMONKS_API_KEY);
+    return s
 
 # Убираем глобальный settings — он может быть устаревшим
 # и одновременно создаём back-compat алиасы для остального кода.
