@@ -27,6 +27,13 @@ telegram-bot/
 ├─ config.py                 | настройки, MODEL_VERSION, env
 ├─ logger.py                 | логирование (Loguru JSON + Sentry)
 ├─ observability.py          | инициализация Sentry и Prometheus
+├─ app/
+│  └─ data_processor/           | фасад старого data_processor.py
+│     ├─ __init__.py
+│     ├─ validators.py
+│     ├─ feature_engineering.py
+│     ├─ transformers.py
+│     └─ io.py
 ├─ metrics/                  | ECE/LogLoss метрики
 │  └─ metrics.py
 ├─ database/                 | PostgreSQL+Redis, миграции

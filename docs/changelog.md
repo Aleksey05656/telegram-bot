@@ -1,3 +1,11 @@
+## [2025-09-10] - Декомпозиция data_processor в пакет
+### Добавлено
+- Пакет `app/data_processor` с фасадом и модулями validators, feature_engineering, transformers и io.
+### Изменено
+- Обновлена архитектура в Project.md.
+### Исправлено
+- —
+
 ## [2025-09-10] - Заглушки ML-пайплайна
 ### Добавлено
 - Заглушечные модули prediction_pipeline, train_base_glm, train_modifiers и retrain_scheduler.
