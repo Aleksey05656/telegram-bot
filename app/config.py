@@ -53,3 +53,11 @@ def get_settings() -> Settings:
         return Settings()  # auto-reads env via pydantic-settings v2
     except ValidationError:
         raise
+
+
+def reset_settings_cache() -> None:
+    """Сброс кэша настроек для тестов/смоуков при смене env."""
+    try:
+        get_settings.cache_clear()  # type: ignore[attr-defined]
+    except Exception:
+        pass
