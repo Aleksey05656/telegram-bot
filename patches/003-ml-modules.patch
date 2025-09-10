@@ -1,0 +1,212 @@
+# @file: patches/003-ml-modules.patch
+# @description: add ML pipeline and training stubs
+# @dependencies: app/ml, tests/test_pipeline_stub.py, docs/changelog.md, docs/tasktracker.md
+# @created: 2025-09-10
+diff --git a/app/ml/__init__.py b/app/ml/__init__.py
+new file mode 100644
+index 0000000..cd8e911
+--- /dev/null
++++ b/app/ml/__init__.py
+@@ -0,0 +1,8 @@
++"""
++@file: __init__.py
++@description: ML subpackage initializer
++@dependencies: 
++@created: 2025-09-10
++"""
++
++__all__ = []
+diff --git a/app/ml/prediction_pipeline.py b/app/ml/prediction_pipeline.py
+new file mode 100644
+index 0000000..d4248ec
+--- /dev/null
++++ b/app/ml/prediction_pipeline.py
+@@ -0,0 +1,31 @@
++"""
++@file: prediction_pipeline.py
++@description: model prediction pipeline with preprocessing and model registry
++@dependencies: pandas, Preprocessor, ModelRegistry
++@created: 2025-09-10
++"""
++
++from __future__ import annotations
++from typing import Protocol
++import pandas as pd
++
++
++class Preprocessor(Protocol):
++    def transform(self, df: pd.DataFrame) -> pd.DataFrame: ...
++
++
++class ModelRegistry(Protocol):
++    def load(self, name: str): ...
++
++
++class PredictionPipeline:
++    def __init__(self, model_registry: ModelRegistry, preprocessor: Preprocessor):
++        self.model_registry = model_registry
++        self.preprocessor = preprocessor
++
++    def predict_proba(self, df: pd.DataFrame):
++        X = self.preprocessor.transform(df)
++        model = self.model_registry.load("current")
++        if hasattr(model, "predict_proba"):
++            return model.predict_proba(X)
++        return model.predict(X)
+diff --git a/app/ml/retrain_scheduler.py b/app/ml/retrain_scheduler.py
+new file mode 100644
+index 0000000..7aa16b2
+--- /dev/null
++++ b/app/ml/retrain_scheduler.py
+@@ -0,0 +1,23 @@
++"""
++@file: retrain_scheduler.py
++@description: cron-based retraining task registration
++@dependencies: train_base_glm
++@created: 2025-09-10
++"""
++
++from __future__ import annotations
++from typing import Callable
++
++
++def schedule_retrain(register: Callable[[str, Callable], None], cron_expr: str = "0 3 * * *"):
++    """
++    Регистрирует задачу переобучения по cron.
++    `register` — функция вашей системы планирования (APScheduler/Celery/K8s CronBridge).
++    """
++
++    def _task():
++        from .train_base_glm import train_base_glm
++        # Здесь можно добавить загрузку данных/конфигов
++        train_base_glm(train_df=None, cfg=None)
++
++    register(cron_expr, _task)
+diff --git a/app/ml/train_base_glm.py b/app/ml/train_base_glm.py
+new file mode 100644
+index 0000000..3eeab49
+--- /dev/null
++++ b/app/ml/train_base_glm.py
+@@ -0,0 +1,29 @@
++"""
++@file: train_base_glm.py
++@description: stub training procedure for base GLM model
++@dependencies: pandas
++@created: 2025-09-10
++"""
++
++from __future__ import annotations
++from typing import Any, Optional
++import pandas as pd
++
++
++class DummyModel:
++    def predict_proba(self, X):
++        import numpy as np
++        # равномерный заглушечный предикт на 2 класса
++        p = np.full((len(X), 2), 0.5, dtype=float)
++        return p
++
++
++def train_base_glm(train_df: Optional[pd.DataFrame], cfg: Optional[dict]) -> Any:
++    """
++    Минимальная заглушка обучения GLM:
++    - возвращает/сохраняет DummyModel
++    - встраивается в pipeline до появления реального обучения
++    """
++    model = DummyModel()
++    # TODO: сохранить модель в реестр (локально/S3). Пока возвращаем.
++    return model
+diff --git a/app/ml/train_modifiers.py b/app/ml/train_modifiers.py
+new file mode 100644
+index 0000000..64c1f94
+--- /dev/null
++++ b/app/ml/train_modifiers.py
+@@ -0,0 +1,17 @@
++"""
++@file: train_modifiers.py
++@description: stub modifiers application function
++@dependencies: numpy
++@created: 2025-09-10
++"""
++
++from __future__ import annotations
++import numpy as np
++
++
++def apply_modifiers(preds: np.ndarray, context: dict | None = None) -> np.ndarray:
++    """
++    Модификаторы вероятностей (мотивация, травмы, усталость и т.п.).
++    Заглушка: возвращает как есть; добавьте реализацию согласно документации.
++    """
++    return preds
+diff --git a/docs/changelog.md b/docs/changelog.md
+index 3db9242..4e31f71 100644
+--- a/docs/changelog.md
++++ b/docs/changelog.md
+@@ -1,3 +1,12 @@
++## [2025-09-10] - Заглушки ML-пайплайна
++### Добавлено
++- Заглушечные модули prediction_pipeline, train_base_glm, train_modifiers и retrain_scheduler.
++- Тест пайплайна.
++### Изменено
++- —
++### Исправлено
++- —
++
+ ## [2025-09-10] - Починка pre-commit и CI
+ ### Добавлено
+ - Workflow GitHub Actions с матрицей Python и кэшем pip.
+diff --git a/docs/tasktracker.md b/docs/tasktracker.md
+index 041aacb..92acd2b 100644
+--- a/docs/tasktracker.md
++++ b/docs/tasktracker.md
+@@ -1,3 +1,12 @@
++## Задача: Заглушки ML-пайплайна
++- **Статус**: Завершена
++- **Описание**: Добавить PredictionPipeline, заглушки обучения и планировщик переобучения.
++- **Шаги выполнения**:
++  - [x] Реализован PredictionPipeline
++  - [x] Заглушки обучения и переобучения
++  - [x] Добавлен тест пайплайна
++- **Зависимости**: app/ml, tests
++
+ ## Задача: Починка pre-commit и CI
+ - **Статус**: Завершена
+ - **Описание**: Пин ревизий pre-commit хуков и обновление workflow CI с кэшем pip.
+diff --git a/tests/test_pipeline_stub.py b/tests/test_pipeline_stub.py
+new file mode 100644
+index 0000000..120ea8c
+--- /dev/null
++++ b/tests/test_pipeline_stub.py
+@@ -0,0 +1,30 @@
++"""
++@file: test_pipeline_stub.py
++@description: stub test for PredictionPipeline
++@dependencies: app.ml.prediction_pipeline
++@created: 2025-09-10
++"""
++
++import pandas as pd
++from app.ml.prediction_pipeline import PredictionPipeline
++
++
++class _Preproc:
++    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
++        return df.fillna(0)
++
++
++class _Registry:
++    class _M:
++        def predict_proba(self, X):
++            import numpy as np
++            return np.full((len(X), 2), 0.5)
++
++    def load(self, name: str):
++        return self._M()
++
++
++def test_pipeline_predicts():
++    pipe = PredictionPipeline(model_registry=_Registry(), preprocessor=_Preproc())
++    out = pipe.predict_proba(pd.DataFrame({"a": [1, 2, 3]}))
++    assert out.shape == (3, 2)

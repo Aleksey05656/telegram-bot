@@ -1,3 +1,12 @@
+## [2025-09-10] - Заглушки ML-пайплайна
+### Добавлено
+- Заглушечные модули prediction_pipeline, train_base_glm, train_modifiers и retrain_scheduler.
+- Тест пайплайна.
+### Изменено
+- —
+### Исправлено
+- —
+
 ## [2025-09-10] - Починка pre-commit и CI
 ### Добавлено
 - Workflow GitHub Actions с матрицей Python и кэшем pip.
