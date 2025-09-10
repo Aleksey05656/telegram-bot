@@ -27,3 +27,16 @@ app.add_middleware(ProcessingTimeMiddleware)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/__smoke__/sentry")
+def sentry_smoke():
+    # отправим тестовое событие, если настроен DSN
+    from .config import get_settings
+    import sentry_sdk
+
+    s = get_settings()
+    if s.sentry.dsn:
+        sentry_sdk.capture_message("smoke-test")
+        return {"sent": True}
+    return {"sent": False, "reason": "dsn not configured"}
