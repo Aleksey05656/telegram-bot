@@ -1,19 +1,35 @@
 # @file: .pre-commit-config.yaml
-# @description: pre-commit hooks configuration with Black, Ruff and mypy
+# @description: pre-commit hooks configuration with pinned revisions and basic checks
 # @dependencies: requirements.txt
 # @created: 2025-08-24
 
 repos:
+  # при необходимости укажите ваш зеркальный репозиторий:
+  # - repo: https://gitea.corp.local/mirrors/psf/black
   - repo: https://github.com/psf/black
-    rev: 23.7.0
+    rev: 24.3.0
     hooks:
       - id: black
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.0.272
+    rev: v0.6.5
     hooks:
       - id: ruff
+        args: ["--fix"]
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.13.2
+    hooks:
+      - id: isort
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.4.1
     hooks:
       - id: mypy
         additional_dependencies: [types-requests]
+
+default_language_version:
+  python: python3
