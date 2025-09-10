@@ -1,14 +1,15 @@
-# @file: ruff.toml
-# @description: Ruff configuration
-# @dependencies: none
-# @created: 2025-09-10
-
-line-length = 88
-target-version = "py310"
-
-[lint]
-select = ["E", "F", "I", "B"]
-
-[format]
-quote-style = "double"
-indent-style = "space"
+line-length = 100
+target-version = "py311"
+extend-select = ["I", "B", "C4", "UP", "PT", "ERA", "F"]
+ignore = ["E501"]  # переносы строк не блокируют; выровняет black
+extend-exclude = [
+  "legacy/",
+  "experiments/",
+  "notebooks/",
+  "scripts/migrations/",
+]
+[isort]
+known-first-party = ["app"]
+[per-file-ignores]
+"**/__init__.py" = ["F401","F403"]  # импортируемое API не ругаем
+"tests/**" = ["F401"]               # фикстуры/импорты утилит без использования

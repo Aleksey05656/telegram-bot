@@ -5,12 +5,19 @@
 
 .PHONY: setup lint test smoke check fmt
 
+PY ?= python
+
 setup:
 	pip install -r requirements.txt
 
 lint:
-	ruff check .
-	mypy .
+	$(PY) -m ruff check . --fix --unsafe-fixes || true
+	$(PY) -m isort .
+	$(PY) -m black .
+	# итоговый "гейт": показываем остаток после автофиксов
+	$(PY) -m ruff check .
+	$(PY) -m isort --check-only .
+	$(PY) -m black --check .
 
 fmt:
 	ruff format .

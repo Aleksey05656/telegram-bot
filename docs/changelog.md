@@ -1,3 +1,13 @@
+## [2025-09-10] - Стабилизация настроек и линтера
+### Добавлено
+- Функция `reset_settings_cache` и фикстура `_force_prometheus_enabled`.
+
+### Изменено
+- Обновлён `ruff.toml` и цель `lint` в `Makefile`.
+
+### Исправлено
+- —
+
 ## [2025-09-10] - Bootstrap project tooling
 ### Добавлено
 - README.md, ARCHITECTURE.md и пример .env.
