@@ -1,3 +1,12 @@
+## Задача: Починка pre-commit и CI
+- **Статус**: Завершена
+- **Описание**: Пин ревизий pre-commit хуков и обновление workflow CI с кэшем pip.
+- **Шаги выполнения**:
+  - [x] Обновлены ревизии и добавлены isort и базовые хуки
+  - [x] Настроен workflow с матрицей Python и кэшем pip
+  - [x] Прогон pre-commit и pytest
+- **Зависимости**: .pre-commit-config.yaml, .github/workflows/ci.yml
+
 ## Задача: Миграция конфигов на Pydantic v2
 - **Статус**: Завершена
 - **Описание**: Перевести конфигурацию на pydantic v2 и настроить pydantic-settings.
