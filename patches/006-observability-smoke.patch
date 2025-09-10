@@ -1,0 +1,44 @@
+diff --git a/app/main.py b/app/main.py
+index 2222222..3333333 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -16,6 +16,18 @@ app.add_middleware(ProcessingTimeMiddleware)
+ @app.get("/health")
+ def health():
+     return {"status": "ok"}
++
++@app.get("/__smoke__/sentry")
++def sentry_smoke():
++    # отправим тестовое событие, если настроен DSN
++    from .config import get_settings
++    import sentry_sdk
++    s = get_settings()
++    if s.sentry.dsn:
++        sentry_sdk.capture_message("smoke-test")
++        return {"sent": True}
++    return {"sent": False, "reason": "dsn not configured"}
+
+diff --git a/tests/test_metrics_sentry.py b/tests/test_metrics_sentry.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/test_metrics_sentry.py
+@@ -0,0 +1,24 @@
++from fastapi.testclient import TestClient
++from app.main import app
++
++
++def test_health_ok():
++    c = TestClient(app)
++    r = c.get("/health")
++    assert r.status_code == 200
++    assert r.json()["status"] == "ok"
++
++
++def test_metrics_exists():
++    c = TestClient(app)
++    r = c.get("/metrics")
++    assert r.status_code in (200, 404)  # зависит от settings
++    if r.status_code == 200:
++        assert "requests_total" in r.text
+
