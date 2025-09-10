@@ -139,3 +139,11 @@
   - [x] Вынесены модули validators, feature_engineering, transformers и io
   - [x] Обновлена документация
 - **Зависимости**: app/data_processor
+
+## Задача: Документация и чек-листы
+- **Статус**: Завершена
+- **Описание**: Добавить AUDIT_REPORT.md и DEBT_CHECKLIST.md.
+- **Шаги выполнения**:
+  - [x] Добавлен AUDIT_REPORT.md
+  - [x] Добавлен DEBT_CHECKLIST.md
+- **Зависимости**: AUDIT_REPORT.md, DEBT_CHECKLIST.md
