@@ -3,13 +3,14 @@ import asyncio
 import signal
 import sys
 from contextlib import asynccontextmanager
-from logger import logger
+
 from config import settings
-from observability import init_observability
 
 # --- Импорты, выполненные в начале файла ---
 from database.cache_postgres import init_cache
+from logger import logger
 from ml.models.poisson_regression_model import poisson_regression_model
+from observability import init_observability
 from telegram.bot import main as bot_main  # Импорт перемещён сюда
 
 # Глобальная переменная для управления завершением
@@ -45,7 +46,7 @@ async def app_lifespan():
         # Ожидание завершения бота с таймаутом
         try:
             await asyncio.wait_for(bot_task, timeout=30.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("⚠️ Завершение бота превысило таймаут")
 
         logger.info("✅ Приложение остановлено")
@@ -53,6 +54,7 @@ async def app_lifespan():
 
 def setup_signal_handlers():
     """Настройка обработчиков системных сигналов для graceful shutdown."""
+
     def signal_handler(signum, frame):
         logger.info(f"Получен сигнал {signum}. Инициируем graceful shutdown...")
         shutdown_event.set()
@@ -65,7 +67,7 @@ def setup_signal_handlers():
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Для Windows (Ctrl+C)
-    if hasattr(signal, 'SIGBREAK'):
+    if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal_handler)
 
 
@@ -82,5 +84,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Получен KeyboardInterrupt. Завершение работы.")
     except Exception as e:
-        logger.critical(f"Критическая ошибка при запуске приложения: {e}", exc_info=True)
+        logger.critical(
+            f"Критическая ошибка при запуске приложения: {e}", exc_info=True
+        )
         sys.exit(1)

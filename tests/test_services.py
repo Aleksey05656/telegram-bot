@@ -4,11 +4,11 @@
 @dependencies: services/data_processor.py
 @created: 2025-08-24
 """
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytest
-from pathlib import Path
-import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 

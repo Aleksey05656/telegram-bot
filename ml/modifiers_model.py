@@ -4,13 +4,17 @@
  * @dependencies: logger, config, numpy, pandas, joblib, sklearn
  * @created: 2025-08-23
  */
-from typing import Dict, Tuple, Any, Optional, List
 import asyncio
 from datetime import datetime, timedelta
-from logger import logger
-from config import get_settings
-import numpy as np, pandas as pd, joblib
+from typing import Any, Dict, List, Optional, Tuple
+
+import joblib
+import numpy as np
+import pandas as pd
 from sklearn.linear_model import Ridge
+
+from config import get_settings
+from logger import logger
 
 
 class PredictionModifier:

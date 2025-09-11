@@ -6,9 +6,14 @@
 .PHONY: setup lint test smoke check fmt
 
 PY ?= python
+PIP ?= $(PY) -m pip
 
 setup:
-	pip install -r requirements.txt
+	$(PY) -m pip install -U pip
+	if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
+	$(PIP) install "ruff==0.6.5" "black==24.8.0" "isort==5.13.2" "pre-commit>=3.7.0"
+	pre-commit install -f || true
+	@echo "Setup done."
 
 lint:
 	$(PY) -m ruff check . --fix --unsafe-fixes || true

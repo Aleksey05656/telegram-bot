@@ -6,19 +6,22 @@
 """
 
 from __future__ import annotations
-from typing import Any, Optional
+
+from typing import Any
+
 import pandas as pd
 
 
 class DummyModel:
     def predict_proba(self, X):
         import numpy as np
+
         # равномерный заглушечный предикт на 2 класса
         p = np.full((len(X), 2), 0.5, dtype=float)
         return p
 
 
-def train_base_glm(train_df: Optional[pd.DataFrame], cfg: Optional[dict]) -> Any:
+def train_base_glm(train_df: pd.DataFrame | None, cfg: dict | None) -> Any:
     """
     Минимальная заглушка обучения GLM:
     - возвращает/сохраняет DummyModel

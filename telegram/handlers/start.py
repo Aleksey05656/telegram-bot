@@ -1,17 +1,16 @@
 # telegram/handlers/start.py
 """Обработчик команды /start и главного меню."""
-import asyncio
-from typing import Union
-from aiogram import Router, F
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest  # Добавлен импорт
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.exceptions import TelegramBadRequest # Добавлен импорт
+
 from logger import logger
-from telegram.models import CommandWithoutArgs
 
 # Импорт текста дисклеймера из terms.py
 from telegram.handlers.terms import DISCLAIMER_TEXT
+from telegram.models import CommandWithoutArgs
 
 router = Router()
 
@@ -24,7 +23,10 @@ START_MESSAGE = (
     "💡 Используйте меню ниже или команду /help для получения справки."
 )
 
-MAIN_MENU_TEXT = "🏆 <b>Главное меню Football Predictor Bot</b>\nВыберите действие из меню ниже:"
+MAIN_MENU_TEXT = (
+    "🏆 <b>Главное меню Football Predictor Bot</b>\nВыберите действие из меню ниже:"
+)
+
 
 # --- Новая функция для отправки главного меню ---
 async def send_main_menu(message: Message):
@@ -40,17 +42,26 @@ async def send_main_menu(message: Message):
         builder.adjust(2)
 
         menu_text = MAIN_MENU_TEXT
-        await message.answer(menu_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await message.answer(
+            menu_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+        )
         logger.debug(f"Главное меню отправлено пользователю {message.from_user.id}")
     except Exception as e:
-        logger.error(f"Ошибка при отправке главного меню пользователю {message.from_user.id}: {e}")
-        await message.answer("❌ Ошибка при отправке меню. Попробуйте позже.", parse_mode="HTML")
+        logger.error(
+            f"Ошибка при отправке главного меню пользователю {message.from_user.id}: {e}"
+        )
+        await message.answer(
+            "❌ Ошибка при отправке меню. Попробуйте позже.", parse_mode="HTML"
+        )
+
 
 # --- Исправленная функция для отображения/редактирования главного меню через callback ---
 async def edit_or_send_main_menu(callback: CallbackQuery):
     """Отображает главное меню, пытаясь отредактировать сообщение или отправляя новое."""
     try:
-        logger.debug(f"Пользователь {callback.from_user.id} ({callback.from_user.username or 'N/A'}) запросил главное меню")
+        logger.debug(
+            f"Пользователь {callback.from_user.id} ({callback.from_user.username or 'N/A'}) запросил главное меню"
+        )
 
         builder = InlineKeyboardBuilder()
         builder.button(text="🔮 Сделать прогноз", callback_data="make_prediction")
@@ -64,24 +75,35 @@ async def edit_or_send_main_menu(callback: CallbackQuery):
         menu_text = MAIN_MENU_TEXT
         try:
             # Сначала пытаемся отредактировать существующее сообщение
-            await callback.message.edit_text(menu_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            await callback.message.edit_text(
+                menu_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         except TelegramBadRequest as e:
             # Если редактирование невозможно (например, сообщение устарело),
             # отправляем новое сообщение.
-            logger.debug(f"Невозможно отредактировать сообщение для пользователя {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(menu_text, reply_markup=builder.as_markup(), parse_mode="HTML")
-        
-        await callback.answer() # Всегда отвечаем на callback
+            logger.debug(
+                f"Невозможно отредактировать сообщение для пользователя {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                menu_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
+
+        await callback.answer()  # Всегда отвечаем на callback
     except Exception as e:
-        logger.error(f"Ошибка в обработчике главного меню для пользователя {callback.from_user.id}: {e}")
+        logger.error(
+            f"Ошибка в обработчике главного меню для пользователя {callback.from_user.id}: {e}"
+        )
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start."""
     try:
         CommandWithoutArgs.parse(message.text)
-        logger.info(f"Пользователь {message.from_user.id} ({message.from_user.username or 'N/A'}) начал работу с ботом")
+        logger.info(
+            f"Пользователь {message.from_user.id} ({message.from_user.username or 'N/A'}) начал работу с ботом"
+        )
         # Отправляем приветственное сообщение
         await message.answer(START_MESSAGE, parse_mode="HTML")
         # Отправляем главное меню как новое сообщение
@@ -89,8 +111,13 @@ async def cmd_start(message: Message):
     except ValueError as e:
         await message.answer(f"❌ {e}", parse_mode="HTML")
     except Exception as e:
-        logger.error(f"Ошибка в обработчике /start для пользователя {message.from_user.id}: {e}")
-        await message.answer("❌ Произошла ошибка при запуске бота. Попробуйте позже.", parse_mode="HTML")
+        logger.error(
+            f"Ошибка в обработчике /start для пользователя {message.from_user.id}: {e}"
+        )
+        await message.answer(
+            "❌ Произошла ошибка при запуске бота. Попробуйте позже.", parse_mode="HTML"
+        )
+
 
 # Обработчик callback-а для возврата в главное меню
 @router.callback_query(F.data == "main_menu")
@@ -101,8 +128,11 @@ async def back_to_main_menu(callback: CallbackQuery):
         # Используем функцию, которая пытается редактировать или отправить новое
         await edit_or_send_main_menu(callback)
     except Exception as e:
-        logger.error(f"Ошибка в обработчике возврата в главное меню для пользователя {callback.from_user.id}: {e}")
+        logger.error(
+            f"Ошибка в обработчике возврата в главное меню для пользователя {callback.from_user.id}: {e}"
+        )
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.callback_query(F.data == "show_help")
 async def show_help(callback: CallbackQuery):
@@ -125,14 +155,21 @@ async def show_help(callback: CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="main_menu")
         builder.adjust(1)
         try:
-            await callback.message.edit_text(help_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            await callback.message.edit_text(
+                help_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         except TelegramBadRequest as e:
-            logger.debug(f"Невозможно отредактировать сообщение для /help у {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(help_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            logger.debug(
+                f"Невозможно отредактировать сообщение для /help у {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                help_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в обработчике справки: {e}")
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.callback_query(F.data == "show_examples")
 async def show_examples(callback: CallbackQuery):
@@ -153,14 +190,21 @@ async def show_examples(callback: CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="main_menu")
         builder.adjust(1)
         try:
-            await callback.message.edit_text(examples_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            await callback.message.edit_text(
+                examples_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         except TelegramBadRequest as e:
-            logger.debug(f"Невозможно отредактировать сообщение для /examples у {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(examples_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            logger.debug(
+                f"Невозможно отредактировать сообщение для /examples у {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                examples_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в обработчике примеров: {e}")
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.callback_query(F.data == "show_stats")
 async def show_stats(callback: CallbackQuery):
@@ -180,14 +224,21 @@ async def show_stats(callback: CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="main_menu")
         builder.adjust(1)
         try:
-            await callback.message.edit_text(stats_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            await callback.message.edit_text(
+                stats_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         except TelegramBadRequest as e:
-            logger.debug(f"Невозможно отредактировать сообщение для /stats у {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(stats_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            logger.debug(
+                f"Невозможно отредактировать сообщение для /stats у {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                stats_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в обработчике статистики: {e}")
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.callback_query(F.data == "show_terms")
 async def show_terms(callback: CallbackQuery):
@@ -207,14 +258,27 @@ async def show_terms(callback: CallbackQuery):
         builder.button(text="⚠️ Дисклеймер", callback_data="show_disclaimer")
         builder.adjust(2)
         try:
-            await callback.message.edit_text(terms_text, reply_markup=builder.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+            await callback.message.edit_text(
+                terms_text,
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
         except TelegramBadRequest as e:
-            logger.debug(f"Невозможно отредактировать сообщение для /terms у {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(terms_text, reply_markup=builder.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+            logger.debug(
+                f"Невозможно отредактировать сообщение для /terms у {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                terms_text,
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в обработчике условий: {e}")
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 @router.callback_query(F.data == "show_disclaimer")
 async def show_disclaimer(callback: CallbackQuery):
@@ -228,14 +292,21 @@ async def show_disclaimer(callback: CallbackQuery):
         builder.button(text="📋 Условия", callback_data="show_terms")
         builder.adjust(2)
         try:
-            await callback.message.edit_text(disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            await callback.message.edit_text(
+                disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         except TelegramBadRequest as e:
-            logger.debug(f"Невозможно отредактировать сообщение для /disclaimer у {callback.from_user.id}: {e}. Отправляем новое.")
-            await callback.message.answer(disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+            logger.debug(
+                f"Невозможно отредактировать сообщение для /disclaimer у {callback.from_user.id}: {e}. Отправляем новое."
+            )
+            await callback.message.answer(
+                disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML"
+            )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в обработчике дисклеймера: {e}")
         await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+
 
 # Экспорт роутера
 __all__ = ["router"]

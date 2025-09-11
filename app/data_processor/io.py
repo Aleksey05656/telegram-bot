@@ -5,9 +5,12 @@
  * @created: 2025-09-10
  */
 from __future__ import annotations
+
 import pandas as pd
+
 try:
-    from data_processor import load_data as _load, save_data as _save  # type: ignore
+    from data_processor import load_data as _load  # type: ignore
+    from data_processor import save_data as _save
 except Exception:
     _load = _save = None
 

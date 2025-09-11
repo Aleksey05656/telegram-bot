@@ -1,18 +1,19 @@
 """Модуль для работы с кэшем Redis."""
-import asyncio
 import json
-import pickle
-from typing import Any, Optional, Union
+from typing import Any, Optional
+
 import asyncpg
 from redis.asyncio import Redis, from_url
 from redis.exceptions import ConnectionError as RedisConnectionError
-from logger import logger
+
 # Импортируем только get_settings, не используем глобальный settings
 from config import get_settings
+from logger import logger
 
 # Глобальные переменные для подключения
-pool: Optional[asyncpg.Pool] = None
-cache: Optional['CacheManager'] = None
+pool: asyncpg.Pool | None = None
+cache: Optional["CacheManager"] = None
+
 
 async def versioned_key(prefix: str, *parts) -> str:
     """
@@ -31,7 +32,10 @@ async def versioned_key(prefix: str, *parts) -> str:
         logger.error(f"Ошибка при создании версионированного ключа: {e}")
         return f"{prefix}:{':'.join(map(str, parts))}"
 
-async def set_with_ttl(redis_client: Redis, key: str, value: Any, ttl_name: str) -> bool:
+
+async def set_with_ttl(
+    redis_client: Redis, key: str, value: Any, ttl_name: str
+) -> bool:
     """
     Сохранение значения в кэш с TTL из конфигурации.
     Args:
@@ -49,18 +53,20 @@ async def set_with_ttl(redis_client: Redis, key: str, value: Any, ttl_name: str)
             logger.warning(f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд")
             ttl = 3600
         serialized_value = json.dumps(value, ensure_ascii=False)
-        result = await redis_client.setex(key, ttl, serialized_value)
+        await redis_client.setex(key, ttl, serialized_value)
         logger.debug(f"Значение сохранено в кэш с ключом {key}, TTL: {ttl} секунд")
         return True
     except Exception as e:
         logger.error(f"Ошибка при сохранении значения в кэш с TTL: {e}")
         return False
 
+
 class CacheManager:
     """Менеджер для работы с Redis кэшем."""
+
     def __init__(self):
         """Инициализация менеджера кэша."""
-        self.redis_client: Optional[Redis] = None
+        self.redis_client: Redis | None = None
         logger.info("Инициализация CacheManager")
 
     async def connect_to_redis(self):
@@ -68,7 +74,9 @@ class CacheManager:
         try:
             config = await get_settings()
             redis_url = config.REDIS_URL or "redis://localhost:6379/0"
-            self.redis_client = from_url(redis_url, encoding="utf-8", decode_responses=True)
+            self.redis_client = from_url(
+                redis_url, encoding="utf-8", decode_responses=True
+            )
             # Простая проверка подключения
             await self.redis_client.ping()
             logger.info("✅ Подключение к Redis установлено")
@@ -80,7 +88,7 @@ class CacheManager:
             logger.error(f"❌ Неожиданная ошибка при подключении к Redis: {e}")
             self.redis_client = None
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Получение значения из Redis кэша.
         Args:
             key (str): Ключ для поиска
@@ -135,11 +143,15 @@ class CacheManager:
             config = await get_settings()
             ttl = config.TTL.get(ttl_name)
             if ttl is None:
-                logger.warning(f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд")
+                logger.warning(
+                    f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд"
+                )
                 ttl = 3600
             return await self.set(key, value, ttl)
         except Exception as e:
-            logger.error(f"Ошибка при сохранении значения в кэш с TTL из конфигурации: {e}")
+            logger.error(
+                f"Ошибка при сохранении значения в кэш с TTL из конфигурации: {e}"
+            )
             return False
 
     async def delete(self, key: str) -> bool:
@@ -169,7 +181,7 @@ class CacheManager:
                 logger.error(f"Ошибка при закрытии подключения к Redis: {e}")
 
     # --- Добавлено: Методы для работы с лайнапами ---
-    async def get_lineup_cached(self, match_id: int) -> Optional[Any]:
+    async def get_lineup_cached(self, match_id: int) -> Any | None:
         """Получение лайнапа из кэша с использованием специфичного TTL."""
         if not self.redis_client:
             logger.debug("Redis клиент не инициализирован, пропуск get_lineup_cached")
@@ -185,7 +197,9 @@ class CacheManager:
                 await set_with_ttl(self.redis_client, key, lineup, "lineups_fast")
             return lineup
         except Exception as e:
-            logger.error(f"Ошибка при получении лайнапа из кэша для матча {match_id}: {e}")
+            logger.error(
+                f"Ошибка при получении лайнапа из кэша для матча {match_id}: {e}"
+            )
             return None
 
     async def invalidate_lineups(self, match_id: int) -> bool:
@@ -200,26 +214,37 @@ class CacheManager:
             if success:
                 logger.info(f"Кэш лайнапа для матча {match_id} успешно удален.")
             else:
-                logger.debug(f"Кэш лайнапа для матча {match_id} не найден для удаления.")
+                logger.debug(
+                    f"Кэш лайнапа для матча {match_id} не найден для удаления."
+                )
             return success
         except Exception as e:
-            logger.error(f"Ошибка при инвалидации кэша лайнапа для матча {match_id}: {e}")
+            logger.error(
+                f"Ошибка при инвалидации кэша лайнапа для матча {match_id}: {e}"
+            )
             return False
+
     # --- Конец добавления ---
+
 
 # --- Добавлено: Заглушка для fetch_lineup_api ---
 # Предполагается, что реальная логика получения лайнапа будет реализована отдельно.
 # Это может быть вызов API напрямую или другая функция.
-async def fetch_lineup_api(match_id: int) -> Optional[Any]:
+async def fetch_lineup_api(match_id: int) -> Any | None:
     """Заглушка для получения составов команд на матч напрямую из API."""
     # Реализация зависит от архитектуры проекта.
     # Может быть вызов к SportMonksClient без использования кэша внутри.
     # Например, можно создать временную копию get_lineups без декоратора @cached
     # или вызвать внутреннюю часть get_lineups напрямую.
     # Пока используем заглушку.
-    logger.debug(f"Заглушка fetch_lineup_api (cache_postgres) вызвана для матча {match_id}")
-    return None # Реализация зависит от внутренней структуры получения данных
+    logger.debug(
+        f"Заглушка fetch_lineup_api (cache_postgres) вызвана для матча {match_id}"
+    )
+    return None  # Реализация зависит от внутренней структуры получения данных
+
+
 # --- Конец добавления ---
+
 
 async def init_cache():
     """Инициализация кэша Redis."""

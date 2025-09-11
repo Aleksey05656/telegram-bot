@@ -1,17 +1,18 @@
 # scripts/prepare_datasets.py
 """Скрипт для подготовки датасетов для обучения моделей."""
 import asyncio
-import pandas as pd
+import os  # Добавленный импорт
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+
+import pandas as pd
+
 from logger import logger
-from config import get_settings
+from services.data_processor import build_features, data_processor
 from services.sportmonks_client import sportmonks_client
-from services.data_processor import data_processor, build_features
-import os # Добавленный импорт
+
 
 # === НОВЫЙ КОД ДЛЯ ЭТАПА 9.1 ===
-async def fetch_league_data(league_id: int, seasons: List[int]) -> pd.DataFrame:
+async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
     """
     Получение и обработка данных для конкретной лиги за указанные сезоны.
     Args:
@@ -30,39 +31,62 @@ async def fetch_league_data(league_id: int, seasons: List[int]) -> pd.DataFrame:
             # Для примера возьмем данные за последние 2 года
             two_years_ago = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
             raw_matches = await sportmonks_client.get_fixtures(
-                league_id=league_id, 
-                season_id=season_id, 
-                next_fixtures=False, 
-                date_from=two_years_ago
+                league_id=league_id,
+                season_id=season_id,
+                next_fixtures=False,
+                date_from=two_years_ago,
             )
             if not raw_matches:
                 logger.warning(f"Нет данных для лиги {league_id}, сезон {season_id}")
                 continue
-            logger.info(f"Получено {len(raw_matches)} матчей для лиги {league_id}, сезон {season_id}")
+            logger.info(
+                f"Получено {len(raw_matches)} матчей для лиги {league_id}, сезон {season_id}"
+            )
             all_matches.extend(raw_matches)
         if not all_matches:
-            logger.warning(f"Нет данных для лиги {league_id} после обработки всех сезонов")
-            return pd.DataFrame(columns=[
-                "match_id", "match_date", "league_id",
-                "home_goals", "away_goals", "home_xg", "away_xg",
-                "home_form", "away_form"
-            ])
+            logger.warning(
+                f"Нет данных для лиги {league_id} после обработки всех сезонов"
+            )
+            return pd.DataFrame(
+                columns=[
+                    "match_id",
+                    "match_date",
+                    "league_id",
+                    "home_goals",
+                    "away_goals",
+                    "home_xg",
+                    "away_xg",
+                    "home_form",
+                    "away_form",
+                ]
+            )
         # Обрабатываем данные через DataProcessor
         logger.info(f"Обработка {len(all_matches)} матчей для лиги {league_id}")
         processed_results = await data_processor.process_matches_batch(all_matches)
         # Фильтруем успешные результаты
         successful_matches = [
-            result["data"] for result in processed_results 
+            result["data"]
+            for result in processed_results
             if result["success"] and result["data"]
         ]
         if not successful_matches:
             logger.warning(f"Нет успешно обработанных матчей для лиги {league_id}")
-            return pd.DataFrame(columns=[
-                "match_id", "match_date", "league_id",
-                "home_goals", "away_goals", "home_xg", "away_xg",
-                "home_form", "away_form"
-            ])
-        logger.info(f"Успешно обработано {len(successful_matches)} матчей для лиги {league_id}")
+            return pd.DataFrame(
+                columns=[
+                    "match_id",
+                    "match_date",
+                    "league_id",
+                    "home_goals",
+                    "away_goals",
+                    "home_xg",
+                    "away_xg",
+                    "home_form",
+                    "away_form",
+                ]
+            )
+        logger.info(
+            f"Успешно обработано {len(successful_matches)} матчей для лиги {league_id}"
+        )
         # Преобразуем в DataFrame
         df_records = []
         for match_data in successful_matches:
@@ -85,33 +109,56 @@ async def fetch_league_data(league_id: int, seasons: List[int]) -> pd.DataFrame:
                 }
                 df_records.append(record)
             except Exception as e:
-                logger.error(f"Ошибка при обработке матча {match_data.get('fixture_id', 'unknown')}: {e}")
+                logger.error(
+                    f"Ошибка при обработке матча {match_data.get('fixture_id', 'unknown')}: {e}"
+                )
                 continue
         if not df_records:
             logger.warning(f"Нет записей для создания DataFrame для лиги {league_id}")
-            return pd.DataFrame(columns=[
-                "match_id", "match_date", "league_id",
-                "home_goals", "away_goals", "home_xg", "away_xg",
-                "home_form", "away_form"
-            ])
+            return pd.DataFrame(
+                columns=[
+                    "match_id",
+                    "match_date",
+                    "league_id",
+                    "home_goals",
+                    "away_goals",
+                    "home_xg",
+                    "away_xg",
+                    "home_form",
+                    "away_form",
+                ]
+            )
         # Создаем DataFrame
         df = pd.DataFrame(df_records)
         # Преобразуем дату
         if "match_date" in df.columns:
             df["match_date"] = pd.to_datetime(df["match_date"])
         # Добавляем базовые фичи
-        df = build_features(df) # Исправленный вызов функции
+        df = build_features(df)  # Исправленный вызов функции
         logger.info(f"Создан датасет для лиги {league_id} с {len(df)} записями")
         return df
     except Exception as e:
-        logger.error(f"Ошибка при сборе данных для лиги {league_id}: {e}", exc_info=True)
-        return pd.DataFrame(columns=[
-            "match_id", "match_date", "league_id",
-            "home_goals", "away_goals", "home_xg", "away_xg",
-            "home_form", "away_form"
-        ])
+        logger.error(
+            f"Ошибка при сборе данных для лиги {league_id}: {e}", exc_info=True
+        )
+        return pd.DataFrame(
+            columns=[
+                "match_id",
+                "match_date",
+                "league_id",
+                "home_goals",
+                "away_goals",
+                "home_xg",
+                "away_xg",
+                "home_form",
+                "away_form",
+            ]
+        )
 
-async def prepare_all_datasets(league_seasons: Dict[int, List[int]]) -> Dict[int, pd.DataFrame]:
+
+async def prepare_all_datasets(
+    league_seasons: dict[int, list[int]]
+) -> dict[int, pd.DataFrame]:
     """
     Подготовка датасетов для всех лиг.
     Args:
@@ -128,7 +175,9 @@ async def prepare_all_datasets(league_seasons: Dict[int, List[int]]) -> Dict[int
             df = await fetch_league_data(league_id, seasons)
             if not df.empty:
                 datasets[league_id] = df
-                logger.info(f"Датасет для лиги {league_id} успешно создан ({len(df)} записей)")
+                logger.info(
+                    f"Датасет для лиги {league_id} успешно создан ({len(df)} записей)"
+                )
             else:
                 logger.warning(f"Датасет для лиги {league_id} пуст")
         logger.info(f"Подготовка датасетов завершена. Обработано {len(datasets)} лиг")
@@ -136,24 +185,26 @@ async def prepare_all_datasets(league_seasons: Dict[int, List[int]]) -> Dict[int
     except Exception as e:
         logger.error(f"Ошибка при подготовке датасетов: {e}", exc_info=True)
         return {}
+
+
 # === КОНЕЦ НОВОГО КОДА ДЛЯ ЭТАПА 9.1 ===
 async def main():
     """Главная функция для подготовки датасетов."""
     try:
         logger.info("🚀 Запуск подготовки датасетов")
         # Создание директории для сохранения датасетов
-        os.makedirs("data/datasets", exist_ok=True) # Добавленное создание директории
+        os.makedirs("data/datasets", exist_ok=True)  # Добавленное создание директории
         # Пример конфигурации лиг и сезонов
         # В реальной реализации это может быть загружено из конфига
         league_seasons = {
             # Premier League (примерные ID)
             39: [23855, 22855],  # 2023/24, 2022/23
             # La Liga
-            140: [23859, 22859], # 2023/24, 2022/23
+            140: [23859, 22859],  # 2023/24, 2022/23
             # Bundesliga
             78: [23863, 22863],  # 2023/24, 2022/23
             # Serie A
-            135: [23861, 22861], # 2023/24, 2022/23
+            135: [23861, 22861],  # 2023/24, 2022/23
             # Ligue 1
             61: [23857, 22857],  # 2023/24, 2022/23
         }
@@ -168,6 +219,8 @@ async def main():
         logger.info("🏁 Подготовка датасетов завершена")
     except Exception as e:
         logger.error(f"Критическая ошибка в основном процессе: {e}", exc_info=True)
+
+
 if __name__ == "__main__":
     # Запуск асинхронной функции
     asyncio.run(main())

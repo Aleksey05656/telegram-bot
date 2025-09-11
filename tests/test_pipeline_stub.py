@@ -6,6 +6,7 @@
 """
 
 import pandas as pd
+
 from app.ml.prediction_pipeline import PredictionPipeline
 
 
@@ -18,6 +19,7 @@ class _Registry:
     class _M:
         def predict_proba(self, X):
             import numpy as np
+
             return np.full((len(X), 2), 0.5)
 
     def load(self, name: str):

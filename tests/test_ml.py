@@ -4,9 +4,10 @@
 @dependencies: ml/models/bivariate_poisson.py
 @created: 2025-08-24
 """
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -14,7 +15,11 @@ from ml.models.bivariate_poisson import estimate_rho, outcome_probabilities
 
 
 def test_estimate_rho_linear_model():
-    features = {"style_mismatch": 1.0, "match_importance": 1.0, "fatigue_intensity": 0.0}
+    features = {
+        "style_mismatch": 1.0,
+        "match_importance": 1.0,
+        "fatigue_intensity": 0.0,
+    }
     rho = estimate_rho(features, default_rho=0.1)
     assert rho == pytest.approx(0.13, rel=1e-5)
 

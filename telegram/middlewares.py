@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable, Deque, Dict
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
+
 from logger import logger
 
 

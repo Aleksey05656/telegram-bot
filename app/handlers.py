@@ -5,10 +5,10 @@
 @created: 2025-09-10
 """
 
-from typing import Any, Dict
+from typing import Any
 
 
-async def some_handler(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def some_handler(payload: dict[str, Any]) -> dict[str, Any]:
     """Placeholder handler to ensure deterministic behavior."""
 
     # Временная заглушка, чтобы поведение было детерминированным

@@ -1,15 +1,11 @@
 line-length = 100
 target-version = "py311"
 extend-select = ["I", "B", "C4", "UP", "PT", "ERA", "F"]
-ignore = ["E501"]  # переносы строк не блокируют; выровняет black
+ignore = ["E501"]
 extend-exclude = [
   "legacy/",
   "experiments/",
   "notebooks/",
   "scripts/migrations/",
 ]
-[isort]
-known-first-party = ["app"]
-[per-file-ignores]
-"**/__init__.py" = ["F401","F403"]  # импортируемое API не ругаем
-"tests/**" = ["F401"]               # фикстуры/импорты утилит без использования
+# Внимание: никаких секций [isort] здесь не указывать — ruff их не понимает.

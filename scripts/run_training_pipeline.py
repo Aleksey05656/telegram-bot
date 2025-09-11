@@ -9,12 +9,11 @@ import asyncio
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
 
 import pandas as pd
 
-from logger import logger
 from config import get_settings
+from logger import logger
 from scripts.train_model import train_league_market
 
 
@@ -67,7 +66,10 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-async def run_training_pipeline(datasets: Dict[int, pd.DataFrame], min_matches_threshold: int = 1500) -> None:
+
+async def run_training_pipeline(
+    datasets: dict[int, pd.DataFrame], min_matches_threshold: int = 1500
+) -> None:
     """
     Запуск пайплайна обучения для всех лиг.
     Args:
@@ -77,21 +79,27 @@ async def run_training_pipeline(datasets: Dict[int, pd.DataFrame], min_matches_t
     try:
         logger.info("🚀 Запуск пайплайна обучения моделей")
         # Разделяем лиги на крупные и мелкие
-        large_leagues = {}   # Лиги с достаточным количеством данных
-        small_leagues = {}   # Лиги с недостаточным количеством данных
+        large_leagues = {}  # Лиги с достаточным количеством данных
+        small_leagues = {}  # Лиги с недостаточным количеством данных
         for league_id, df in datasets.items():
             if len(df) >= min_matches_threshold:
                 large_leagues[league_id] = df
-                logger.info(f"Лига {league_id} классифицирована как крупная ({len(df)} матчей)")
+                logger.info(
+                    f"Лига {league_id} классифицирована как крупная ({len(df)} матчей)"
+                )
             else:
                 small_leagues[league_id] = df
-                logger.info(f"Лига {league_id} классифицирована как мелкая ({len(df)} матчей)")
+                logger.info(
+                    f"Лига {league_id} классифицирована как мелкая ({len(df)} матчей)"
+                )
         # Создаем объединенный датасет для мелких лиг
         global_dataset = None
         if small_leagues:
             small_dfs = list(small_leagues.values())
             global_dataset = pd.concat(small_dfs, ignore_index=True)
-            logger.info(f"Создан глобальный датасет для мелких лиг: {len(global_dataset)} матчей")
+            logger.info(
+                f"Создан глобальный датасет для мелких лиг: {len(global_dataset)} матчей"
+            )
         # Обучаем модели для крупных лиг
         markets = ["1x2", "btts", "ou_2_5"]
         for league_id, df_league in large_leagues.items():
@@ -104,12 +112,16 @@ async def run_training_pipeline(datasets: Dict[int, pd.DataFrame], min_matches_t
                         league=str(league_id),
                         market=market,
                         df=df_league,
-                        date_col="match_date"
+                        date_col="match_date",
                     )
-                    logger.info(f"Модель для лиги {league_id}, рынок {market} обучена. "
-                               f"Сохраненные артефакты: {list(saved_paths.keys())}")
+                    logger.info(
+                        f"Модель для лиги {league_id}, рынок {market} обучена. "
+                        f"Сохраненные артефакты: {list(saved_paths.keys())}"
+                    )
                 except Exception as e:
-                    logger.error(f"Ошибка при обучении модели для лиги {league_id}, рынок {market}: {e}")
+                    logger.error(
+                        f"Ошибка при обучении модели для лиги {league_id}, рынок {market}: {e}"
+                    )
                     continue
         # Обучаем глобальную модель для мелких лиг
         if global_dataset is not None and not global_dataset.empty:
@@ -122,17 +134,24 @@ async def run_training_pipeline(datasets: Dict[int, pd.DataFrame], min_matches_t
                         league="_global",
                         market=market,
                         df=global_dataset,
-                        date_col="match_date"
+                        date_col="match_date",
                     )
-                    logger.info(f"Глобальная модель для рынка {market} обучена. "
-                               f"Сохраненные артефакты: {list(saved_paths.keys())}")
+                    logger.info(
+                        f"Глобальная модель для рынка {market} обучена. "
+                        f"Сохраненные артефакты: {list(saved_paths.keys())}"
+                    )
                 except Exception as e:
-                    logger.error(f"Ошибка при обучении глобальной модели для рынка {market}: {e}")
+                    logger.error(
+                        f"Ошибка при обучении глобальной модели для рынка {market}: {e}"
+                    )
                     continue
         logger.info("🏁 Пайплайн обучения моделей завершен")
     except Exception as e:
         logger.error(f"Критическая ошибка в пайплайне обучения: {e}", exc_info=True)
+
+
 # === КОНЕЦ НОВОГО КОДА ДЛЯ ЭТАПА 9.2 ===
+
 
 async def async_main() -> None:
     """Главная функция для запуска пайплайна обучения."""
@@ -140,7 +159,7 @@ async def async_main() -> None:
         logger.info("🚀 Запуск пайплайна обучения моделей")
         # Загружаем датасеты (в реальной реализации из файлов или БД)
         # Пример загрузки из CSV файлов:
-        datasets: Dict[int, pd.DataFrame] = {}
+        datasets: dict[int, pd.DataFrame] = {}
         # В реальной реализации здесь будет загрузка датасетов
         # Например:
         # import os
@@ -153,7 +172,9 @@ async def async_main() -> None:
         # В реальной реализации здесь будут загруженные датасеты
         datasets = {}  # Загрузите реальные датасеты здесь
         if not datasets:
-            logger.warning("Нет датасетов для обучения. Пожалуйста, сначала подготовьте датасеты.")
+            logger.warning(
+                "Нет датасетов для обучения. Пожалуйста, сначала подготовьте датасеты."
+            )
             return
         # Запускаем пайплайн обучения
         await run_training_pipeline(datasets, min_matches_threshold=1500)

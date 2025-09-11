@@ -20,7 +20,9 @@ def test_ece_alert(monkeypatch):
     def fake_capture_message(msg, level="warning"):
         messages.append((msg, level))
 
-    monkeypatch.setattr("metrics.metrics.sentry_sdk.capture_message", fake_capture_message)
+    monkeypatch.setattr(
+        "metrics.metrics.sentry_sdk.capture_message", fake_capture_message
+    )
 
     for _ in range(200):
         record_prediction("1x2", "EPL", 0.9, 0)
@@ -29,4 +31,5 @@ def test_ece_alert(monkeypatch):
     logloss = rolling_logloss.labels(market="1x2", league="EPL")._value.get()
     assert ece > 0.05
     assert logloss > 0
-    assert messages and "High ECE" in messages[0][0]
+    assert messages
+    assert "High ECE" in messages[0][0]
