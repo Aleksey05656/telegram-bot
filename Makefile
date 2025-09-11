@@ -10,8 +10,13 @@ PIP ?= $(PY) -m pip
 
 setup:
 	$(PY) -m pip install -U pip
-	if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt; fi
-	$(PIP) install "ruff==0.6.5" "black==24.8.0" "isort==5.13.2" "pre-commit>=3.7.0"
+	if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt || true; fi
+	# Пытаемся установить пинованные версии; если прокси блокирует — откатываемся на непинованные
+	-$(PIP) install "ruff==0.6.5" "black==24.8.0" "isort==5.13.2" "pre-commit>=3.7.0" --retries 2 --timeout 60
+	@if ! $(PY) -c "import ruff, black, isort, sys" >/dev/null 2>&1; then \
+		echo "Pinned install failed or partial — installing fallback (unpinned)"; \
+		$(PIP) install ruff black isort pre-commit --retries 2 --timeout 60 || true; \
+	fi
 	pre-commit install -f || true
 	@echo "Setup done."
 
