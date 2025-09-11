@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,10 +39,11 @@ class RateLimitSettings(BaseModel):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", extra="ignore",
+        case_sensitive=False, populate_by_name=True
     )
-    app_name: str = "ml-service"
-    debug: bool = False
+    app_name: str = Field(default="ml-service", alias="APP_NAME")
+    debug: bool = Field(default=False, alias="DEBUG")
     sentry: SentrySettings = SentrySettings()
     prometheus: PrometheusSettings = PrometheusSettings()
     rate_limit: RateLimitSettings = RateLimitSettings()
