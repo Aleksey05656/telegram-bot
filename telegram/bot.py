@@ -2,22 +2,20 @@
 # Логика Telegram-бота: инициализация, обработчики, запуск polling.
 import asyncio
 import signal
-import sys
-from typing import Optional, Set
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command
 from aiogram.types import BotCommand
-from telegram.middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 
 from config import settings
-from logger import logger
 
 # --- ИСПРАВЛЕНИЕ: Импорт для инициализации кэша ---
 from database.cache_postgres import init_cache
+from logger import logger
+from telegram.middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
+
 # --- Конец ИСПРАВЛЕНИЯ ---
 
 
@@ -26,12 +24,12 @@ class TelegramBot:
 
     def __init__(self):
         """Инициализация Telegram бота."""
-        self.bot: Optional[Bot] = None
-        self.dp: Optional[Dispatcher] = None
+        self.bot: Bot | None = None
+        self.dp: Dispatcher | None = None
         self.is_initialized = False
         self.is_running = False
         self.shutdown_event = asyncio.Event()
-        self._active_tasks: Set[asyncio.Task] = set()
+        self._active_tasks: set[asyncio.Task] = set()
         logger.info("Инициализация TelegramBot")
 
     async def initialize(self):
@@ -49,8 +47,8 @@ class TelegramBot:
                 token=settings.TELEGRAM_BOT_TOKEN,
                 default=DefaultBotProperties(
                     parse_mode=ParseMode.HTML,
-                    link_preview_is_disabled=True  # Отключаем предпросмотр ссылок по умолчанию
-                )
+                    link_preview_is_disabled=True,  # Отключаем предпросмотр ссылок по умолчанию
+                ),
             )
             logger.info("✅ Telegram Bot клиент инициализирован")
 
@@ -89,12 +87,14 @@ class TelegramBot:
         try:
             # Импортируем и регистрируем роутеры
             # ВАЖНО: Порядок регистрации важен! Более специфичные роутеры регистрируем первыми
-            from telegram.handlers import start, help, predict, terms
+            from telegram.handlers import help, predict, start, terms
 
             self.dp.include_router(start.router)
             self.dp.include_router(help.router)
             self.dp.include_router(terms.router)
-            self.dp.include_router(predict.router)  # Более общий, регистрируем последним
+            self.dp.include_router(
+                predict.router
+            )  # Более общий, регистрируем последним
 
             logger.info("✅ Роутеры зарегистрированы")
         except Exception as e:
@@ -114,7 +114,9 @@ class TelegramBot:
                 BotCommand(command="examples", description="Примеры использования"),
                 BotCommand(command="stats", description="Статистика бота"),
                 BotCommand(command="terms", description="Условия использования"),
-                BotCommand(command="disclaimer", description="Отказ от ответственности"),
+                BotCommand(
+                    command="disclaimer", description="Отказ от ответственности"
+                ),
             ]
             await self.bot.set_my_commands(commands)
             logger.info("✅ Команды бота установлены")
@@ -167,7 +169,7 @@ class TelegramBot:
         signal.signal(signal.SIGINT, self._signal_handler)  # Ctrl+C
         signal.signal(signal.SIGTERM, self._signal_handler)  # docker stop
         # Для Windows
-        if hasattr(signal, 'SIGBREAK'):
+        if hasattr(signal, "SIGBREAK"):
             signal.signal(signal.SIGBREAK, self._signal_handler)
 
     async def run(self):
@@ -199,7 +201,7 @@ class TelegramBot:
                     self.bot,
                     allowed_updates=["message", "callback_query"],
                     skip_updates=True,  # Пропускаем накопившиеся апдейты
-                    handle_as_tasks=True
+                    handle_as_tasks=True,
                 )
             finally:
                 # Гарантированное завершение
@@ -253,7 +255,7 @@ class TelegramBot:
 
 
 # Глобальный экземпляр бота
-_bot_instance: Optional[TelegramBot] = None
+_bot_instance: TelegramBot | None = None
 
 
 async def get_bot() -> TelegramBot:

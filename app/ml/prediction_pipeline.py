@@ -6,16 +6,20 @@
 """
 
 from __future__ import annotations
+
 from typing import Protocol
+
 import pandas as pd
 
 
 class Preprocessor(Protocol):
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame: ...
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        ...
 
 
 class ModelRegistry(Protocol):
-    def load(self, name: str): ...
+    def load(self, name: str):
+        ...
 
 
 class PredictionPipeline:

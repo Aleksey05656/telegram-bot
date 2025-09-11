@@ -1,20 +1,19 @@
 # ml/models/poisson_model.py
 """Poisson модель для прогнозирования исходов футбольных матчей.
 Использует распределение Пуассона для расчета вероятностей."""
-import numpy as np
-from scipy.stats import poisson
-from typing import Dict, Any, Tuple, Optional, List
-from logger import logger
-from config import get_settings
 import json
-import os
-from sklearn.metrics import accuracy_score
 from dataclasses import dataclass
+from typing import Any
+
+from scipy.stats import poisson
+
+from logger import logger
 
 
 @dataclass
 class PoissonResult:
     """Результат прогноза Poisson модели."""
+
     model: str
     expected_home_goals: float
     expected_away_goals: float
@@ -33,10 +32,11 @@ class PoissonResult:
 
 class PoissonOutput:
     """Структурированный вывод Poisson модели."""
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return self.__dict__
 
 
@@ -54,7 +54,9 @@ class PoissonPredictor:
         self.away_lambda = 0.0
         logger.info(f"Инициализация {self.model_name} модели с порогом {threshold}")
 
-    def _extract_team_stats(self, team_data: Dict[str, Any], is_home: bool) -> Dict[str, float]:
+    def _extract_team_stats(
+        self, team_data: dict[str, Any], is_home: bool
+    ) -> dict[str, float]:
         """Извлечение статистики команды.
         Args:
             team_data (Dict): Данные команды
@@ -64,30 +66,30 @@ class PoissonPredictor:
         """
         try:
             # Извлечение атакующей и оборонной силы
-            attack_strength = team_data.get('attack_strength', 1.0)
-            defence_strength = team_data.get('defence_strength', 1.0)
+            attack_strength = team_data.get("attack_strength", 1.0)
+            defence_strength = team_data.get("defence_strength", 1.0)
 
             # Извлечение среднего количества голов
-            goals_scored_avg = team_data.get('goals_scored_avg', 1.5)
-            goals_conceded_avg = team_data.get('goals_conceded_avg', 1.5)
+            goals_scored_avg = team_data.get("goals_scored_avg", 1.5)
+            goals_conceded_avg = team_data.get("goals_conceded_avg", 1.5)
 
             return {
-                'attack_strength': attack_strength,
-                'defence_strength': defence_strength,
-                'goals_scored_avg': goals_scored_avg,
-                'goals_conceded_avg': goals_conceded_avg
+                "attack_strength": attack_strength,
+                "defence_strength": defence_strength,
+                "goals_scored_avg": goals_scored_avg,
+                "goals_conceded_avg": goals_conceded_avg,
             }
         except Exception as e:
             logger.error(f"Ошибка при извлечении статистики команды: {e}")
             # Возвращаем значения по умолчанию
             return {
-                'attack_strength': 1.0,
-                'defence_strength': 1.0,
-                'goals_scored_avg': 1.5,
-                'goals_conceded_avg': 1.5
+                "attack_strength": 1.0,
+                "defence_strength": 1.0,
+                "goals_scored_avg": 1.5,
+                "goals_conceded_avg": 1.5,
             }
 
-    def _validate_input_data(self, data: Dict[str, Any]) -> bool:
+    def _validate_input_data(self, data: dict[str, Any]) -> bool:
         """Валидация входных данных.
         Args:
             data (Dict): Входные данные
@@ -96,15 +98,15 @@ class PoissonPredictor:
         """
         try:
             # Проверка наличия обязательных полей
-            required_fields = ['home_stats', 'away_stats']
+            required_fields = ["home_stats", "away_stats"]
             for field in required_fields:
                 if field not in data:
                     logger.error(f"Отсутствует обязательное поле: {field}")
                     return False
 
             # Проверка статистики команд
-            home_stats = data['home_stats']
-            away_stats = data['away_stats']
+            home_stats = data["home_stats"]
+            away_stats = data["away_stats"]
 
             if not isinstance(home_stats, dict) or not isinstance(away_stats, dict):
                 logger.error("Статистика команд должна быть словарем")
@@ -115,7 +117,9 @@ class PoissonPredictor:
             logger.error(f"Ошибка при валидации входных данных: {e}")
             return False
 
-    def _calculate_expected_goals(self, home_stats: Dict[str, float], away_stats: Dict[str, float]) -> Tuple[float, float]:
+    def _calculate_expected_goals(
+        self, home_stats: dict[str, float], away_stats: dict[str, float]
+    ) -> tuple[float, float]:
         """Расчет ожидаемых голов для каждой команды.
         Args:
             home_stats (Dict): Статистика домашней команды
@@ -125,20 +129,26 @@ class PoissonPredictor:
         """
         try:
             # Извлечение параметров
-            home_attack = home_stats['attack_strength']
-            away_defense = away_stats['defence_strength']
-            away_attack = away_stats['attack_strength']
-            home_defense = home_stats['defence_strength']
+            home_attack = home_stats["attack_strength"]
+            away_defense = away_stats["defence_strength"]
+            away_attack = away_stats["attack_strength"]
+            home_defense = home_stats["defence_strength"]
 
             # Среднее количество голов в лиге
-            league_avg_goals = (home_stats['goals_scored_avg'] + home_stats['goals_conceded_avg'] +
-                                away_stats['goals_scored_avg'] + away_stats['goals_conceded_avg']) / 4
+            league_avg_goals = (
+                home_stats["goals_scored_avg"]
+                + home_stats["goals_conceded_avg"]
+                + away_stats["goals_scored_avg"]
+                + away_stats["goals_conceded_avg"]
+            ) / 4
 
             # Домашнее преимущество
             home_advantage = 1.15
 
             # Расчет ожидаемых голов
-            expected_home_goals = home_attack * away_defense * league_avg_goals * home_advantage
+            expected_home_goals = (
+                home_attack * away_defense * league_avg_goals * home_advantage
+            )
             expected_away_goals = away_attack * home_defense * league_avg_goals
 
             # Ограничение разумными значениями
@@ -150,7 +160,9 @@ class PoissonPredictor:
             logger.error(f"Ошибка при расчете ожидаемых голов: {e}")
             return 1.5, 1.2
 
-    def _calculate_probabilities(self, expected_home_goals: float, expected_away_goals: float) -> Dict[str, float]:
+    def _calculate_probabilities(
+        self, expected_home_goals: float, expected_away_goals: float
+    ) -> dict[str, float]:
         """Расчет вероятностей различных исходов.
         Args:
             expected_home_goals (float): Ожидаемые голы домашней команды
@@ -164,8 +176,9 @@ class PoissonPredictor:
             total_prob = 0
             for home_goals in range(6):
                 for away_goals in range(6):
-                    prob = (poisson.pmf(home_goals, expected_home_goals) *
-                            poisson.pmf(away_goals, expected_away_goals))
+                    prob = poisson.pmf(home_goals, expected_home_goals) * poisson.pmf(
+                        away_goals, expected_away_goals
+                    )
                     score_probs[(home_goals, away_goals)] = prob
                     total_prob += prob
 
@@ -180,34 +193,41 @@ class PoissonPredictor:
             away_win_prob = sum(prob for (h, a), prob in score_probs.items() if h < a)
 
             # Расчет вероятностей тотала
-            over_prob = sum(prob for (h, a), prob in score_probs.items() if h + a > self.threshold)
+            over_prob = sum(
+                prob for (h, a), prob in score_probs.items() if h + a > self.threshold
+            )
             # Используем точный расчет для under
-            under_prob = sum(poisson.pmf(k, expected_home_goals + expected_away_goals) for k in range(0, int(self.threshold)))
+            under_prob = sum(
+                poisson.pmf(k, expected_home_goals + expected_away_goals)
+                for k in range(0, int(self.threshold))
+            )
 
             # Расчет вероятности "Обе забьют"
-            btts_prob = sum(prob for (h, a), prob in score_probs.items() if h > 0 and a > 0)
+            btts_prob = sum(
+                prob for (h, a), prob in score_probs.items() if h > 0 and a > 0
+            )
 
             return {
-                'home_win': home_win_prob,
-                'draw': draw_prob,
-                'away_win': away_win_prob,
-                'over': over_prob,
-                'under': under_prob,
-                'btts_yes': btts_prob,
-                'btts_no': 1 - btts_prob,
-                'score_probabilities': score_probs
+                "home_win": home_win_prob,
+                "draw": draw_prob,
+                "away_win": away_win_prob,
+                "over": over_prob,
+                "under": under_prob,
+                "btts_yes": btts_prob,
+                "btts_no": 1 - btts_prob,
+                "score_probabilities": score_probs,
             }
         except Exception as e:
             logger.error(f"Ошибка при расчете вероятностей: {e}")
             return {
-                'home_win': 0.33,
-                'draw': 0.33,
-                'away_win': 0.33,
-                'over': 0.5,
-                'under': 0.5,
-                'btts_yes': 0.5,
-                'btts_no': 0.5,
-                'score_probabilities': {}
+                "home_win": 0.33,
+                "draw": 0.33,
+                "away_win": 0.33,
+                "over": 0.5,
+                "under": 0.5,
+                "btts_yes": 0.5,
+                "btts_no": 0.5,
+                "score_probabilities": {},
             }
 
     def predict_score_probability(self, home_goals: int, away_goals: int) -> float:
@@ -223,10 +243,14 @@ class PoissonPredictor:
             prob_away = poisson.pmf(away_goals, self.away_lambda)
             return prob_home * prob_away
         except Exception as e:
-            logger.error(f"Ошибка при расчете вероятности счета {home_goals}-{away_goals}: {e}")
+            logger.error(
+                f"Ошибка при расчете вероятности счета {home_goals}-{away_goals}: {e}"
+            )
             return 0.0
 
-    def predict_btts(self, lambda_home: float, lambda_away: float) -> Tuple[float, float]:
+    def predict_btts(
+        self, lambda_home: float, lambda_away: float
+    ) -> tuple[float, float]:
         """Прогнозирование вероятности "Обе забьют".
         Args:
             lambda_home (float): Ожидаемые голы домашней команды
@@ -253,8 +277,12 @@ class PoissonPredictor:
         """
         return f"{value:.1%}"
 
-    def _generate_analysis_lines(self, expected_home_goals: float, expected_away_goals: float,
-                                 probabilities: Dict[str, float]) -> List[str]:
+    def _generate_analysis_lines(
+        self,
+        expected_home_goals: float,
+        expected_away_goals: float,
+        probabilities: dict[str, float],
+    ) -> list[str]:
         """Генерация текстового анализа прогноза.
         Args:
             expected_home_goals (float): Ожидаемые голы домашней команды
@@ -284,8 +312,8 @@ class PoissonPredictor:
                 balance = "гостевая команда имеет преимущество"
 
             # Определение рекомендации
-            over_prob = probabilities['over']
-            under_prob = probabilities['under']
+            over_prob = probabilities["over"]
+            under_prob = probabilities["under"]
             if over_prob > 0.6:
                 recommendation = "Over"
                 confidence_level = "высокая"
@@ -303,26 +331,32 @@ class PoissonPredictor:
                 confidence_level = "низкая"
 
             analysis_lines = [
-                f"📊 <b>Анализ Poisson модели:</b>",
+                "📊 <b>Анализ Poisson модели:</b>",
                 f"• Ожидаемый тотал: {total_goals:.2f} голов",
                 f"• Характер матча: {match_character} тотал",
                 f"• Баланс сил: {balance}",
                 f"• Вероятность Over: {self._pct(over_prob)}",
                 f"• Вероятность Under: {self._pct(under_prob)}",
-                f"• Вероятность счета 1-1: {self._pct(self.predict_score_probability(1, 1))}"
+                f"• Вероятность счета 1-1: {self._pct(self.predict_score_probability(1, 1))}",
             ]
-            
+
             btts_yes, _ = self.predict_btts(expected_home_goals, expected_away_goals)
             analysis_lines.append(f"• Обе забьют: {self._pct(btts_yes)}")
-            analysis_lines.append(f"• Рекомендация: {recommendation} (уровень уверенности: {confidence_level})")
+            analysis_lines.append(
+                f"• Рекомендация: {recommendation} (уровень уверенности: {confidence_level})"
+            )
 
             return analysis_lines
         except Exception as e:
             logger.error(f"Ошибка при генерации анализа: {e}")
             return [f"❌ Ошибка при генерации анализа: {e}"]
 
-    def _calculate_confidence(self, expected_home_goals: float, expected_away_goals: float,
-                              probabilities: Dict[str, float]) -> float:
+    def _calculate_confidence(
+        self,
+        expected_home_goals: float,
+        expected_away_goals: float,
+        probabilities: dict[str, float],
+    ) -> float:
         """Расчет уровня уверенности модели.
         Args:
             expected_home_goals (float): Ожидаемые голы домашней команды
@@ -333,8 +367,8 @@ class PoissonPredictor:
         """
         try:
             # Базовая уверенность на основе разницы вероятностей
-            over_prob = probabilities['over']
-            under_prob = probabilities['under']
+            over_prob = probabilities["over"]
+            under_prob = probabilities["under"]
             confidence = abs(over_prob - under_prob)
 
             # Нормализация (0.5-1.0 -> 0.0-1.0)
@@ -354,7 +388,7 @@ class PoissonPredictor:
             logger.error(f"Ошибка при расчете уверенности: {e}")
             return 0.0
 
-    def predict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(self, data: dict[str, Any]) -> dict[str, Any]:
         """Прогнозирование результата матча с использованием Poisson модели.
         Args:
             data (Dict): Данные о командах и матче
@@ -362,37 +396,50 @@ class PoissonPredictor:
             Dict: Прогноз и вероятности
         """
         try:
-            logger.info(f"Начало прогнозирования Poisson моделью для матча "
-                        f"{data.get('home_team', {}).get('team_name', 'Unknown')} - "
-                        f"{data.get('away_team', {}).get('team_name', 'Unknown')}")
+            logger.info(
+                f"Начало прогнозирования Poisson моделью для матча "
+                f"{data.get('home_team', {}).get('team_name', 'Unknown')} - "
+                f"{data.get('away_team', {}).get('team_name', 'Unknown')}"
+            )
 
             # Валидация входных данных
             if not self._validate_input_data(data):
-                return {"model": self.model_name, "error": "Некорректные входные данные"}
+                return {
+                    "model": self.model_name,
+                    "error": "Некорректные входные данные",
+                }
 
             # Извлечение статистики команд
-            home_stats = self._extract_team_stats(data['home_stats'], is_home=True)
-            away_stats = self._extract_team_stats(data['away_stats'], is_home=False)
+            home_stats = self._extract_team_stats(data["home_stats"], is_home=True)
+            away_stats = self._extract_team_stats(data["away_stats"], is_home=False)
 
             # Расчет ожидаемых голов
-            expected_home_goals, expected_away_goals = self._calculate_expected_goals(home_stats, away_stats)
+            expected_home_goals, expected_away_goals = self._calculate_expected_goals(
+                home_stats, away_stats
+            )
             self.home_lambda = expected_home_goals
             self.away_lambda = expected_away_goals
             expected_total_goals = expected_home_goals + expected_away_goals
 
             # Расчет вероятностей
-            probabilities = self._calculate_probabilities(expected_home_goals, expected_away_goals)
+            probabilities = self._calculate_probabilities(
+                expected_home_goals, expected_away_goals
+            )
 
             # Определение рекомендации
-            over_prob = probabilities['over']
-            under_prob = probabilities['under']
+            over_prob = probabilities["over"]
+            under_prob = probabilities["under"]
             recommendation = "Over" if over_prob > 0.5 else "Under"
 
             # Расчет уверенности
-            confidence = self._calculate_confidence(expected_home_goals, expected_away_goals, probabilities)
+            confidence = self._calculate_confidence(
+                expected_home_goals, expected_away_goals, probabilities
+            )
 
             # Генерация анализа
-            analysis_lines = self._generate_analysis_lines(expected_home_goals, expected_away_goals, probabilities)
+            analysis_lines = self._generate_analysis_lines(
+                expected_home_goals, expected_away_goals, probabilities
+            )
             analysis = "\n".join(analysis_lines)
 
             # Создание структурированного вывода
@@ -403,27 +450,36 @@ class PoissonPredictor:
                 expected_total_goals=expected_total_goals,
                 probability_over=over_prob,
                 probability_under=under_prob,
-                probability_home_win=probabilities['home_win'],
-                probability_draw=probabilities['draw'],
-                probability_away_win=probabilities['away_win'],
-                probability_btts_yes=probabilities['btts_yes'],
-                probability_btts_no=probabilities['btts_no'],
+                probability_home_win=probabilities["home_win"],
+                probability_draw=probabilities["draw"],
+                probability_away_win=probabilities["away_win"],
+                probability_btts_yes=probabilities["btts_yes"],
+                probability_btts_no=probabilities["btts_no"],
                 recommendation=recommendation,
                 confidence=confidence,
                 analysis=analysis,
-                input_stats_used={"home": home_stats, "away": away_stats}
+                input_stats_used={"home": home_stats, "away": away_stats},
             )
 
-            logger.info(f"{self.model_name} прогноз завершен: {recommendation} (уверенность: {self._pct(confidence)})")
+            logger.info(
+                f"{self.model_name} прогноз завершен: {recommendation} (уверенность: {self._pct(confidence)})"
+            )
             return output.to_dict()
         except Exception as e:
             logger.error(f"Ошибка в {self.model_name} модели: {e}", exc_info=True)
-            return {"model": self.model_name, "error": str(e),
-                    "expected_home_goals": 0, "expected_away_goals": 0,
-                    "expected_total_goals": 0, "probability_over": 0,
-                    "probability_under": 0, "recommendation": "None", "confidence": 0}
+            return {
+                "model": self.model_name,
+                "error": str(e),
+                "expected_home_goals": 0,
+                "expected_away_goals": 0,
+                "expected_total_goals": 0,
+                "probability_over": 0,
+                "probability_under": 0,
+                "recommendation": "None",
+                "confidence": 0,
+            }
 
-    def train(self, training_data: Dict[str, Any]) -> Dict[str, Any]:
+    def train(self, training_data: dict[str, Any]) -> dict[str, Any]:
         """Обучение Poisson модели (заглушка).
         Args:
             training_data (Dict): Данные для обучения
@@ -431,12 +487,14 @@ class PoissonPredictor:
             Dict: Результаты обучения
         """
         logger.info(f"Оценка производительности {self.model_name} модели")
-        return {"model": self.model_name,
-                "accuracy": 0.72,  # Заглушка
-                "precision": 0.68,  # Заглушка
-                "recall": 0.75,  # Заглушка
-                "f1_score": 0.71,  # Заглушка
-                "message": "Оценка производительности на основе исторических данных (~72% точности)"}
+        return {
+            "model": self.model_name,
+            "accuracy": 0.72,  # Заглушка
+            "precision": 0.68,  # Заглушка
+            "recall": 0.75,  # Заглушка
+            "f1_score": 0.71,  # Заглушка
+            "message": "Оценка производительности на основе исторических данных (~72% точности)",
+        }
 
 
 # Создание экземпляра модели
@@ -446,26 +504,30 @@ poisson_model = PoissonPredictor(threshold=2.5)
 if __name__ == "__main__":
     # Пример использования
     sample_data = {
-        'home_stats': {
-            'goals': {'scored': {'average': {'home': 1.8}},
-                      'conceded': {'average': {'home': 0.9}}},
-            'shots': {'average': {'home': 12.5}},
-            'attack_strength': 1.2,
-            'defence_strength': 0.8,
-            'goals_scored_avg': 1.8,
-            'goals_conceded_avg': 0.9
+        "home_stats": {
+            "goals": {
+                "scored": {"average": {"home": 1.8}},
+                "conceded": {"average": {"home": 0.9}},
+            },
+            "shots": {"average": {"home": 12.5}},
+            "attack_strength": 1.2,
+            "defence_strength": 0.8,
+            "goals_scored_avg": 1.8,
+            "goals_conceded_avg": 0.9,
         },
-        'away_stats': {
-            'goals': {'scored': {'average': {'away': 1.2}},
-                      'conceded': {'average': {'away': 1.1}}},
-            'shots': {'average': {'away': 10.2}},
-            'attack_strength': 0.9,
-            'defence_strength': 1.1,
-            'goals_scored_avg': 1.2,
-            'goals_conceded_avg': 1.1
+        "away_stats": {
+            "goals": {
+                "scored": {"average": {"away": 1.2}},
+                "conceded": {"average": {"away": 1.1}},
+            },
+            "shots": {"average": {"away": 10.2}},
+            "attack_strength": 0.9,
+            "defence_strength": 1.1,
+            "goals_scored_avg": 1.2,
+            "goals_conceded_avg": 1.1,
         },
-        'home_team': {'team_name': 'Команда 1'},
-        'away_team': {'team_name': 'Команда 2'}
+        "home_team": {"team_name": "Команда 1"},
+        "away_team": {"team_name": "Команда 2"},
     }
 
     # Выполнение прогноза

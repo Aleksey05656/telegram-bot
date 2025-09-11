@@ -6,10 +6,13 @@
 """
 
 from __future__ import annotations
-from typing import Callable
+
+from collections.abc import Callable
 
 
-def schedule_retrain(register: Callable[[str, Callable], None], cron_expr: str = "0 3 * * *"):
+def schedule_retrain(
+    register: Callable[[str, Callable], None], cron_expr: str = "0 3 * * *"
+):
     """
     Регистрирует задачу переобучения по cron.
     `register` — функция вашей системы планирования (APScheduler/Celery/K8s CronBridge).
@@ -17,6 +20,7 @@ def schedule_retrain(register: Callable[[str, Callable], None], cron_expr: str =
 
     def _task():
         from .train_base_glm import train_base_glm
+
         # Здесь можно добавить загрузку данных/конфигов
         train_base_glm(train_df=None, cfg=None)
 

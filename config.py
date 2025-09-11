@@ -1,15 +1,16 @@
 # config.py
 """Конфигурация приложения с использованием Pydantic Settings v2.
 Параметры загружаются из переменных окружения."""
-import os
-from typing import Optional, Dict
 from datetime import datetime
-from pydantic import field_validator, computed_field, Field
+
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     """Класс конфигурации приложения.
     Загружает параметры из переменных окружения и .env файла."""
+
     # --- API Keys ---
     TELEGRAM_BOT_TOKEN: str = ""
     SPORTMONKS_API_KEY: str = ""
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     # --- Infrastructure ---
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
-    REDIS_PASSWORD: Optional[str] = None
+    REDIS_PASSWORD: str | None = None
     REDIS_DB: int = Field(default=0, ge=0, le=15)  # Номер БД Redis: 0–15
 
     # Асинхронный URL для базы данных (используется в приложении)
@@ -30,8 +31,10 @@ class Settings(BaseSettings):
 
     # === НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЭТАПА 1 ===
     MODELS_DIR: str = "models"
-    MODEL_VERSION: Optional[str] = None  # если None — генерируется по MODEL_VERSION_FORMAT
-    MODEL_VERSION_FORMAT: str = "%Y%m%d%H%M"  # точность до минут по умолчанию; можно сменить в .env
+    MODEL_VERSION: str | None = None  # если None — генерируется по MODEL_VERSION_FORMAT
+    MODEL_VERSION_FORMAT: str = (
+        "%Y%m%d%H%M"  # точность до минут по умолчанию; можно сменить в .env
+    )
     CALIBRATION_METHOD: str = "platt"  # 'platt' | 'isotonic' | 'beta'
     CV_N_SPLITS: int = 6
     CV_GAP_DAYS: int = 0
@@ -45,30 +48,30 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
 
     # --- Observability ---
-    SENTRY_DSN: Optional[str] = None
+    SENTRY_DSN: str | None = None
     PROMETHEUS_PORT: int = 8008
 
     # --- Кэширование ---
     CACHE_VERSION: str = "v3"  # Обновлять при изменении логики или фич
 
     # TTL для различных типов данных кэша (в секундах)
-    TTL: Dict[str, int] = {
-        "fixtures_base": 6 * 3600,      # 6 часов
-        "table_base": 24 * 3600,        # 24 часа
-        "form_slow": 24 * 3600,         # 24 часа
-        "weather_fast": 15 * 60,        # 15 минут
-        "lineups_fast": 90,             # 90 секунд
-        "injuries_fast": 120,           # 2 минуты
+    TTL: dict[str, int] = {
+        "fixtures_base": 6 * 3600,  # 6 часов
+        "table_base": 24 * 3600,  # 24 часа
+        "form_slow": 24 * 3600,  # 24 часа
+        "weather_fast": 15 * 60,  # 15 минут
+        "lineups_fast": 90,  # 90 секунд
+        "injuries_fast": 120,  # 2 минуты
     }
 
     # Параметры расчёта уверенности
-    CONFIDENCE: Dict[str, float] = {
+    CONFIDENCE: dict[str, float] = {
         "missing_penalty_alpha": 0.2,
         "freshness_penalty_alpha": 0.15,
     }
 
     # Флаги моделей
-    MODEL_FLAGS: Dict[str, bool] = {
+    MODEL_FLAGS: dict[str, bool] = {
         "enable_bivariate_poisson": True,
         "enable_calibration": True,
     }
@@ -81,23 +84,23 @@ class Settings(BaseSettings):
         return f"redis://{password_part}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     # --- Валидация ---
-    @field_validator('LOG_LEVEL')
+    @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v):
-        allowed_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        allowed_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in allowed_levels:
-            raise ValueError(f'LOG_LEVEL must be one of {allowed_levels}')
+            raise ValueError(f"LOG_LEVEL must be one of {allowed_levels}")
         return v.upper()
 
-    @field_validator('CALIBRATION_METHOD')
+    @field_validator("CALIBRATION_METHOD")
     @classmethod
     def validate_calibration_method(cls, v):
-        allowed_methods = ['platt', 'isotonic', 'beta']
+        allowed_methods = ["platt", "isotonic", "beta"]
         if v not in allowed_methods:
-            raise ValueError(f'CALIBRATION_METHOD must be one of {allowed_methods}')
+            raise ValueError(f"CALIBRATION_METHOD must be one of {allowed_methods}")
         return v
 
-    @field_validator('CACHE_VERSION')
+    @field_validator("CACHE_VERSION")
     @classmethod
     def validate_cache_version(cls, v: str) -> str:
         if not v.startswith("v"):
@@ -110,12 +113,12 @@ class Settings(BaseSettings):
             raise ValueError("После 'v' должна следовать цифра")
         return v
 
-    @field_validator('MODEL_VERSION')
+    @field_validator("MODEL_VERSION")
     @classmethod
     def set_default_model_version(cls, v):
         if v is None:
             # формат можно задать через .env -> MODEL_VERSION_FORMAT
-            fmt = getattr(cls, 'MODEL_VERSION_FORMAT', "%Y%m%d%H%M")
+            fmt = getattr(cls, "MODEL_VERSION_FORMAT", "%Y%m%d%H%M")
             try:
                 return f"v{datetime.now().strftime(fmt)}"
             except Exception:
@@ -127,15 +130,17 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "case_sensitive": False,
-        "extra": "ignore"  # Игнорировать лишние переменные окружения
+        "extra": "ignore",  # Игнорировать лишние переменные окружения
     }
+
 
 def get_settings() -> Settings:
     """Получить актуальные настройки, загрузив их из .env"""
     # Явно валидируем окружение/файл .env (pydantic-settings v2)
-    s=Settings();
-    object.__setattr__(s, "sportmonks_api_key", s.SPORTMONKS_API_KEY);
+    s = Settings()
+    object.__setattr__(s, "sportmonks_api_key", s.SPORTMONKS_API_KEY)
     return s
+
 
 # Убираем глобальный settings — он может быть устаревшим
 # и одновременно создаём back-compat алиасы для остального кода.

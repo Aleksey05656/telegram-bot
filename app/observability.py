@@ -16,7 +16,9 @@ REQUESTS_TOTAL = Counter("requests_total", "Total requests")
 
 def init_observability(app: FastAPI, settings: Settings):
     if settings.sentry.dsn:
-        sentry_sdk.init(dsn=settings.sentry.dsn, environment=settings.sentry.environment)
+        sentry_sdk.init(
+            dsn=settings.sentry.dsn, environment=settings.sentry.environment
+        )
 
     @app.middleware("http")
     async def _count_requests(request, call_next):
@@ -25,6 +27,7 @@ def init_observability(app: FastAPI, settings: Settings):
         return resp
 
     if settings.prometheus.enabled:
+
         @app.get(settings.prometheus.endpoint)
         def metrics() -> Response:
             return Response(generate_latest(), media_type="text/plain")

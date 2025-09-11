@@ -32,8 +32,9 @@ def health():
 @app.get("/__smoke__/sentry")
 def sentry_smoke():
     # отправим тестовое событие, если настроен DSN
-    from .config import get_settings
     import sentry_sdk
+
+    from .config import get_settings
 
     s = get_settings()
     if s.sentry.dsn:

@@ -4,7 +4,7 @@
  * @dependencies: numpy, sklearn
  * @created: 2025-08-23
  */
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from sklearn.isotonic import IsotonicRegression

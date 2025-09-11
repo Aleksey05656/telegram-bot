@@ -1,12 +1,14 @@
 # logger.py
 # Настройка логирования с использованием loguru и JSON.
 """Модуль для настройки логирования и отслеживания деградации модели."""
-import sys
 import json
-from pathlib import Path
+import sys
 from datetime import datetime
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any
+
 from loguru import logger
+
 from config import settings
 
 # Создаем директорию для логов если её нет
@@ -38,20 +40,21 @@ def set_model_performance_baseline(baseline: float):
     """
     global _model_performance_baseline
     _model_performance_baseline = baseline
-    logger.info(f"Установлено базовое значение производительности модели: {baseline:.4f}")
+    logger.info(
+        f"Установлено базовое значение производительности модели: {baseline:.4f}"
+    )
 
 
-def add_model_metrics(metrics: Dict[str, Any]):
+def add_model_metrics(metrics: dict[str, Any]):
     """Добавление метрик модели в историю.
 
     Args:
         metrics (Dict[str, Any]): Метрики модели
     """
     global _model_metrics_history
-    _model_metrics_history.append({
-        "timestamp": datetime.now().isoformat(),
-        "metrics": metrics
-    })
+    _model_metrics_history.append(
+        {"timestamp": datetime.now().isoformat(), "metrics": metrics}
+    )
     # Ограничиваем историю последними 100 записями
     _model_metrics_history = _model_metrics_history[-100:]
 
@@ -66,9 +69,11 @@ def get_model_metrics_history() -> list:
     return _model_metrics_history.copy()
 
 
-def check_model_degradation(current_metrics: Dict[str, float],
-                          baseline_metrics: Dict[str, float] = None,
-                          threshold_percent: float = 10.0) -> bool:
+def check_model_degradation(
+    current_metrics: dict[str, float],
+    baseline_metrics: dict[str, float] = None,
+    threshold_percent: float = 10.0,
+) -> bool:
     """
     Проверка деградации модели по сравнению с базовыми метриками.
 
@@ -108,22 +113,32 @@ def check_model_degradation(current_metrics: Dict[str, float],
                 baseline_value = baseline_metrics[metric_name]
 
                 # Проверяем, что значения числовые
-                if not isinstance(current_value, (int, float)) or not isinstance(baseline_value, (int, float)):
-                    logger.warning(f"Метрика {metric_name} имеет некорректный тип данных")
+                if not isinstance(current_value, int | float) or not isinstance(
+                    baseline_value, int | float
+                ):
+                    logger.warning(
+                        f"Метрика {metric_name} имеет некорректный тип данных"
+                    )
                     continue
 
                 # Проверка на деление на ноль
                 if baseline_value == 0:
-                    logger.warning(f"Невозможно рассчитать изменение для метрики {metric_name}, базовое значение равно 0")
+                    logger.warning(
+                        f"Невозможно рассчитать изменение для метрики {metric_name}, базовое значение равно 0"
+                    )
                     continue
 
                 if metric_name in ["logloss", "brier_score"]:
                     # Для метрик, где меньше - лучше
-                    change_percent = ((current_value - baseline_value) / abs(baseline_value)) * 100
+                    change_percent = (
+                        (current_value - baseline_value) / abs(baseline_value)
+                    ) * 100
                     is_degraded = change_percent > threshold_percent
                 else:
                     # Для метрик, где больше - лучше (slope, intercept)
-                    change_percent = ((baseline_value - current_value) / abs(baseline_value)) * 100
+                    change_percent = (
+                        (baseline_value - current_value) / abs(baseline_value)
+                    ) * 100
                     is_degraded = change_percent > threshold_percent
 
                 if is_degraded:
@@ -132,24 +147,31 @@ def check_model_degradation(current_metrics: Dict[str, float],
                         f"{metric_name}: {baseline_value:.4f} -> {current_value:.4f} "
                         f"({change_percent:+.2f}%)"
                     )
-                    logger.warning(f"⚠️ Деградация модели по метрике {metric_name}: "
-                                 f"{baseline_value:.4f} -> {current_value:.4f} "
-                                 f"({change_percent:+.2f}%)")
+                    logger.warning(
+                        f"⚠️ Деградация модели по метрике {metric_name}: "
+                        f"{baseline_value:.4f} -> {current_value:.4f} "
+                        f"({change_percent:+.2f}%)"
+                    )
 
         if degraded:
-            logger.warning(f"⚠️ Обнаружена деградация модели! Порог: {threshold_percent}%. "
-                          f"Детали: {'; '.join(degradation_details)}")
+            logger.warning(
+                f"⚠️ Обнаружена деградация модели! Порог: {threshold_percent}%. "
+                f"Детали: {'; '.join(degradation_details)}"
+            )
             # Отправляем предупреждение в Sentry (если интеграция есть)
             try:
                 import sentry_sdk
+
                 sentry_sdk.capture_message(
                     f"Model degradation detected: {'; '.join(degradation_details)}",
-                    level="warning"
+                    level="warning",
                 )
             except ImportError:
                 logger.debug("Sentry не установлен, пропуск отправки уведомления")
             except Exception as sentry_error:
-                logger.error(f"Ошибка при отправке уведомления в Sentry: {sentry_error}")
+                logger.error(
+                    f"Ошибка при отправке уведомления в Sentry: {sentry_error}"
+                )
         else:
             logger.info("✅ Модель не демонстрирует значительной деградации")
 
@@ -168,7 +190,7 @@ class JsonLogFile:
 
     def write(self, message: str):
         """Записывает сообщение в файл с учетом даты."""
-        current_date = datetime.now().strftime('%Y-%m-%d')
+        current_date = datetime.now().strftime("%Y-%m-%d")
         # Если дата изменилась или файл не открыт, открываем новый файл
         if self.current_date != current_date or self.file_handle is None:
             if self.file_handle:
@@ -207,7 +229,15 @@ def json_sink(message):
         log_entry["exception"] = str(record["exception"])
     # Добавляем любые extra поля
     for key, value in record.get("extra", {}).items():
-        if key not in ["time", "level", "message", "name", "function", "line", "exception"]:
+        if key not in [
+            "time",
+            "level",
+            "message",
+            "name",
+            "function",
+            "line",
+            "exception",
+        ]:
             log_entry[key] = value
     # Записываем в файл
     json_log_file.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
@@ -218,23 +248,18 @@ def json_sink(message):
 logger.remove()
 
 # Добавляем обработчик для файла с JSON форматированием
-logger.add(
-    sink=json_sink,
-    level="DEBUG",
-    backtrace=True,
-    diagnose=True
-)
+logger.add(sink=json_sink, level="DEBUG", backtrace=True, diagnose=True)
 
 # Добавляем обработчик для консоли
 logger.add(
     sink=sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-           "<level>{level: <8}</level> | "
-           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-           "<level>{message}</level>",
+    "<level>{level: <8}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>",
     level=settings.LOG_LEVEL,
     backtrace=True,
-    diagnose=True
+    diagnose=True,
 )
 
 # Экспорт logger для использования в других модулях

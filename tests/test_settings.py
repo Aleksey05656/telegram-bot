@@ -5,14 +5,18 @@
 @created: 2025-09-09
 """
 
-import sys, pathlib
+import pathlib
+import sys
+
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 from app.config import get_settings
+
 
 def test_settings_defaults():
     s = get_settings()
     assert s.app_name == "ml-service"
     assert s.prometheus.enabled is True
+
 
 def test_settings_env_overrides(monkeypatch):
     monkeypatch.setenv("APP_NAME", "custom")

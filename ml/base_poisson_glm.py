@@ -4,7 +4,7 @@
  * @dependencies: numpy
  * @created: 2025-08-23
  */
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 import numpy as np
 

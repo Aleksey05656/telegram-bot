@@ -5,7 +5,13 @@
 @created: 2025-09-10
 """
 
-import os
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 
 import pytest
 
@@ -19,4 +25,4 @@ def _force_prometheus_enabled(monkeypatch):
     # Сбрасываем кэш настроек перед каждым тестом, чтобы env подхватился
     if hasattr(cfg, "reset_settings_cache"):
         cfg.reset_settings_cache()
-    yield
+    return

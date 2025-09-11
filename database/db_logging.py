@@ -1,16 +1,17 @@
 import logging
 import os
 import time
-from typing import Optional, Any, Tuple, List
+from typing import Any
 
-import psycopg2
 from psycopg2 import pool as pg_pool
 
 # --- Логирование: не переопределяем глобальный уровень, не плодим хендлеры ---
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    _h.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
     logger.addHandler(_h)
 
 
@@ -25,26 +26,28 @@ class DBLogger:
 
     def __init__(
         self,
-        dsn: Optional[str] = None,
+        dsn: str | None = None,
         *,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        dbname: Optional[str] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
+        host: str | None = None,
+        port: int | None = None,
+        dbname: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
         minconn: int = 1,
         maxconn: int = 10,
     ) -> None:
         # Можно передать готовый DSN или компоненты; компоненты берём из ENV по умолчанию
-        self._dsn: Optional[str] = dsn or os.getenv("DATABASE_URL")
+        self._dsn: str | None = dsn or os.getenv("DATABASE_URL")
         self._host = host or os.getenv("DB_HOST")
-        self._port = port or (int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None)
+        self._port = port or (
+            int(os.getenv("DB_PORT")) if os.getenv("DB_PORT") else None
+        )
         self._dbname = dbname or os.getenv("DB_NAME")
         self._user = user or os.getenv("DB_USER")
         self._password = password or os.getenv("DB_PASSWORD")
         self._minconn = int(minconn)
         self._maxconn = int(maxconn)
-        self._pool: Optional[pg_pool.SimpleConnectionPool] = None
+        self._pool: pg_pool.SimpleConnectionPool | None = None
 
     # ---------- Внутренняя инфраструктура ----------
     def _ensure_pool(self) -> None:
@@ -53,7 +56,9 @@ class DBLogger:
             return
         try:
             if self._dsn:
-                self._pool = pg_pool.SimpleConnectionPool(self._minconn, self._maxconn, dsn=self._dsn)
+                self._pool = pg_pool.SimpleConnectionPool(
+                    self._minconn, self._maxconn, dsn=self._dsn
+                )
             else:
                 # Требуем хотя бы host/dbname/user; port и password опциональны
                 kwargs: dict[str, Any] = {}
@@ -68,7 +73,11 @@ class DBLogger:
                 if self._password:
                     kwargs["password"] = self._password
                 self._pool = pg_pool.SimpleConnectionPool(self._minconn, self._maxconn, **kwargs)  # type: ignore[arg-type]
-            logger.info("DB connection pool initialized (min=%d, max=%d)", self._minconn, self._maxconn)
+            logger.info(
+                "DB connection pool initialized (min=%d, max=%d)",
+                self._minconn,
+                self._maxconn,
+            )
         except Exception as e:
             logger.error("Failed to initialize DB pool: %s", e)
             raise
@@ -88,7 +97,9 @@ class DBLogger:
             logger.error("Failed to release connection back to pool: %s", e)
 
     # ---------- Публичные методы ----------
-    def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None, retries: int = 2) -> bool:
+    def execute_query(
+        self, query: str, params: tuple[Any, ...] | None = None, retries: int = 2
+    ) -> bool:
         """
         Выполнить запрос без выборки. Возвращает True при успехе.
         Всегда: своё соединение, свой курсор; никаких self.cursor.
@@ -110,7 +121,9 @@ class DBLogger:
                     except Exception:
                         pass
                 attempt += 1
-                logger.error("SQL error (attempt %d/%d) for %s: %s", attempt, retries, query, e)
+                logger.error(
+                    "SQL error (attempt %d/%d) for %s: %s", attempt, retries, query, e
+                )
                 if attempt > retries:
                     return False
                 time.sleep(min(0.25 * (2 ** (attempt - 1)), 2.0))
@@ -118,7 +131,9 @@ class DBLogger:
                 if conn:
                     self._release(conn)
 
-    def fetch_one(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> Optional[Tuple[Any, ...]]:
+    def fetch_one(
+        self, query: str, params: tuple[Any, ...] | None = None
+    ) -> tuple[Any, ...] | None:
         """Выполнить SELECT и вернуть одну строку (или None)."""
         conn = None
         try:
@@ -135,7 +150,9 @@ class DBLogger:
             if conn:
                 self._release(conn)
 
-    def fetch_all(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> List[Tuple[Any, ...]]:
+    def fetch_all(
+        self, query: str, params: tuple[Any, ...] | None = None
+    ) -> list[tuple[Any, ...]]:
         """Выполнить SELECT и вернуть все строки (или пустой список)."""
         conn = None
         try:
@@ -160,8 +177,16 @@ class DBLogger:
         prob_home_win, prob_draw, prob_away_win, confidence.
         Остальные поля опциональны.
         """
-        required = ["fixture_id", "model_version", "lambda_home", "lambda_away",
-                    "probability_home_win", "probability_draw", "probability_away_win", "confidence"]
+        required = [
+            "fixture_id",
+            "model_version",
+            "lambda_home",
+            "lambda_away",
+            "probability_home_win",
+            "probability_draw",
+            "probability_away_win",
+            "confidence",
+        ]
 
         # поддержка альтернативных ключей
         if "prob_home_win" in payload:
@@ -255,4 +280,3 @@ class DBLogger:
                 logger.info("DB connection pool closed.")
             finally:
                 self._pool = None
-

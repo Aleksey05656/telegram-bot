@@ -6,15 +6,16 @@
 """
 
 from __future__ import annotations
+
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SentrySettings(BaseModel):
-    dsn: Optional[str] = None
+    dsn: str | None = None
     environment: Literal["local", "dev", "stage", "prod"] = "local"
 
 

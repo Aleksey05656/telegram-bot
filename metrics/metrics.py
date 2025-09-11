@@ -6,11 +6,11 @@
 """
 
 from collections import deque
-from typing import Deque, Dict, Tuple, Optional
 
 try:
     import sentry_sdk  # type: ignore
 except Exception:  # pragma: no cover
+
     class _SentryStub:
         @staticmethod
         def capture_message(*args, **kwargs):
@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover
 try:
     from prometheus_client import Counter, Gauge, Histogram
 except Exception:  # pragma: no cover
+
     class _DummyMetric:
         def __init__(self, *args, **kwargs):
             self.value = 0.0
@@ -59,13 +60,15 @@ prob_bins = Histogram(
     ["market", "league"],
     buckets=[i / 10 for i in range(11)],
 )
-rolling_ece = Gauge("rolling_ece", "Rolling Expected Calibration Error", ["market", "league"])
+rolling_ece = Gauge(
+    "rolling_ece", "Rolling Expected Calibration Error", ["market", "league"]
+)
 rolling_logloss = Gauge("rolling_logloss", "Rolling LogLoss", ["market", "league"])
 
-_windows: Dict[Tuple[str, str], Deque[Tuple[float, int]]] = {}
+_windows: dict[tuple[str, str], deque[tuple[float, int]]] = {}
 
 
-def _get_window(key: Tuple[str, str]) -> Deque[Tuple[float, int]]:
+def _get_window(key: tuple[str, str]) -> deque[tuple[float, int]]:
     window = _windows.get(key)
     if window is None:
         window = deque(maxlen=WINDOW_SIZE)
@@ -73,7 +76,7 @@ def _get_window(key: Tuple[str, str]) -> Deque[Tuple[float, int]]:
     return window
 
 
-def _calc_ece(items: Deque[Tuple[float, int]]) -> float:
+def _calc_ece(items: deque[tuple[float, int]]) -> float:
     n_bins = 10
     bin_totals = [0] * n_bins
     bin_correct = [0] * n_bins
@@ -92,7 +95,7 @@ def _calc_ece(items: Deque[Tuple[float, int]]) -> float:
     return ece
 
 
-def _calc_logloss(items: Deque[Tuple[float, int]]) -> float:
+def _calc_logloss(items: deque[tuple[float, int]]) -> float:
     import math
 
     eps = 1e-15
@@ -103,9 +106,9 @@ def _calc_logloss(items: Deque[Tuple[float, int]]) -> float:
     return total / len(items)
 
 
-def record_prediction(market: str, league: str, y_prob: float, y_true: Optional[int]) -> None:
+def record_prediction(
+    market: str, league: str, y_prob: float, y_true: int | None
+) -> None:
     """Record prediction and update rolling metrics."""
-    key = (market, league)
     pred_total.labels(market=market, league=league).inc()
     prob_bins.labels(market=market, league=league).observe(y_prob)
-
