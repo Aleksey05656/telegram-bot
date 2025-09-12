@@ -1,3 +1,12 @@
+## Задача: Глобальная проверка NumPy/Pandas и маркировка тестов
+- **Статус**: Завершена
+- **Описание**: Добавить проверку стека NumPy/Pandas и пометить тесты маркером needs_np.
+- **Шаги выполнения**:
+  - [x] Добавить проверку стека NumPy/Pandas и авто-скип тестов
+  - [x] Пометить тесты маркером `needs_np`
+  - [x] Прогнать lint, тесты и smoke
+- **Зависимости**: tests/conftest.py, tests/integration/test_end_to_end.py, tests/test_ml.py, tests/test_metrics.py, tests/test_pipeline_stub.py, tests/test_services.py, tests/test_settings.py
+
 ## Задача: Стабилизация CI при отсутствии numpy/pandas
 - **Статус**: Завершена
 - **Описание**: Параметризовать lint и автоматически пропускать тесты при недоступных numpy/pandas.

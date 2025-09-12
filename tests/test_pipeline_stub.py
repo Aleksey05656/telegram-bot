@@ -5,9 +5,16 @@
 @created: 2025-09-10
 """
 
-import pandas as pd
+from __future__ import annotations
 
-from app.ml.prediction_pipeline import PredictionPipeline
+import pytest
+
+pytestmark = pytest.mark.needs_np
+
+try:  # pragma: no cover
+    import pandas as pd  # noqa: F401
+except Exception:  # pragma: no cover
+    pd = None
 
 
 class _Preproc:
@@ -27,6 +34,8 @@ class _Registry:
 
 
 def test_pipeline_predicts():
+    from app.ml.prediction_pipeline import PredictionPipeline  # noqa: E402
+
     pipe = PredictionPipeline(model_registry=_Registry(), preprocessor=_Preproc())
     out = pipe.predict_proba(pd.DataFrame({"a": [1, 2, 3]}))
     assert out.shape == (3, 2)

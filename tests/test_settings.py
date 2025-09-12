@@ -21,7 +21,7 @@ def test_settings_defaults():
 def test_settings_env_overrides(monkeypatch):
     monkeypatch.setenv("APP_NAME", "custom")
     s = get_settings()
-    assert s.app_name == "ml-service"  # BaseSettings v2 не мапит APP_NAME без alias
+    assert s.app_name == "custom"
 
     monkeypatch.setenv("SENTRY__ENVIRONMENT", "dev")
     s = get_settings()
