@@ -10,3 +10,8 @@ legacy/
 experiments/
 notebooks/
 scripts/migrations/
+/app/data_processor/__init__.py
+/app/data_processor/validators.py
+/app/data_processor/feature_engineering.py
+/app/data_processor/io.py
+/app/data_processor/transformers.py
