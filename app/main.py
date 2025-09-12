@@ -5,11 +5,14 @@
 @created: 2025-09-09
 """
 
+import os
 from fastapi import FastAPI
 
 from .config import get_settings
 from .middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 from .observability import init_observability
+from workers.retrain_scheduler import schedule_retrain  # type: ignore
+from workers.runtime_scheduler import register as _rt_register, list_jobs as _rt_list_jobs  # type: ignore
 
 app = FastAPI()
 settings = get_settings()
@@ -27,6 +30,30 @@ app.add_middleware(ProcessingTimeMiddleware)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+# --- Retrain wiring (feature-flagged by RETRAIN_CRON) ---
+_retrain_enabled = False
+_effective_cron = None
+_cron_env = os.getenv("RETRAIN_CRON", "").strip()
+if _cron_env and _cron_env.lower() not in {"off", "disabled", "none", "false"}:
+    try:
+        _effective_cron = schedule_retrain(_rt_register, cron_expr=_cron_env or None)
+        _retrain_enabled = True
+    except Exception:
+        # fail-safe: do not break app init due to scheduler issues
+        _retrain_enabled = False
+        _effective_cron = None
+
+@app.get("/__smoke__/retrain")
+def retrain_smoke():
+    """Report retrain registration status and configured crons."""
+    jobs = _rt_list_jobs()
+    return {
+        "enabled": _retrain_enabled,
+        "count": len(jobs),
+        "crons": [j["cron"] for j in jobs],
+        "effective_cron": _effective_cron,
+    }
 
 
 @app.get("/__smoke__/sentry")
