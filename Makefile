@@ -51,6 +51,14 @@ lint:
 	        $(PY) -m ruff check app tests || true; \
 	fi
 
+lint-app:
+	$(PY) -m ruff check app --fix --unsafe-fixes
+	$(PY) -m isort app
+	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" app
+	$(PY) -m ruff check app
+	$(PY) -m isort --check-only app
+	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check app
+
 fmt:
 	ruff format app tests
 	ruff check --fix app tests

@@ -39,8 +39,11 @@ class RateLimitSettings(BaseModel):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore",
-        case_sensitive=False, populate_by_name=True
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        populate_by_name=True,
     )
     app_name: str = Field(default="ml-service", alias="APP_NAME")
     debug: bool = Field(default=False, alias="DEBUG")

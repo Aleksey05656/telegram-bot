@@ -4,5 +4,5 @@ extend-select = ["I","B","C4","UP","PT","ERA","F"]
 ignore = ["E501"]  # переносы строк — на откуп black
 extend-exclude = ["legacy/","experiments/","notebooks/","scripts/migrations/"]
 [per-file-ignores]
-"**/__init__.py" = ["F401","F403"]
-"tests/**" = ["F401"]
+"**/__init__.py" = ["F401","F403"]   # реэкспорты — не шумим
+"tests/**"        = ["F401","F403","F841","B018"]  # неиспользуемые импорты/переименованные переменные в тестах — ок
