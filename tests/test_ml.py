@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 
-np = pytest.importorskip("numpy")  # noqa: F401
-pd = pytest.importorskip("pandas")  # noqa: F401
+pytestmark = pytest.mark.needs_np
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 

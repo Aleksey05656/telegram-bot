@@ -10,8 +10,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
-np = pytest.importorskip("numpy")  # noqa: F401
-pd = pytest.importorskip("pandas")  # noqa: F401
+pytestmark = pytest.mark.needs_np
 
 
 @pytest.mark.asyncio

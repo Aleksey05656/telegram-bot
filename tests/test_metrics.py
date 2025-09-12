@@ -10,8 +10,7 @@ import sys
 
 import pytest
 
-np = pytest.importorskip("numpy")  # noqa: F401
-pd = pytest.importorskip("pandas")  # noqa: F401
+pytestmark = pytest.mark.needs_np
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -25,9 +24,7 @@ def test_ece_alert(monkeypatch):
     def fake_capture_message(msg, level="warning"):
         messages.append((msg, level))
 
-    monkeypatch.setattr(
-        "metrics.metrics.sentry_sdk.capture_message", fake_capture_message
-    )
+    monkeypatch.setattr("metrics.metrics.sentry_sdk.capture_message", fake_capture_message)
 
     for _ in range(200):
         record_prediction("1x2", "EPL", 0.9, 0)
