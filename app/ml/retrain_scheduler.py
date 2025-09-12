@@ -10,9 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 
-def schedule_retrain(
-    register: Callable[[str, Callable], None], cron_expr: str = "0 3 * * *"
-):
+def schedule_retrain(register: Callable[[str, Callable], None], cron_expr: str = "0 3 * * *"):
     """
     Регистрирует задачу переобучения по cron.
     `register` — функция вашей системы планирования (APScheduler/Celery/K8s CronBridge).
