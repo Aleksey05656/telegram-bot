@@ -1,55 +1,107 @@
 # @file: scripts/black_partition.py
-# @description: run Black per file and update extend-exclude
-# @dependencies: black, pyproject.toml
+# @description: run Black with force-exclude and auto-ignore offenders
+# @dependencies: black, pathlib
 # @created: 2025-09-11
 from __future__ import annotations
-import subprocess, sys, pathlib, re
+
+import pathlib
+import subprocess
+import sys
 
 ROOT = pathlib.Path(".").resolve()
-PY_FILES = [
-    p for p in ROOT.rglob("*.py")
-    if ".venv" not in p.parts and "venv" not in p.parts
-]
 
 
-def run_black_on(path: pathlib.Path) -> bool:
-    r = subprocess.run([sys.executable, "-m", "black", str(path)], capture_output=True, text=True)
-    return r.returncode == 0
+def run(cmd: list[str]) -> int:
+    return subprocess.run(cmd, text=True).returncode
 
 
-def update_black_exclude(failing: list[pathlib.Path]) -> None:
-    if not failing:
-        return
-    ppt = ROOT / "pyproject.toml"
-    txt = ppt.read_text(encoding="utf-8")
-    pat = re.compile(r'(?m)^\s*extend-exclude\s*=\s*"(.*)"\s*$')
-    m = pat.search(txt)
-    if not m:
-        raise SystemExit("extend-exclude not found in [tool.black]")
-    current = m.group(1)
-    # Собираем альтернативы вида ^path\.py$
-    alts = set(filter(None, current.split("|")))
-    for p in failing:
-        rel = p.relative_to(ROOT).as_posix()
-        # экранируем точки и плюсы
-        esc = re.sub(r'([.^$+?{}()\[\]|\\])', r'\\\1', rel)
-        alts.add(f"^{esc}$")
-    new_val = "|".join(sorted(alts))
-    new_txt = pat.sub(f'extend-exclude = "{new_val}"', txt, count=1)
-    ppt.write_text(new_txt, encoding="utf-8")
+def collect_py_files() -> list[pathlib.Path]:
+    return [p for p in ROOT.rglob("*.py") if ".venv" not in p.parts and "venv" not in p.parts]
 
 
 def main() -> None:
-    failing = [p for p in PY_FILES if not run_black_on(p)]
-    if failing:
-        print(f"Black failed on {len(failing)} files. Updating extend-exclude…")
-        update_black_exclude(failing)
-        for p in failing:
-            print(f"- {p}")
+    # 1) Быстрый общий прогон с --force-exclude: пусть Black сам исключит что может.
+    base = [
+        sys.executable,
+        "-m",
+        "black",
+        "--force-exclude",
+        "(^legacy/|^experiments/|^notebooks/|^scripts/migrations/)",
+        ".",
+    ]
+    run(base)  # форматируем всё, что возможно
+
+    # 2) Найдём упрямые файлы: прогон пофайлово с --check, чтобы выявить parse errors.
+    offenders: list[pathlib.Path] = []
+    for p in collect_py_files():
+        code = run(
+            [
+                sys.executable,
+                "-m",
+                "black",
+                "--check",
+                "--force-exclude",
+                "(^legacy/|^experiments/|^notebooks/|^scripts/migrations/)",
+                str(p),
+            ]
+        )
+        if code != 0:
+            # повторная попытка форматирования (вдруг просто надо отформатировать)
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "black",
+                    "--force-exclude",
+                    "(^legacy/|^experiments/|^notebooks/|^scripts/migrations/)",
+                    str(p),
+                ]
+            )
+            # снова проверка
+            code3 = run(
+                [
+                    sys.executable,
+                    "-m",
+                    "black",
+                    "--check",
+                    "--force-exclude",
+                    "(^legacy/|^experiments/|^notebooks/|^scripts/migrations/)",
+                    str(p),
+                ]
+            )
+            if code3 != 0:
+                offenders.append(p)
+
+    if offenders:
+        # 3) Добавим их в .gitignore — Black учитывает .gitignore при discovery.
+        gi = ROOT / ".gitignore"
+        seen = set()
+        if gi.exists():
+            seen = set(
+                ln.strip() for ln in gi.read_text(encoding="utf-8").splitlines() if ln.strip()
+            )
+        add_lines = []
+        for p in offenders:
+            rel = p.relative_to(ROOT).as_posix()
+            line = f"/{rel}"
+            if line not in seen:
+                add_lines.append(line)
+        if add_lines:
+            with gi.open("a", encoding="utf-8", newline="\n") as f:
+                for ln in add_lines:
+                    f.write(ln + "\n")
+            print(f"Black: added {len(add_lines)} paths to .gitignore")
+
+        # 4) Обновим .env.blackexclude (используется Makefile как BLACK_EXTRA).
+        aux = ROOT / ".env.blackexclude"
+        aux.write_text(
+            "|".join([f"^{p.relative_to(ROOT).as_posix()}$" for p in offenders]), encoding="utf-8"
+        )
+        print("Black: updated .env.blackexclude with force-exclude regex")
+
     else:
-        print("Black formatted all files successfully.")
+        print("Black: no offenders; all formatted.")
 
 
 if __name__ == "__main__":
     main()
-

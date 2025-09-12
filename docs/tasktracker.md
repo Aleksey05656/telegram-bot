@@ -1,3 +1,13 @@
+## Задача: Финализация Black и снижение шума Ruff
+- **Статус**: Завершена
+- **Описание**: Добавить force-exclude для Black и ограничить Ruff каталогами app/tests.
+- **Шаги выполнения**:
+  - [x] Ввести переменные BLACK_EXCLUDE/BLACK_EXTRA и подключить .env.blackexclude
+  - [x] Переписать scripts/black_partition.py
+  - [x] Ограничить Ruff проверкой app и tests
+  - [x] Добавить фикстуру _defaults_env в tests/conftest.py
+- **Зависимости**: Makefile, scripts/black_partition.py, tests/conftest.py, .gitignore, .env.blackexclude
+
 ## Задача: Стабилизация Black и Ruff
 - **Статус**: Завершена
 - **Описание**: Снизить шум линтера и обеспечить алиасы настроек.
