@@ -1,12 +1,3 @@
-## Задача: Feature-flag retrain scheduler
-- **Статус**: Завершена
-- **Описание**: Включить планировщик переобучения по фиче-флагу и добавить smoke эндпоинт.
-- **Шаги выполнения**:
-  - [x] Реализовать in-memory runtime scheduler
-  - [x] Провести wiring в app.main и добавить smoke эндпоинт
-  - [x] Обновить README и .env.example
-- **Зависимости**: workers/runtime_scheduler.py, app/main.py, README.md, .env.example, tests/smoke/test_retrain_registration.py
-
 ## Задача: Скелеты сервисов и планировщика
 - **Статус**: Завершена
 - **Описание**: Добавить минимальные скелеты PredictionPipeline и Retrain Scheduler, тесты и обновить документацию.
@@ -275,7 +266,7 @@
   - [x] Добавлены проверки обязательных колонок в data_processor.py
   - [x] Обновлён qa.md с уточнёнными вопросами по данным
 - **Зависимости**: Project.md (раздел 5), services/data_processor.py
- 
+
 ## Задача: Декомпозиция data_processor в пакет
 - **Статус**: Завершена
 - **Описание**: Создать пакет app/data_processor с фасадом и модулями validators, feature_engineering, transformers и io.

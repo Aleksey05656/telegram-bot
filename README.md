@@ -39,24 +39,3 @@ pytest -q -k test_services_workers_minimal
 ```
 
 > Тесты помечены `@pytest.mark.needs_np`: при недоступном численном стеке будут SKIP.
-
-## Retrain scheduler (feature-flag)
-
-Встроена «лёгкая» интеграция планировщика:
-
-- **ENV-флаг**: `RETRAIN_CRON`
-  - пусто / `off` / `disabled` / `none` / `false` → **планировщик выключен**;
-  - любое корректное выражение crontab → регистрируется задача переобучения.
-- **Адаптер**: in-memory `workers/runtime_scheduler.py` (для smoke/локалки).
-- **Эндпоинт**: `GET /__smoke__/retrain` — статус регистрации: enabled/count/crons.
-
-Быстрая проверка:
-```bash
-RETRAIN_CRON="*/15 * * * *" uvicorn app.main:app --reload &
-curl -s http://127.0.0.1:8000/__smoke__/retrain
-```
-
-Тест:
-```bash
-pytest -q -k test_retrain_registration
-```
