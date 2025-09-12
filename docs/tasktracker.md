@@ -285,7 +285,7 @@
   - [x] Добавлены проверки обязательных колонок в data_processor.py
   - [x] Обновлён qa.md с уточнёнными вопросами по данным
 - **Зависимости**: Project.md (раздел 5), services/data_processor.py
- 
+
 ## Задача: Декомпозиция data_processor в пакет
 - **Статус**: Завершена
 - **Описание**: Создать пакет app/data_processor с фасадом и модулями validators, feature_engineering, transformers и io.

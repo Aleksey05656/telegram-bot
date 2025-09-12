@@ -3,10 +3,9 @@
 # @dependencies: requirements.txt, scripts/verify.py
 # @created: 2025-09-10
 
-.PHONY: setup lint test smoke check fmt pre-commit-smart
-
 PY ?= python
 PIP ?= $(PY) -m pip
+PRECOMMIT ?= pre-commit
 
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
@@ -29,13 +28,13 @@ setup:
 	fi
 	pre-commit install -f || true
 	@echo "Setup done."
-	
+
 deps-fix:
 # Полный цикл переустановки бинарной четвёрки
 	-$(PIP) uninstall -y pandas numpy scipy pyarrow || true
 	$(PIP) install -c constraints.txt --only-binary=:all: --prefer-binary numpy pandas scipy pyarrow
 	@echo "Deps fixed."
-	
+
 lint:
 	@echo "LINT_STRICT=$${LINT_STRICT:-0}"
 	@if [ "$${LINT_STRICT:-0}" = "1" ]; then \
@@ -84,5 +83,9 @@ pre-commit-smart:
 
 smoke:
 	python -m scripts.verify
+
+pre-commit-offline:
+	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"
+	$(PRECOMMIT) run --all-files -c .pre-commit-config.offline.yaml || true
 
 check: lint test smoke
