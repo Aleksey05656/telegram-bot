@@ -8,10 +8,15 @@
 import os
 import sys
 
+import pytest
+
+np = pytest.importorskip("numpy")  # noqa: F401
+pd = pytest.importorskip("pandas")  # noqa: F401
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from metrics import record_prediction
-from metrics.metrics import rolling_ece, rolling_logloss
+from metrics import record_prediction  # noqa: E402
+from metrics.metrics import rolling_ece, rolling_logloss  # noqa: E402
 
 
 def test_ece_alert(monkeypatch):

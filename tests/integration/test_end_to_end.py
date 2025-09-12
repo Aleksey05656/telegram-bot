@@ -10,6 +10,9 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
+np = pytest.importorskip("numpy")  # noqa: F401
+pd = pytest.importorskip("pandas")  # noqa: F401
+
 
 @pytest.mark.asyncio
 async def test_health_endpoint() -> None:

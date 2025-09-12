@@ -1,3 +1,12 @@
+## Задача: Стабилизация CI при отсутствии numpy/pandas
+- **Статус**: Завершена
+- **Описание**: Параметризовать lint и автоматически пропускать тесты при недоступных numpy/pandas.
+- **Шаги выполнения**:
+  - [x] Параметризовать цель lint в Makefile
+  - [x] Добавить `pytest.importorskip` в тесты
+  - [x] Создать локальный `pip.conf`
+- **Зависимости**: Makefile, tests/integration/test_end_to_end.py, tests/test_metrics.py, tests/test_ml.py, pip.conf
+
 ## Задача: Пины численного стека и Ruff игнор
 - **Статус**: Завершена
 - **Описание**: Добавить constraints.txt, обновить Makefile и настроить адресное игнорирование Ruff.

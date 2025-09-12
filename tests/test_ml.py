@@ -9,9 +9,12 @@ from pathlib import Path
 
 import pytest
 
+np = pytest.importorskip("numpy")  # noqa: F401
+pd = pytest.importorskip("pandas")  # noqa: F401
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from ml.models.bivariate_poisson import estimate_rho, outcome_probabilities
+from ml.models.bivariate_poisson import estimate_rho, outcome_probabilities  # noqa: E402
 
 
 def test_estimate_rho_linear_model():
