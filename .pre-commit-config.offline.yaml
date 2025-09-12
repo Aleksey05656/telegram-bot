@@ -1,15 +1,4 @@
 # @file: .pre-commit-config.offline.yaml
-# @description: Offline pre-commit configuration using local tools
-# @dependencies: scripts/hooks/trailing_ws.py, scripts/hooks/eof_fixer.py, ruff, isort, black
-# @created: 2025-09-12
-repos:
-  - repo: local
-    hooks:
-      - id: ruff-fix
-        name: ruff (fix)
-        entry: python -m ruff check --fix
-        language: system
-        types: [python]
       - id: isort
         name: isort
         entry: python -m isort
@@ -20,15 +9,3 @@ repos:
         entry: python -m black
         language: system
         types: [python]
-      - id: trailing-whitespace
-        name: trailing-whitespace (local)
-        entry: python scripts/hooks/trailing_ws.py
-        language: system
-        types_or: [python, markdown, yaml, toml, json, text]
-      - id: end-of-file-fixer
-        name: end-of-file-fixer (local)
-        entry: python scripts/hooks/eof_fixer.py
-        language: system
-        types_or: [python, markdown, yaml, toml, json, text]
-default_language_version:
-  python: python3
