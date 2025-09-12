@@ -1,3 +1,15 @@
+## [2025-09-12] - Стабилизация Black и Ruff
+### Добавлено
+- Автофикстура `_defaults_env` в тестах.
+- Блок шумных артефактов в `.gitignore`.
+
+### Изменено
+- Makefile использует `BLACK_EXCLUDE` и ограничивает Ruff каталогами `app` и `tests`.
+- Переписан `scripts/black_partition.py` с поддержкой `--force-exclude`.
+
+### Исправлено
+- Обновлены `.gitignore` и `.env.blackexclude` для проблемных файлов Black.
+
 ## [2025-09-11] - Обновление Black, Ruff и настроек
 ### Добавлено
 - Алиасы `APP_NAME` и `DEBUG` для модели `Settings`.

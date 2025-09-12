@@ -8,6 +8,10 @@
 PY ?= python
 PIP ?= $(PY) -m pip
 
+BLACK_EXCLUDE = (^(legacy|experiments|notebooks|scripts/migrations)/|$(BLACK_EXTRA))
+-include .env.blackexclude
+BLACK_EXTRA ?=
+
 setup:
 	$(PY) -m pip install -U pip
 	if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt || true; fi
@@ -21,17 +25,17 @@ setup:
 	@echo "Setup done."
 
 lint:
-	$(PY) -m ruff check . --fix --unsafe-fixes || true
+	$(PY) -m ruff check app tests --fix --unsafe-fixes || true
 	$(PY) -m isort .
-	$(PY) -m black .
+	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" .
 	# итоговый "гейт": показываем остаток после автофиксов
-	$(PY) -m ruff check .
+	$(PY) -m ruff check app tests
 	$(PY) -m isort --check-only .
-	$(PY) -m black --check .
+	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check .
 
 fmt:
-	ruff format .
-	ruff check --fix .
+	ruff format app tests
+	ruff check --fix app tests
 
 test:
 	pytest
