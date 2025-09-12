@@ -1,3 +1,12 @@
+## Задача: Пины численного стека и Ruff игнор
+- **Статус**: Завершена
+- **Описание**: Добавить constraints.txt, обновить Makefile и настроить адресное игнорирование Ruff.
+- **Шаги выполнения**:
+  - [x] Создать constraints.txt
+  - [x] Заменить цель setup и добавить deps-fix в Makefile
+  - [x] Добавить `.ruffignore` и `scripts/ruff_partition.py`
+- **Зависимости**: constraints.txt, Makefile, .ruffignore, scripts/ruff_partition.py
+
 ## Задача: Финализация Black и снижение шума Ruff
 - **Статус**: Завершена
 - **Описание**: Добавить force-exclude для Black и ограничить Ruff каталогами app/tests.

@@ -14,16 +14,24 @@ BLACK_EXTRA ?=
 
 setup:
 	$(PY) -m pip install -U pip
-	if [ -f requirements.txt ]; then $(PIP) install -r requirements.txt || true; fi
-	# Пытаемся установить пинованные версии; если прокси блокирует — откатываемся на непинованные
-	-$(PIP) install "ruff==0.6.5" "black==24.8.0" "isort==5.13.2" "pre-commit>=3.7.0" --retries 2 --timeout 60
-	@if ! $(PY) -c "import ruff, black, isort, sys" >/dev/null 2>&1; then \
-		echo "Pinned install failed or partial — installing fallback (unpinned)"; \
-		$(PIP) install ruff black isort pre-commit --retries 2 --timeout 60 || true; \
+	# основной путь: по constraints
+	-$(PIP) install -r requirements.txt -c constraints.txt --prefer-binary --retries 2 --timeout 60
+	-$(PIP) install -c constraints.txt --prefer-binary --retries 2 --timeout 60 ruff black isort pre-commit pytest pytest-asyncio || true
+	# fallback при блокировке прокси: непинованные, но бинарные, чтобы избежать сборки из исходников
+	@if ! $(PY) -c "import numpy, pandas" >/dev/null 2>&1; then \
+	echo "Fallback install (unpinned, prefer-binary)"; \
+	$(PIP) install --only-binary=:all: --prefer-binary numpy pandas scipy pyarrow || true; \
+	$(PIP) install ruff black isort pre-commit pytest pytest-asyncio || true; \
 	fi
 	pre-commit install -f || true
 	@echo "Setup done."
-
+	
+deps-fix:
+# Полный цикл переустановки бинарной четвёрки
+	-$(PIP) uninstall -y pandas numpy scipy pyarrow || true
+	$(PIP) install -c constraints.txt --only-binary=:all: --prefer-binary numpy pandas scipy pyarrow
+	@echo "Deps fixed."
+	
 lint:
 	$(PY) -m ruff check app tests --fix --unsafe-fixes || true
 	$(PY) -m isort .

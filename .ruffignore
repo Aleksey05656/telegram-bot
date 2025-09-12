@@ -1,0 +1,12 @@
+# /**
+#  * @file: .ruffignore
+#  * @description: Paths excluded from Ruff checks
+#  * @dependencies: scripts/ruff_partition.py
+#  * @created: 2025-09-12
+#  */
+# Автогенерируемые проблемные пути добавляет scripts/ruff_partition.py
+# Оставляем ключевые каталоги под линтом: app/ и tests/
+legacy/
+experiments/
+notebooks/
+scripts/migrations/
