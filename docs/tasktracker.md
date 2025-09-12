@@ -1,3 +1,11 @@
+## Задача: Скелеты сервисов и планировщика
+- **Статус**: Завершена
+- **Описание**: Добавить минимальные скелеты PredictionPipeline и Retrain Scheduler, тесты и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Реализовать `services/prediction_pipeline.py`
+  - [x] Реализовать `workers/retrain_scheduler.py`
+  - [x] Добавить тесты и обновить README/.env
+- **Зависимости**: services/prediction_pipeline.py, workers/retrain_scheduler.py, tests/test_services_workers_minimal.py, README.md, .env.example
 ## Задача: Синхронизация pandas
 - **Статус**: Завершена
 - **Описание**: Закрепить версию `pandas==2.2.2` в зависимостях проекта.
