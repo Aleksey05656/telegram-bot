@@ -39,15 +39,3 @@ pytest -q -k test_services_workers_minimal
 ```
 
 > Тесты помечены `@pytest.mark.needs_np`: при недоступном численном стеке будут SKIP.
-
-## Pre-commit в офлайн-окружении
-
-Если сеть ограничена и стандартные хуки не тянутся из GitHub, используйте локальный конфиг:
-```bash
-make pre-commit-offline
-```
-Он запускает ruff/isort/black из текущего окружения (python -m ...) и локальные хуки
-для trailing-whitespace и end-of-file-fixer (см. scripts/hooks/*).
-
-> Подсказка: чтобы pre-commit использовал локальный кеш, можно задать `export PRE_COMMIT_HOME=.cache/pre-commit`
-перед запуском.

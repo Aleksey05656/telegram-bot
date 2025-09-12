@@ -1,11 +1,3 @@
-## Задача: Офлайн pre-commit
-- **Статус**: Завершена
-- **Описание**: Настроить локальный конфиг pre-commit и скрипты для офлайн-запуска.
-- **Шаги выполнения**:
-  - [x] Добавить `.pre-commit-config.offline.yaml`
-  - [x] Реализовать `scripts/hooks/trailing_ws.py` и `scripts/hooks/eof_fixer.py`
-  - [x] Обновить Makefile и README
-- **Зависимости**: .pre-commit-config.offline.yaml, scripts/hooks/trailing_ws.py, scripts/hooks/eof_fixer.py, Makefile, README.md
 ## Задача: Скелеты сервисов и планировщика
 - **Статус**: Завершена
 - **Описание**: Добавить минимальные скелеты PredictionPipeline и Retrain Scheduler, тесты и обновить документацию.

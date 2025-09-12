@@ -1,11 +1,3 @@
-## [2025-09-12] - Офлайн конфиг pre-commit
-### Добавлено
-- Локальный конфиг `.pre-commit-config.offline.yaml` и скрипты `trailing_ws.py`, `eof_fixer.py`.
-### Изменено
-- Makefile: цель `pre-commit-offline` и переменная `PRECOMMIT`.
-- README: раздел о запуске pre-commit в офлайн-окружении.
-### Исправлено
-- —
 ## [2025-09-12] - Скелеты сервисов и планировщика
 ### Добавлено
 - Минимальные скелеты `services/prediction_pipeline.py` и `workers/retrain_scheduler.py`.
