@@ -112,3 +112,17 @@ def record_prediction(
     """Record prediction and update rolling metrics."""
     pred_total.labels(market=market, league=league).inc()
     prob_bins.labels(market=market, league=league).observe(y_prob)
+    if y_true is None:
+        return
+
+    window = _get_window((market, league))
+    window.append((y_prob, y_true))
+
+    ece = _calc_ece(window)
+    logloss = _calc_logloss(window)
+    rolling_ece.labels(market=market, league=league).set(ece)
+    rolling_logloss.labels(market=market, league=league).set(logloss)
+    if ece > 0.05:
+        sentry_sdk.capture_message(
+            f"High ECE {ece:.3f} for {market}:{league}", level="warning"
+        )
