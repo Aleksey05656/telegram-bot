@@ -18,3 +18,36 @@ make check
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
+
+## Services & Workers (скелеты)
+
+Добавлены минимальные заготовки для боевого включения без падений в ограниченных окружениях:
+
+- `services/prediction_pipeline.py` — продовый фасад предсказаний:
+  - интерфейсы `Preprocessor`, `ModelRegistry`;
+  - заглушечная модель, если реестр не доступен;
+  - устойчив к отсутствию `numpy/pandas` (вернёт список списков).
+
+- `workers/retrain_scheduler.py` — регистрация периодического переобучения:
+  - `schedule_retrain(register, cron_expr=None, task=None)`;
+  - читает `RETRAIN_CRON` из окружения (по умолчанию `0 3 * * *`);
+  - ленивая подгрузка тренера для избежания тяжёлых импортов.
+
+Быстрая проверка:
+```bash
+pytest -q -k test_services_workers_minimal
+```
+
+> Тесты помечены `@pytest.mark.needs_np`: при недоступном численном стеке будут SKIP.
+
+## Pre-commit в офлайн-окружении
+
+Если сеть ограничена и стандартные хуки не тянутся из GitHub, используйте локальный конфиг:
+```bash
+make pre-commit-offline
+```
+Он запускает ruff/isort/black из текущего окружения (python -m ...) и локальные хуки
+для trailing-whitespace и end-of-file-fixer (см. scripts/hooks/*).
+
+> Подсказка: чтобы pre-commit использовал локальный кеш, можно задать `export PRE_COMMIT_HOME=.cache/pre-commit`
+перед запуском.

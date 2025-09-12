@@ -1,3 +1,19 @@
+## Задача: Офлайн pre-commit
+- **Статус**: Завершена
+- **Описание**: Настроить локальный конфиг pre-commit и скрипты для офлайн-запуска.
+- **Шаги выполнения**:
+  - [x] Добавить `.pre-commit-config.offline.yaml`
+  - [x] Реализовать `scripts/hooks/trailing_ws.py` и `scripts/hooks/eof_fixer.py`
+  - [x] Обновить Makefile и README
+- **Зависимости**: .pre-commit-config.offline.yaml, scripts/hooks/trailing_ws.py, scripts/hooks/eof_fixer.py, Makefile, README.md
+## Задача: Скелеты сервисов и планировщика
+- **Статус**: Завершена
+- **Описание**: Добавить минимальные скелеты PredictionPipeline и Retrain Scheduler, тесты и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Реализовать `services/prediction_pipeline.py`
+  - [x] Реализовать `workers/retrain_scheduler.py`
+  - [x] Добавить тесты и обновить README/.env
+- **Зависимости**: services/prediction_pipeline.py, workers/retrain_scheduler.py, tests/test_services_workers_minimal.py, README.md, .env.example
 ## Задача: Синхронизация pandas
 - **Статус**: Завершена
 - **Описание**: Закрепить версию `pandas==2.2.2` в зависимостях проекта.
@@ -258,7 +274,7 @@
   - [x] Добавлены проверки обязательных колонок в data_processor.py
   - [x] Обновлён qa.md с уточнёнными вопросами по данным
 - **Зависимости**: Project.md (раздел 5), services/data_processor.py
- 
+
 ## Задача: Декомпозиция data_processor в пакет
 - **Статус**: Завершена
 - **Описание**: Создать пакет app/data_processor с фасадом и модулями validators, feature_engineering, transformers и io.
