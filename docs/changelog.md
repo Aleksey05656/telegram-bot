@@ -1,3 +1,12 @@
+## [2025-09-12] - Пины численного стека и Ruff игнор
+### Добавлено
+- Файл `constraints.txt` с закреплёнными версиями numpy/pandas/scipy/pyarrow.
+- Файл `.ruffignore` и скрипт `scripts/ruff_partition.py`.
+### Изменено
+- Цель `setup` в `Makefile` использует `constraints.txt` и добавлена цель `deps-fix`.
+### Исправлено
+- —
+
 ## [2025-09-12] - Стабилизация Black и Ruff
 ### Добавлено
 - Автофикстура `_defaults_env` в тестах.
