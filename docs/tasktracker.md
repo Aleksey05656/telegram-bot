@@ -1,3 +1,22 @@
+## Задача: Smart pre-commit fallback
+- **Статус**: Завершена
+- **Описание**: Добавить скрипт офлайн-запуска pre-commit и цель Makefile.
+- **Шаги выполнения**:
+  - [x] Добавить scripts/run_precommit.py
+  - [x] Создать .pre-commit-config.offline.yaml и цель pre-commit-smart
+  - [x] Обновить README и документацию
+  - [x] Описать кеш `PRE_COMMIT_HOME`
+- **Зависимости**: scripts/run_precommit.py, .pre-commit-config.offline.yaml, Makefile, README.md
+
+## Задача: Feature-flag retrain scheduler
+- **Статус**: Завершена
+- **Описание**: Включить планировщик переобучения по фиче-флагу и добавить smoke эндпоинт.
+- **Шаги выполнения**:
+  - [x] Реализовать in-memory runtime scheduler
+  - [x] Провести wiring в app.main и добавить smoke эндпоинт
+  - [x] Обновить README и .env.example
+- **Зависимости**: workers/runtime_scheduler.py, app/main.py, README.md, .env.example, tests/smoke/test_retrain_registration.py
+
 ## Задача: Скелеты сервисов и планировщика
 - **Статус**: Завершена
 - **Описание**: Добавить минимальные скелеты PredictionPipeline и Retrain Scheduler, тесты и обновить документацию.

@@ -3,10 +3,14 @@
 # @dependencies: requirements.txt, scripts/verify.py
 # @created: 2025-09-10
 
-.PHONY: setup lint test smoke check fmt
+.PHONY: setup lint test smoke check fmt pre-commit-smart
 
 PY ?= python
 PIP ?= $(PY) -m pip
+
+PRECOMMIT ?= pre-commit
+PRE_COMMIT_HOME ?= .cache/pre-commit
+
 
 BLACK_EXCLUDE = (^(legacy|experiments|notebooks|scripts/migrations)/|$(BLACK_EXTRA))
 -include .env.blackexclude
@@ -72,6 +76,11 @@ fmt:
 
 test:
 	pytest
+
+pre-commit-smart:
+	@echo "[pre-commit smart] trying online first, with fallback to offline config"
+	@mkdir -p $(PRE_COMMIT_HOME)
+	PRE_COMMIT_HOME=$(PRE_COMMIT_HOME) $(PY) scripts/run_precommit.py run --all-files || true
 
 smoke:
 	python -m scripts.verify

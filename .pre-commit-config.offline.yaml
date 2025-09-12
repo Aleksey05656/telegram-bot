@@ -1,0 +1,25 @@
+# @file: .pre-commit-config.offline.yaml
+# @description: Offline pre-commit configuration using local tools.
+# @dependencies: scripts/run_precommit.py
+# @created: 2025-09-12
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: python -m ruff check
+        language: system
+        types: [python]
+        args: ["--fix"]
+      - id: isort
+        name: isort
+        entry: python -m isort
+        language: system
+        types: [python]
+      - id: black
+        name: black
+        entry: python -m black
+        language: system
+        types: [python]
+        require_serial: true

@@ -1,3 +1,23 @@
+## [2025-09-12] - Smart pre-commit fallback
+### Добавлено
+- Скрипт `scripts/run_precommit.py` и конфиг `.pre-commit-config.offline.yaml` для офлайн запуска.
+- Цель `pre-commit-smart` в Makefile.
+- Переменная `PRE_COMMIT_HOME` для кеша хуков.
+### Изменено
+- README.md: инструкция по офлайн запуску pre-commit.
+### Исправлено
+- —
+
+## [2025-09-12] - Feature-flag retrain scheduler and smoke endpoint
+### Добавлено
+- In-memory runtime scheduler adapter `workers/runtime_scheduler.py`.
+- Smoke endpoint `/__smoke__/retrain` with feature flag `RETRAIN_CRON`.
+### Изменено
+- `app/main.py`: интеграция планировщика переобучения.
+- `.env.example`, `README.md`: документация по флагу `RETRAIN_CRON`.
+### Исправлено
+- —
+
 ## [2025-09-12] - Скелеты сервисов и планировщика
 ### Добавлено
 - Минимальные скелеты `services/prediction_pipeline.py` и `workers/retrain_scheduler.py`.
