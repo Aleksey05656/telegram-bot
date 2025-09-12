@@ -52,12 +52,19 @@ lint:
 	fi
 
 lint-app:
-	$(PY) -m ruff check app --fix --unsafe-fixes
-	$(PY) -m isort app
-	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" app
-	$(PY) -m ruff check app
-	$(PY) -m isort --check-only app
-	$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check app
+	$(PY) scripts/syntax_partition.py
+	@if [ -s .lint_targets_app ]; then \
+		count=`wc -l < .lint_targets_app`; \
+		echo "[lint-app] targets: $$count files"; \
+		$(PY) -m ruff check --fix --unsafe-fixes `cat .lint_targets_app`; \
+		$(PY) -m isort `cat .lint_targets_app`; \
+		$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" `cat .lint_targets_app`; \
+		$(PY) -m ruff check `cat .lint_targets_app`; \
+		$(PY) -m isort --check-only `cat .lint_targets_app`; \
+		$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check `cat .lint_targets_app`; \
+	else \
+		echo "[lint-app] no parseable targets found (skipped)"; \
+	fi
 
 fmt:
 	ruff format app tests
