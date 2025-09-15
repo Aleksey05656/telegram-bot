@@ -6,3 +6,4 @@ extend-exclude = ["legacy/","experiments/","notebooks/","scripts/migrations/"]
 [per-file-ignores]
 "**/__init__.py" = ["F401","F403"]   # реэкспорты — не шумим
 "tests/**"        = ["F401","F403","F841","B018"]  # неиспользуемые импорты/переименованные переменные в тестах — ок
+"scripts/train_model.py" = ["E402"]

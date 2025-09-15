@@ -60,7 +60,7 @@ async def cmd_help(message: Message):
             """
             ).strip()
         elif command == "stats":
-            # TODO: Добавить реальную статистику
+            logger.warning("Используется заглушечная статистика")
             help_text = textwrap.dedent(
                 """
                 📊 <b>Статистика Football Predictor Bot</b>
@@ -77,9 +77,7 @@ async def cmd_help(message: Message):
             help_text = "ℹ️ Используйте /help для получения справки."
 
         await message.answer(help_text, parse_mode="HTML")
-        logger.info(
-            f"{command.capitalize()} отправлен(-а) пользователю {message.from_user.id}"
-        )
+        logger.info(f"{command.capitalize()} отправлен(-а) пользователю {message.from_user.id}")
     except ValueError as e:
         await message.answer(f"❌ {e}", parse_mode="HTML")
     except Exception as e:
@@ -101,9 +99,7 @@ async def cmd_help(message: Message):
 async def cb_show_help(callback: CallbackQuery):
     """Callback обработчик для отображения справки."""
     try:
-        logger.debug(
-            f"Пользователь {callback.from_user.id} запросил справку через callback"
-        )
+        logger.debug(f"Пользователь {callback.from_user.id} запросил справку через callback")
         help_text = textwrap.dedent(
             """
             ℹ️ <b>Справка Football Predictor Bot</b>
@@ -144,9 +140,7 @@ async def cb_show_help(callback: CallbackQuery):
 async def cb_show_examples(callback: CallbackQuery):
     """Callback обработчик для отображения примеров."""
     try:
-        logger.debug(
-            f"Пользователь {callback.from_user.id} запросил примеры через callback"
-        )
+        logger.debug(f"Пользователь {callback.from_user.id} запросил примеры через callback")
         examples_text = textwrap.dedent(
             """
             📚 <b>Примеры использования Football Predictor Bot</b>
@@ -187,10 +181,8 @@ async def cb_show_examples(callback: CallbackQuery):
 async def cb_show_stats(callback: CallbackQuery):
     """Callback обработчик для отображения статистики."""
     try:
-        logger.debug(
-            f"Пользователь {callback.from_user.id} запросил статистику через callback"
-        )
-        # TODO: Добавить реальную статистику
+        logger.debug(f"Пользователь {callback.from_user.id} запросил статистику через callback")
+        logger.warning("Используется заглушечная статистика")
         stats_text = textwrap.dedent(
             """
             📊 <b>Статистика Football Predictor Bot</b>

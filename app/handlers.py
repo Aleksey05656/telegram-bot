@@ -12,5 +12,5 @@ async def some_handler(payload: dict[str, Any]) -> dict[str, Any]:
     """Placeholder handler to ensure deterministic behavior."""
 
     # Временная заглушка, чтобы поведение было детерминированным
-    # вместо «тихого» TODO
+    # вместо молчаливого игнорирования
     return {"status": "ok", "note": "rules are not implemented yet"}

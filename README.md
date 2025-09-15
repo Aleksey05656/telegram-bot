@@ -33,6 +33,25 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
   - читает `RETRAIN_CRON` из окружения (по умолчанию `0 3 * * *`);
   - ленивая подгрузка тренера для избежания тяжёлых импортов.
 
+## Local model registry
+
+`app/ml/model_registry.py` сохраняет модели на файловой системе. По умолчанию используется каталог
+`artifacts/`, который можно переопределить переменной окружения `MODEL_REGISTRY_PATH`.
+
+## SportMonks stub mode
+
+Режим заглушки включается, если установить `SPORTMONKS_STUB=1` или оставить `SPORTMONKS_API_KEY`
+пустым/`dummy`. Для реального API необходимо задать ключ и выставить `SPORTMONKS_STUB=0`.
+
+## Key environment variables
+
+- `TELEGRAM_BOT_TOKEN` — токен Telegram-бота.
+- `SPORTMONKS_API_KEY` — ключ API SportMonks.
+- `SPORTMONKS_STUB` — `1` включает заглушечные ответы SportMonks.
+- `MODEL_REGISTRY_PATH` — каталог LocalModelRegistry (по умолчанию `artifacts/`).
+- `RETRAIN_CRON` — crontab для планировщика (пусто/`off` выключает).
+- `SEASON_ID` — сезон для скрипта обучения (по умолчанию `23855`).
+
 ## Tests
 
 - Контрактный тест сверяет `.env.example` с `app.config.Settings`.

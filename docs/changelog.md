@@ -1,3 +1,12 @@
+## [2025-09-18] - Cleanup TODOs and CI smoke
+### Добавлено
+- Шаги smoke и e2e в CI.
+### Изменено
+- README и ARCHITECTURE: указаны LocalModelRegistry, stub SportMonks и ключевые ENV.
+- scripts/train_model.py использует `SEASON_ID` из окружения.
+### Исправлено
+- Удалены устаревшие TODO в обработчиках и train_model.
+
 ## [2025-09-17] - Env contract and pipeline tests
 ### Добавлено
 - Контрактный тест `.env.example` ↔ `app.config.Settings`.

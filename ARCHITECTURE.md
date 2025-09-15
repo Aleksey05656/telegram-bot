@@ -11,7 +11,8 @@ Updated 2025-09-10.
 
 - **app/** – FastAPI application with configuration, middlewares and observability.
 - **services/** – business logic and data processing utilities.
-- **ml/** – machine learning models, `LocalModelRegistry` and prediction pipeline.
+- **ml/** – machine learning models и `LocalModelRegistry` (артефакты в каталоге `artifacts/` или `MODEL_REGISTRY_PATH`) и prediction pipeline.
 - **tests/** – unit, contract, smoke and end-to-end tests.
+- SportMonks client (`app/integrations/sportmonks_client.py`) переключает заглушку через `SPORTMONKS_STUB`.
 
 See `docs/Project.md` for a detailed design.
