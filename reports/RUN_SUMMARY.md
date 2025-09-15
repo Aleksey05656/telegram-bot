@@ -13,15 +13,16 @@
 - `make lint` – formatting applied, reverted
 
 ## Tests
-- pytest tests/ml/test_glm_training.py -q – pass (1)
-- pytest tests/ml/test_modifiers.py -q – pass (1)
-- pytest tests/ml/test_bipoisson_sim.py -q – pass (1)
+- pytest tests/ml/test_bipoisson_sim.py -q – pass
+- pytest tests/ml/test_calibration_ece.py -q – pass
+- pytest tests/storage/test_predictions_store.py -q – pass
+- pytest tests/smoke/test_run_simulation_cli.py -q – pass
 
-## Modifiers validation
-- base_logloss: 1.4236, final_logloss: 1.4236, delta: 0.0000
-- base_ece: 0.0147, final_ece: 0.0147, delta: 0.0000
-- report: reports/metrics/MODIFIERS_default.md
-- gate: OK
+## Simulation
+- n_sims: 10000, rho: 0.1
+- markets: 1x2, totals, btts, cs
+- ECE report: reports/metrics/ECE_simulation_default_H_vs_A.md
+- SQLite: var/predictions.sqlite
 
 ## Next Steps
 - —

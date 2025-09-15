@@ -1,104 +1,63 @@
 """
 @file: calibration.py
-@description: Калибровка вероятностей (Platt/Isotonic).
+@description: Probability calibration helpers and ECE report.
 @dependencies: numpy, sklearn
-@created: 2025-08-23
+@created: 2025-09-15
 """
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LogisticRegression
 
 
-class ProbabilityCalibrator:
-    def __init__(
-        self,
-        method: str = "platt",
-        keys: Optional[List[str]] = None,
-        weights: Optional[Dict[str, float]] = None,
-        strict_guard: bool = True,
-        max_shift: float = 0.25,
-        max_weight_on_large_shift: float = 0.5,
-    ) -> None:
-        self.method = method
-        self.keys = keys or []
-        self.weights = weights or {}
-        self.strict_guard = bool(strict_guard)
-        self.max_shift = float(max(0.0, max_shift))
-        self.max_weight_on_large_shift = float(min(1.0, max(0.0, max_weight_on_large_shift)))
-        self._models: Dict[str, Any] = {}
-
-    def fit(self, p_base: Dict[str, np.ndarray], y_true: np.ndarray) -> "ProbabilityCalibrator":
-        for key, p in p_base.items():
-            if self.method == "isotonic":
-                m = IsotonicRegression(out_of_bounds="clip")
-                self._models[key] = m.fit(p, (y_true == (key)).astype(float))
-            else:
-                m = LogisticRegression(max_iter=1000)
-                self._models[key] = m.fit(p.reshape(-1, 1), (y_true == (key)).astype(int))
-        return self
-
-    def predict(self, probs: Dict[str, float]) -> Dict[str, float]:
-        calibrated: Dict[str, float] = {}
-        iter_keys = list(self.keys) if self.keys else list(probs.keys())
-        for k in iter_keys:
-            if k not in probs:
+def ece(prob: np.ndarray, label: np.ndarray, n_bins: int = 10) -> float:
+    """Expected calibration error for binary or multiclass probabilities."""
+    prob = np.asarray(prob)
+    label = np.asarray(label)
+    if prob.ndim == 1:
+        prob = prob[:, None]
+        label = label[:, None]
+    eces = []
+    for j in range(prob.shape[1]):
+        p = prob[:, j]
+        y_true = label[:, j] if label.ndim == 2 else (label == j).astype(float)
+        bins = np.linspace(0, 1, n_bins + 1)
+        idx = np.digitize(p, bins) - 1
+        e = 0.0
+        for b in range(n_bins):
+            mask = idx == b
+            if not np.any(mask):
                 continue
-            original_p = float(probs[k])
-            m = self._models.get(k)
-            cal_p = original_p
-            if m is not None:
-                try:
-                    if hasattr(m, "predict_proba"):
-                        proba = m.predict_proba([[original_p]])
-                        cal_p = float(proba[0][1])
-                    elif hasattr(m, "predict"):
-                        y = m.predict([[original_p]])
-                        cal_p = float(y[0]) if hasattr(y, "__len__") else float(y)
-                    elif hasattr(m, "transform"):
-                        y = m.transform([[original_p]])
-                        cal_p = float(y[0][0])
-                except Exception:
-                    cal_p = original_p
-            cal_p = max(0.0, min(1.0, cal_p))
-            w = float(self.weights.get(k, 1.0))
-            if w < 0.0:
-                w = 0.0
-            elif w > 1.0:
-                w = 1.0
-            if self.strict_guard and abs(cal_p - original_p) > self.max_shift:
-                w = min(w, self.max_weight_on_large_shift)
-            final_p = w * cal_p + (1.0 - w) * original_p
-            calibrated[k] = float(max(0.0, min(1.0, final_p)))
-        if self.keys:
-            for k, p in probs.items():
-                if k not in calibrated:
-                    calibrated[k] = float(max(0.0, min(1.0, p)))
-            for k in self.keys:
-                if k not in calibrated:
-                    calibrated[k] = float(max(0.0, min(1.0, float(probs.get(k, 0.0)))))
-        if not calibrated:
-            if self.keys:
-                for k in self.keys:
-                    calibrated[k] = 0.0
-            else:
-                for k, p in probs.items():
-                    calibrated[k] = float(max(0.0, min(1.0, float(p))))
-        s = sum(calibrated.values())
-        if s <= 0:
-            return {k: 0.0 for k in calibrated}
-        return {k: (v / s) for k, v in calibrated.items()}
+            conf = p[mask].mean()
+            acc = y_true[mask].mean()
+            e += p[mask].size / p.size * abs(conf - acc)
+        eces.append(e)
+    return float(np.mean(eces))
 
 
-def calibrate_probs(y_true: np.ndarray, p_pred: np.ndarray) -> IsotonicRegression:
-    ir = IsotonicRegression(out_of_bounds="clip")
-    ir.fit(p_pred, y_true)
-    return ir
+def isotonic_calibrate(prob: np.ndarray, label: np.ndarray) -> np.ndarray:
+    """Calibrate probabilities via isotonic regression per class."""
+    prob = np.asarray(prob)
+    label = np.asarray(label)
+    if prob.ndim == 1:
+        ir = IsotonicRegression(out_of_bounds="clip")
+        return ir.fit_transform(prob, label)
+    calibrated = np.zeros_like(prob)
+    for j in range(prob.shape[1]):
+        ir = IsotonicRegression(out_of_bounds="clip")
+        y = label[:, j] if label.ndim == 2 else (label == j).astype(float)
+        calibrated[:, j] = ir.fit_transform(prob[:, j], y)
+    return calibrated
 
 
-def apply_calibration(ir: IsotonicRegression, p: np.ndarray) -> np.ndarray:
-    if ir is None:
-        return np.clip(p, 1e-6, 1 - 1e-6)
-    calibrated_probs = ir.predict(p)
-    return np.clip(calibrated_probs, 1e-6, 1 - 1e-6)
+def calibration_report(
+    prob_dict: dict[str, np.ndarray], label_dict: dict[str, np.ndarray]
+) -> dict[str, dict[str, float]]:
+    """Compute ECE before/after isotonic calibration for given markets."""
+    report: dict[str, dict[str, float]] = {}
+    for key, probs in prob_dict.items():
+        labels = label_dict[key]
+        before = ece(probs, labels)
+        after = ece(isotonic_calibrate(probs, labels), labels)
+        report[key] = {"ece_before": before, "ece_after": after}
+    return report

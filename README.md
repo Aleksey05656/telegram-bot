@@ -28,6 +28,28 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 - numpy >=1.26,<2.0
 - pandas ==2.2.2
 
+## Simulation & Markets
+
+Monte-Carlo simulator generates correlated scores via Bi-Poisson model. Supported markets:
+
+- **1x2** – P(home win), P(draw), P(away win) with normalization to 1;
+- **Totals** – thresholds 0.5–5.5 with over/under pairs;
+- **BTTS** – probability both teams score;
+- **Correct Score** – grid 0..6 with tail `OTHER`.
+
+CLI example:
+
+```bash
+python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1 \
+    --n-sims 10000 --calibrate --write-db --report-md reports/metrics/ECE_simulation_default_H_vs_A.md
+```
+
+## Storage
+
+Predictions are stored via SQLite fallback (`storage/persistence.py`).
+Table `predictions(match_id, market, selection, prob, ts, season, extra)`.
+DB path is taken from `PREDICTIONS_DB_URL` (defaults to `var/predictions.sqlite`).
+
 ## Services & Workers (скелеты)
 
 Добавлены минимальные заготовки для боевого включения без падений в ограниченных окружениях:

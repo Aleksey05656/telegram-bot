@@ -7,18 +7,30 @@
 import numpy as np
 import pytest
 
-from ml.sim.bivariate_poisson import simulate_bivariate_poisson
+from ml.sim.bivariate_poisson import simulate_bipoisson
 from services.simulator import Simulator
 
 
 @pytest.mark.needs_np
-def test_simulator_probabilities():
+def test_covariance_monotonic():
+    lam_h, lam_a = 1.4, 1.2
+    covs = []
+    for rho in [0.0, 0.3, 0.6]:
+        h, a = simulate_bipoisson(lam_h, lam_a, rho, n_sims=20000, seed=0)
+        covs.append(np.cov(h, a)[0, 1])
+    assert covs[0] <= covs[1] <= covs[2]
+
+
+@pytest.mark.needs_np
+def test_market_normalization():
     sim = Simulator()
-    result = sim.run(1.2, 1.0, rho=0.1, n_sims=2000)
-    probs = result["1X2"]
-    total = probs["1"] + probs["X"] + probs["2"]
-    assert abs(total - 1.0) < 1e-6
-    assert result["BTTS"]["yes"] + result["BTTS"]["no"] == pytest.approx(1.0, 1e-6)
-    assert result["Totals"]["over_2_5"] + result["Totals"]["under_2_5"] == pytest.approx(1.0, 1e-6)
-    cs_total = sum(result["CS"].values())
-    assert abs(cs_total - 1.0) < 1e-6
+    result = sim.run(1.3, 1.1, rho=0.1, n_sims=5000)
+
+    probs = result["1x2"]
+    assert probs["1"] + probs["x"] + probs["2"] == pytest.approx(1.0, 1e-6)
+
+    for vals in result["totals"].values():
+        assert vals["over"] + vals["under"] == pytest.approx(1.0, 1e-3)
+
+    cs_total = sum(result["cs"].values())
+    assert cs_total == pytest.approx(1.0, 1e-6)

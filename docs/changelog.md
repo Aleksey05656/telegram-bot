@@ -1,3 +1,13 @@
+## [2025-09-15] - Simulation markets and calibration
+### Добавлено
+- Bi-Poisson simulator with correlated goals and market aggregations (1x2, totals, BTTS, CS).
+- Calibration helpers (`ml/calibration.py`) and CLI flags `--calibrate`, `--report-md`, `--write-db`.
+- SQLite storage layer `storage/persistence.py` for predictions.
+### Изменено
+- README, ARCHITECTURE.md, docs/tasktracker.md, reports/RUN_SUMMARY.md.
+### Исправлено
+- —
+
 ## [2025-09-15] - Modifiers validation
 ### Добавлено
 - Метрики модификатора base vs final в `PredictionPipeline`.
