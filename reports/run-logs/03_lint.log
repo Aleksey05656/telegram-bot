@@ -28,27 +28,27 @@ Found 3 errors (3 fixed, 0 remaining).
 Fixing /workspace/telegram-bot/workers/runtime_scheduler.py
 reformatted /workspace/telegram-bot/data_processor.py
 reformatted /workspace/telegram-bot/database/cache.py
-reformatted /workspace/telegram-bot/database/cache_postgres.py
 reformatted /workspace/telegram-bot/config.py
+reformatted /workspace/telegram-bot/database/cache_postgres.py
+reformatted /workspace/telegram-bot/database/db_logging.py
 reformatted /workspace/telegram-bot/logger.py
 reformatted /workspace/telegram-bot/metrics/metrics.py
-reformatted /workspace/telegram-bot/database/db_logging.py
 reformatted /workspace/telegram-bot/scripts/prepare_datasets.py
 reformatted /workspace/telegram-bot/ml/models/bivariate_poisson.py
 reformatted /workspace/telegram-bot/scripts/run_training_pipeline.py
 reformatted /workspace/telegram-bot/services/prediction_pipeline.py
-reformatted /workspace/telegram-bot/ml/models/poisson_regression_model.py
 reformatted /workspace/telegram-bot/ml/models/poisson_model.py
+reformatted /workspace/telegram-bot/ml/models/poisson_regression_model.py
 reformatted /workspace/telegram-bot/telegram/bot.py
 reformatted /workspace/telegram-bot/telegram/handlers/help.py
 reformatted /workspace/telegram-bot/services/sportmonks_client.py
-reformatted /workspace/telegram-bot/services/recommendation_engine.py
 reformatted /workspace/telegram-bot/scripts/train_model.py
+reformatted /workspace/telegram-bot/services/recommendation_engine.py
 reformatted /workspace/telegram-bot/telegram/handlers/terms.py
 reformatted /workspace/telegram-bot/tests/smoke/test_retrain_registration.py
 reformatted /workspace/telegram-bot/telegram/utils/formatter.py
-reformatted /workspace/telegram-bot/workers/runtime_scheduler.py
 reformatted /workspace/telegram-bot/telegram/handlers/start.py
+reformatted /workspace/telegram-bot/workers/runtime_scheduler.py
 reformatted /workspace/telegram-bot/telegram/handlers/predict.py
 reformatted /workspace/telegram-bot/workers/task_manager.py
 reformatted /workspace/telegram-bot/services/data_processor.py
@@ -67,9 +67,3 @@ An error has occurred: InvalidConfigError:
 ==> File .pre-commit-config.offline.yaml
 =====> Expected a Config map but got a list
 Check the log at /workspace/telegram-bot/.cache/pre-commit/pre-commit.log
-[pre-commit offline] using .pre-commit-config.offline.yaml
-pre-commit run --all-files -c .pre-commit-config.offline.yaml || true
-An error has occurred: InvalidConfigError: 
-==> File .pre-commit-config.offline.yaml
-=====> Expected a Config map but got a list
-Check the log at /root/.cache/pre-commit/pre-commit.log
