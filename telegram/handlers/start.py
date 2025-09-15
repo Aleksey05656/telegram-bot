@@ -23,9 +23,7 @@ START_MESSAGE = (
     "💡 Используйте меню ниже или команду /help для получения справки."
 )
 
-MAIN_MENU_TEXT = (
-    "🏆 <b>Главное меню Football Predictor Bot</b>\nВыберите действие из меню ниже:"
-)
+MAIN_MENU_TEXT = "🏆 <b>Главное меню Football Predictor Bot</b>\nВыберите действие из меню ниже:"
 
 
 # --- Новая функция для отправки главного меню ---
@@ -42,17 +40,11 @@ async def send_main_menu(message: Message):
         builder.adjust(2)
 
         menu_text = MAIN_MENU_TEXT
-        await message.answer(
-            menu_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-        )
+        await message.answer(menu_text, reply_markup=builder.as_markup(), parse_mode="HTML")
         logger.debug(f"Главное меню отправлено пользователю {message.from_user.id}")
     except Exception as e:
-        logger.error(
-            f"Ошибка при отправке главного меню пользователю {message.from_user.id}: {e}"
-        )
-        await message.answer(
-            "❌ Ошибка при отправке меню. Попробуйте позже.", parse_mode="HTML"
-        )
+        logger.error(f"Ошибка при отправке главного меню пользователю {message.from_user.id}: {e}")
+        await message.answer("❌ Ошибка при отправке меню. Попробуйте позже.", parse_mode="HTML")
 
 
 # --- Исправленная функция для отображения/редактирования главного меню через callback ---
@@ -111,9 +103,7 @@ async def cmd_start(message: Message):
     except ValueError as e:
         await message.answer(f"❌ {e}", parse_mode="HTML")
     except Exception as e:
-        logger.error(
-            f"Ошибка в обработчике /start для пользователя {message.from_user.id}: {e}"
-        )
+        logger.error(f"Ошибка в обработчике /start для пользователя {message.from_user.id}: {e}")
         await message.answer(
             "❌ Произошла ошибка при запуске бота. Попробуйте позже.", parse_mode="HTML"
         )
@@ -211,7 +201,7 @@ async def show_stats(callback: CallbackQuery):
     """Отображает статистику бота."""
     try:
         logger.debug(f"Пользователь {callback.from_user.id} запросил статистику")
-        # TODO: Добавить реальную статистику
+        logger.warning("Используется заглушечная статистика")
         stats_text = (
             "📊 <b>Статистика Football Predictor Bot</b>\n\n"
             "Версия: 1.0.0\n"

@@ -32,5 +32,9 @@ jobs:
         run: pip install pre-commit
       - name: Lint (online with offline fallback)
         run: make pre-commit-smart
+      - name: Smoke tests
+        run: make smoke
+      - name: E2E test
+        run: pytest -q tests/test_prediction_pipeline_local_registry_e2e.py
       - name: Test
         run: pytest -q

@@ -1,3 +1,13 @@
+## Задача: Cleanup TODOs and CI smoke
+- **Статус**: Завершена
+- **Описание**: Удалить устаревшие TODO, сократить предупреждения Ruff, добавить smoke/e2e в CI и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Убраны TODO в handlers и train_model
+  - [x] scripts/train_model.py читает `SEASON_ID`
+  - [x] CI запускает smoke и e2e тесты
+  - [x] README и ARCHITECTURE дополнены
+- **Зависимости**: app/handlers.py, telegram/handlers/start.py, telegram/handlers/help.py, scripts/train_model.py, .github/workflows/ci.yml, README.md, ARCHITECTURE.md, .env.example
+
 ## Задача: Offline pre-commit and ML tests
 - **Статус**: Завершена
 - **Описание**: Починить offline pre-commit config и добавить контрактные/ML тесты.

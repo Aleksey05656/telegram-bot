@@ -27,13 +27,18 @@ poisson_regression_model = PoissonRegressionModel(
     alpha=0.001, max_iter=300
 )  # Можно настроить параметры
 
+DEFAULT_SEASON_ID = int(os.getenv("SEASON_ID", "23855"))
+
+
+def _resolve_season_id(season_id: int | None) -> int:
+    """Return explicit season id or fallback to env/default."""
+    return season_id if season_id is not None else DEFAULT_SEASON_ID
+
 
 def estimate_rho_from_history(samples):
     # эвристика: корреляция остатков по тоталам/BTTS
     # верните значение в [0..min(lam_home, lam_away)]
-    return float(
-        np.clip(np.corrcoef(samples["resid_home"], samples["resid_away"])[0, 1], 0, 0.8)
-    )
+    return float(np.clip(np.corrcoef(samples["resid_home"], samples["resid_away"])[0, 1], 0, 0.8))
 
 
 async def fetch_training_data(season_id: int = 23855) -> pd.DataFrame:
@@ -68,7 +73,6 @@ async def fetch_training_data(season_id: int = 23855) -> pd.DataFrame:
         # home_league_zscore_defense, away_league_zscore_defense
         DataProcessor()
         # ПРЕДПОЛОЖЕНИЕ: Метод обработки теперь возвращает данные с нужными полями
-        # processed_data = await processor.process_matches_data_for_poisson_model(raw_data)
         # Для демонстрации создадим фиктивные данные с правильной структурой
         # В реальном случае, processor должен заполнить эти поля корректными данными
         processed_data = []
@@ -83,22 +87,14 @@ async def fetch_training_data(season_id: int = 23855) -> pd.DataFrame:
                         "date": match.get("date"),
                         "league_id": match.get("league_id", 0),
                         # --- Непрерывные ковариаты ---
-                        "home_rest_days": match.get("home_team", {}).get(
-                            "rest_days", 3.0
-                        ),
-                        "away_rest_days": match.get("away_team", {}).get(
-                            "rest_days", 3.0
-                        ),
+                        "home_rest_days": match.get("home_team", {}).get("rest_days", 3.0),
+                        "away_rest_days": match.get("away_team", {}).get("rest_days", 3.0),
                         "home_km_trip": match.get("home_team", {}).get("km_trip", 0.0),
                         "away_km_trip": match.get("away_team", {}).get("km_trip", 0.0),
                         "home_xg": match.get("home_team", {}).get("xg", 1.5),
                         "away_xg": match.get("away_team", {}).get("xg", 1.2),
-                        "home_xga": match.get("home_team", {}).get(
-                            "xga", 1.2
-                        ),  # Предполагаем xga
-                        "away_xga": match.get("away_team", {}).get(
-                            "xga", 1.5
-                        ),  # Предполагаем xga
+                        "home_xga": match.get("home_team", {}).get("xga", 1.2),  # Предполагаем xga
+                        "away_xga": match.get("away_team", {}).get("xga", 1.5),  # Предполагаем xga
                         "home_ppda": match.get("home_team", {}).get("ppda", 10.0),
                         "away_ppda": match.get("away_team", {}).get("ppda", 10.0),
                         "home_oppda": match.get("home_team", {}).get(
@@ -197,9 +193,7 @@ async def validate_training_data(data: pd.DataFrame) -> bool:
         return False
 
 
-def calculate_log_likelihood(
-    predictions: list[float], actual_goals: list[int]
-) -> float:
+def calculate_log_likelihood(predictions: list[float], actual_goals: list[int]) -> float:
     """Расчет логарифмического правдоподобия для оценки качества модели.
     Args:
         predictions (List[float]): Предсказанные значения (λ)
@@ -245,17 +239,11 @@ async def validate_ewma_half_life(data: pd.DataFrame, half_life_days: float) -> 
         # Поскольку у нас нет прямого доступа к реализации, создаем имитацию
         # Имитация предсказаний (в реальной реализации здесь будет вызов функции EWMA)
         # Для демонстрации используем средние значения xg как предсказания
-        home_predictions = [train_data["home_xg"].mean()] * len(
-            test_data
-        )  # Используем средний xG
+        home_predictions = [train_data["home_xg"].mean()] * len(test_data)  # Используем средний xG
         away_predictions = [train_data["away_xg"].mean()] * len(test_data)
         # Рассчитываем логарифмическое правдоподобие
-        home_ll = calculate_log_likelihood(
-            home_predictions, test_data["home_goals"].tolist()
-        )
-        away_ll = calculate_log_likelihood(
-            away_predictions, test_data["away_goals"].tolist()
-        )
+        home_ll = calculate_log_likelihood(home_predictions, test_data["home_goals"].tolist())
+        away_ll = calculate_log_likelihood(away_predictions, test_data["away_goals"].tolist())
         avg_ll = (home_ll + away_ll) / 2
         logger.info(
             f"Среднее логарифмическое правдоподобие для half_life {half_life_days}: {avg_ll:.4f}"
@@ -292,18 +280,14 @@ async def optimize_ewma_half_life(
                 logger.info(
                     f"Найдено лучшее значение: half_life = {best_half_life}, score = {best_score:.4f}"
                 )
-        logger.info(
-            f"Оптимизация завершена. Лучшее значение half_life: {best_half_life}"
-        )
+        logger.info(f"Оптимизация завершена. Лучшее значение half_life: {best_half_life}")
         return best_half_life, best_score
     except Exception as e:
         logger.error(f"Ошибка при оптимизации EWMA half_life: {e}")
         return 30.0, float("-inf")  # Возвращаем значение по умолчанию
 
 
-async def expanding_window_cv(
-    data: pd.DataFrame, n_splits: int = 5
-) -> dict[str, float]:
+async def expanding_window_cv(data: pd.DataFrame, n_splits: int = 5) -> dict[str, float]:
     """
     Временная кросс-валидация с расширяющимся окном для новой PoissonRegressionModel.
     Args:
@@ -336,9 +320,7 @@ async def expanding_window_cv(
             # Разделяем данные
             train_data = data_sorted.iloc[:train_end].copy()
             test_data = data_sorted.iloc[test_start:test_end].copy()
-            logger.debug(
-                f"Fold {i+1}: train [{0}:{train_end}], test [{test_start}:{test_end}]"
-            )
+            logger.debug(f"Fold {i+1}: train [{0}:{train_end}], test [{test_start}:{test_end}]")
             # --- Обучение модели на train_data ---
             try:
                 # Создаем временную модель для этого фолда
@@ -386,15 +368,9 @@ async def expanding_window_cv(
                 actual_away_goals = test_data["away_goals"].tolist()
                 # Log Loss для Poisson распределения
                 try:
-                    home_ll = calculate_log_likelihood(
-                        predicted_home_lambdas, actual_home_goals
-                    )
-                    away_ll = calculate_log_likelihood(
-                        predicted_away_lambdas, actual_away_goals
-                    )
-                    log_loss_value = (
-                        -(home_ll + away_ll) / 2
-                    )  # Инвертируем для минимизации
+                    home_ll = calculate_log_likelihood(predicted_home_lambdas, actual_home_goals)
+                    away_ll = calculate_log_likelihood(predicted_away_lambdas, actual_away_goals)
+                    log_loss_value = -(home_ll + away_ll) / 2  # Инвертируем для минимизации
                     log_losses.append(log_loss_value)
                 except Exception as e:
                     logger.warning(f"Ошибка при расчете log loss для fold {i+1}: {e}")
@@ -407,9 +383,7 @@ async def expanding_window_cv(
                     diff_lambdas = np.array(predicted_home_lambdas) - np.array(
                         predicted_away_lambdas
                     )
-                    prob_home_win_simplified = 1 / (
-                        1 + np.exp(-diff_lambdas)
-                    )  # Sigmoid
+                    prob_home_win_simplified = 1 / (1 + np.exp(-diff_lambdas))  # Sigmoid
                     # Определяем истинные исходы (1 если победа домашней, 0 иначе)
                     y_true_binary = (
                         np.array(actual_home_goals) > np.array(actual_away_goals)
@@ -422,18 +396,12 @@ async def expanding_window_cv(
                         prob_home_win_simplified = np.clip(
                             prob_home_win_simplified, 1e-15, 1 - 1e-15
                         )
-                        brier_score_value = np.mean(
-                            (prob_home_win_simplified - y_true_binary) ** 2
-                        )
+                        brier_score_value = np.mean((prob_home_win_simplified - y_true_binary) ** 2)
                         brier_scores.append(brier_score_value)
                     else:
-                        raise ValueError(
-                            "Несовпадение размеров массивов для Brier Score"
-                        )
+                        raise ValueError("Несовпадение размеров массивов для Brier Score")
                 except Exception as e:
-                    logger.warning(
-                        f"Ошибка при расчете Brier score для fold {i+1}: {e}"
-                    )
+                    logger.warning(f"Ошибка при расчете Brier score для fold {i+1}: {e}")
                     brier_scores.append(float("inf"))
             except Exception as e:
                 logger.error(f"Ошибка при обучении/предсказании для fold {i+1}: {e}")
@@ -470,9 +438,7 @@ def save_metrics_report(path: str, metrics_dict: dict[str, Any]) -> bool:
     """
     try:
         # Создаем директорию если её нет
-        os.makedirs(
-            os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True
-        )
+        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
         # Сохраняем метрики в JSON файл
         with open(path, "w", encoding="utf-8") as f:
             json.dump(metrics_dict, f, indent=2, ensure_ascii=False, default=str)
@@ -561,9 +527,7 @@ async def train_model(data: pd.DataFrame):
         data (pd.DataFrame): Данные для обучения
     """
     try:
-        logger.info(
-            "🚀 Запуск скрипта обучения Poisson-регрессионной модели (новая версия)"
-        )
+        logger.info("🚀 Запуск скрипта обучения Poisson-регрессионной модели (новая версия)")
         # Валидация данных
         if not await validate_training_data(data):
             logger.error("Валидация данных не пройдена. Обучение прервано.")
@@ -602,9 +566,7 @@ async def train_model(data: pd.DataFrame):
         # Добавим шум к истинным вероятностям, чтобы модель не была идеально откалибрована
         true_probs = 0.45 + 0.1 * (np.random.rand(1000) - 0.5)  # Вариации вокруг 0.45
         # Добавим систематическую ошибку (overconfidence)
-        sample_pred_raw = np.clip(
-            true_probs + np.random.normal(0, 0.1, 1000), 0.01, 0.99
-        )
+        sample_pred_raw = np.clip(true_probs + np.random.normal(0, 0.1, 1000), 0.01, 0.99)
         # Обучаем калибратор на имитационных данных
         calibrator = calibrate_probs(sample_true, sample_pred_raw)
         if calibrator is not None:
@@ -615,9 +577,7 @@ async def train_model(data: pd.DataFrame):
                 f"после: {np.mean(calibrated_probs):.4f}"
             )
             # Генерируем калибровочную кривую
-            calibration_plot = generate_calibration_curve_plot(
-                sample_true, sample_pred_raw
-            )
+            calibration_plot = generate_calibration_curve_plot(sample_true, sample_pred_raw)
             if calibration_plot:
                 logger.info("Калибровочная кривая сгенерирована")
             else:
@@ -659,9 +619,7 @@ async def train_model(data: pd.DataFrame):
                 )
                 if "home_team_id" in data.columns and "away_team_id" in data.columns
                 else 0,
-                "unique_leagues": data["league_id"].nunique()
-                if "league_id" in data.columns
-                else 0,
+                "unique_leagues": data["league_id"].nunique() if "league_id" in data.columns else 0,
             },
             "cross_validation": cv_metrics,
             "ewma_optimization": {
@@ -677,9 +635,7 @@ async def train_model(data: pd.DataFrame):
         }
         # Добавляем информацию о калибровке
         if calibration_plot:
-            metrics_report["calibration"]["calibration_curves"][
-                "sample"
-            ] = calibration_plot
+            metrics_report["calibration"]["calibration_curves"]["sample"] = calibration_plot
         # Сохраняем метрики
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         metrics_path = f"data/metrics/model_metrics_{timestamp}.json"
@@ -688,9 +644,7 @@ async def train_model(data: pd.DataFrame):
             logger.info(f"✅ Метрики обучения сохранены в {metrics_path}")
         else:
             logger.error("❌ Ошибка при сохранении метрик обучения")
-        logger.info(
-            "✅ Poisson-регрессионная модель успешно обучена и параметры сохранены."
-        )
+        logger.info("✅ Poisson-регрессионная модель успешно обучена и параметры сохранены.")
     except Exception as e:
         logger.error(f"Критическая ошибка при обучении модели: {e}", exc_info=True)
 
@@ -705,9 +659,7 @@ def train_and_persist(season_id: int | None = None):
         season_id (Optional[int]): ID сезона для обучения.
     """
     try:
-        logger.info(
-            f"Начало задачи переобучения модели через RQ (сезон ID: {season_id})"
-        )
+        logger.info(f"Начало задачи переобучения модели через RQ (сезон ID: {season_id})")
         # Создаем новый event loop для асинхронной операции
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -716,18 +668,13 @@ def train_and_persist(season_id: int | None = None):
         loop.close()
         logger.info("✅ Задача переобучения модели через RQ завершена успешно")
     except Exception as e:
-        logger.error(
-            f"❌ Ошибка в задаче переобучения модели через RQ: {e}", exc_info=True
-        )
+        logger.error(f"❌ Ошибка в задаче переобучения модели через RQ: {e}", exc_info=True)
         raise  # Перебрасываем исключение, чтобы RQ мог его обработать и записать в failed jobs
 
 
 async def _async_train_and_persist(season_id: int | None = None):
     """Внутренняя асинхронная функция для выполнения логики переобучения."""
-    # Получаем данные для обучения
-    # TODO: Замените season_id на актуальный ID сезона или используйте значение по умолчанию
-    if season_id is None:
-        season_id = 23855  # Пример: Premier League 2023/2024 (замените на актуальный)
+    season_id = _resolve_season_id(season_id)
     training_data = await fetch_training_data(season_id=season_id)
     if training_data.empty:
         logger.error("Нет данных для обучения в задаче переобучения.")
@@ -742,9 +689,7 @@ async def main():
     """Главная асинхронная точка входа для скрипта обучения."""
     try:
         logger.info("🚀 Запуск скрипта обучения Poisson-регрессионной модели")
-        # Получаем данные для обучения
-        # TODO: Замените season_id на актуальный ID сезона
-        season_id = 23855  # Пример: Premier League 2023/2024
+        season_id = _resolve_season_id(None)
         training_data = await fetch_training_data(season_id=season_id)
         if training_data.empty:
             logger.error("Нет данных для обучения. Завершение работы.")
@@ -786,9 +731,7 @@ from data_processor import (
 DEFAULT_ALPHA_GRID = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0]
 
 
-def _ensure_models_dir(
-    league: str | None, market: str | None, version: str | None
-) -> str:
+def _ensure_models_dir(league: str | None, market: str | None, version: str | None) -> str:
     base = getattr(settings, "MODELS_DIR", "models")
     ver = (
         version
