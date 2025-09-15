@@ -1,3 +1,37 @@
+## [2025-09-15] - Monte-Carlo simulator
+### Добавлено
+- Модуль `ml/sim/bivariate_poisson.py`, сервис `services/simulator.py`, скрипт `run_simulation.py` и тесты симуляций.
+### Изменено
+- —
+### Исправлено
+- —
+
+## [2025-09-15] - Dynamic modifiers
+### Добавлено
+- Модель `ml/modifiers_model.py`, скрипт `train_modifiers.py` и тесты `test_modifiers.py`.
+- Интеграция модификаторов в `PredictionPipeline` с логом `modifiers_applied`.
+### Изменено
+- —
+### Исправлено
+- —
+
+## [2025-09-15] - GLM training pipeline
+### Добавлено
+- Скрипт `scripts/train_glm.py` и тест `tests/ml/test_glm_training.py`.
+- Поддержка `glm_home` и `glm_away` в `PredictionPipeline`.
+### Изменено
+- Project.md описывает загрузку GLM из LocalModelRegistry.
+### Исправлено
+- —
+
+## [2025-09-15] - Dependency cleanup and lint pins
+### Добавлено
+- Пины версий isort, black, flake8, ruff, mypy и pre-commit.
+### Изменено
+- requirements.txt и constraints.txt синхронизированы.
+### Исправлено
+- —
+
 ## [2025-09-15] - Ruff warnings cleanup
 ### Добавлено
 - —
