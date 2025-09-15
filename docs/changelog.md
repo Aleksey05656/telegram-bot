@@ -1,3 +1,11 @@
+## [2025-09-15] - Ruff warnings cleanup
+### Добавлено
+- —
+### Изменено
+- Аннотации типов в prediction_pipeline и retrain_scheduler используют современный синтаксис.
+### Исправлено
+- Предупреждения Ruff F401, I001, UP037, UP035, UP045.
+
 ## [2025-09-15] - Ruff leftovers cleanup and smoke
 ### Добавлено
 - —

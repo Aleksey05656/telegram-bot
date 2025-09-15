@@ -1,12 +1,10 @@
 # @file: scripts/syntax_partition.py
 # @description: Split parseable and non-parseable app python files, update ignore lists, and emit lint targets
-# @dependencies: pathlib, sys, subprocess
+# @dependencies: pathlib
 # @created: 2025-09-12
 from __future__ import annotations
 
 import pathlib
-import subprocess
-import sys
 
 ROOT = pathlib.Path(".").resolve()
 

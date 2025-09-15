@@ -4,8 +4,6 @@
 @dependencies: pandas (optional), numpy (optional), Preprocessor, ModelRegistry
 @created: 2025-09-12
 """
-from __future__ import annotations
-
 from typing import Any, Protocol
 
 try:  # optional import for constrained environments
@@ -15,11 +13,13 @@ except Exception:  # pragma: no cover
 
 
 class Preprocessor(Protocol):
-    def transform(self, df: "pd.DataFrame") -> "pd.DataFrame": ...
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        ...
 
 
 class ModelRegistry(Protocol):
-    def load(self, name: str): ...
+    def load(self, name: str):
+        ...
 
 
 class _DummyModel:
@@ -50,7 +50,7 @@ class PredictionPipeline:
         m = self._reg.load("current")
         return m or _DummyModel()
 
-    def predict_proba(self, df: "pd.DataFrame"):
+    def predict_proba(self, df: pd.DataFrame):
         X = self._pre.transform(df)
         model = self._load_model()
         if hasattr(model, "predict_proba"):
