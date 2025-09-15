@@ -1,0 +1,2 @@
+/root/.pyenv/versions/3.11.12/bin/python: can't open file '/workspace/telegram-bot/scripts/strip_c_headers.py': [Errno 2] No such file or directory
+Normalized headers in 6 files

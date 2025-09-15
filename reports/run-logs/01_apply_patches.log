@@ -1,0 +1,7 @@
+[CONFLICT] 100-config-contract.patch - invalid patch format at line 9
+[SKIP] 105-syntax-headers.patch - not found
+[CONFLICT] 110-observability-metrics.patch - invalid patch format at line 9
+[CONFLICT] 120-ml-skeletons.patch - invalid patch format at line 9
+[APPLIED] 130-tests-smoke.patch
+[CONFLICT] 140-ci-offline-tooling.patch - invalid patch format at line 9
+[CONFLICT] 150-data-processor-split.patch - invalid patch format at line 9
