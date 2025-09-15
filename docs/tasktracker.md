@@ -1,3 +1,12 @@
+## Задача: Fix Ruff leftovers and verbose smoke
+- **Статус**: Завершена
+- **Описание**: Устранить предупреждения Ruff B904/C401/ERA001 и сделать цель smoke говорящей.
+- **Шаги выполнения**:
+  - [x] Исправлены предупреждения Ruff B904, C401 и ERA001.
+  - [x] Обновлена цель Makefile `smoke`, добавлена проверка `jobs_registered_total`.
+  - [x] Прогнаны pre-commit, линт и тесты.
+- **Зависимости**: app/config.py, config.py, scripts/ruff_partition.py, scripts/run_training_pipeline.py, telegram/utils/formatter.py, tests/smoke/test_endpoints.py, Makefile, docs/changelog.md, docs/tasktracker.md, reports/RUN_SUMMARY.md
+
 ## Задача: SportMonks stub default and Ruff cleanup
 - **Статус**: Завершена
 - **Описание**: Включить STUB SportMonks при отсутствии ключа и устранить указанные предупреждения Ruff.

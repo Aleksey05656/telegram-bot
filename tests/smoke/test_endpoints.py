@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-
 client = TestClient(app)
 
 
@@ -31,3 +30,4 @@ def test_sentry_smoke():
 def test_retrain_smoke():
     r = client.get("/__smoke__/retrain")
     assert r.status_code == 200
+    assert "jobs_registered_total" in r.json()

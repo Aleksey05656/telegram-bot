@@ -69,9 +69,7 @@ def format_prediction_result(prediction_result: dict[str, Any]) -> str:
     try:
         if prediction_result.get("error"):
             error_msg = prediction_result.get("message", "Неизвестная ошибка")
-            logger.warning(
-                f"Форматирование результата: получен прогноз с ошибкой: {error_msg}"
-            )
+            logger.warning(f"Форматирование результата: получен прогноз с ошибкой: {error_msg}")
             return f"❌ Ошибка: {error_msg}"
 
         # Основная информация о матче
@@ -119,18 +117,7 @@ def format_prediction_result(prediction_result: dict[str, Any]) -> str:
         # Формируем текст для "Обе забьют"
         btts_text = f"Обе забьют: Да {_pct(btts_yes)} / Нет {_pct(btts_no)}"
 
-        # Форматируем топ счета для отображения, учитывая, что вероятности могут быть в 0-1 или 0-100
-        # top_scores_items = list(top_scores.items())[:3]
-        # formatted_top_scores = []
-        # for score, prob in top_scores_items:
-        #     if isinstance(prob, float) and 0 <= prob <= 1:
-        #         formatted_prob = f"{prob * 100:.1f}%"
-        #     elif isinstance(prob, float):
-        #         formatted_prob = f"{prob:.1f}%"
-        #     else:
-        #         formatted_prob = f"{prob}" # На случай, если это строка или другой тип
-        #     formatted_top_scores.append(f"  {score}: {formatted_prob}")
-        # top_scores_text = "\n".join(formatted_top_scores) if formatted_top_scores else "  Данные недоступны"
+        # Форматируем топ счета для отображения, учитывая возможные диапазоны вероятностей
 
         formatted_text = (
             f"🔮 <b>Прогноз на матч:</b>\n"
