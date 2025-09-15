@@ -15,7 +15,7 @@ pytestmark = pytest.mark.needs_np
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from metrics import record_prediction  # noqa: E402
-from metrics.metrics import rolling_ece, rolling_logloss  # noqa: E402
+from metrics.metrics import _LABELS, rolling_ece, rolling_logloss  # noqa: E402
 
 
 def test_ece_alert(monkeypatch):
@@ -29,8 +29,9 @@ def test_ece_alert(monkeypatch):
     for _ in range(200):
         record_prediction("1x2", "EPL", 0.9, 0)
 
-    ece = rolling_ece.labels(market="1x2", league="EPL")._value.get()
-    logloss = rolling_logloss.labels(market="1x2", league="EPL")._value.get()
+    labels = {"market": "1x2", "league": "EPL", **_LABELS}
+    ece = rolling_ece.labels(**labels)._value.get()
+    logloss = rolling_logloss.labels(**labels)._value.get()
     assert ece > 0.05
     assert logloss > 0
     assert messages

@@ -1,3 +1,12 @@
+## [2025-09-15] - Sentry flag and metrics labels
+### Добавлено
+- Переменные `SENTRY_ENABLED`, `GIT_SHA` и метки `service/env/version` в метриках.
+- Счётчик `jobs_registered_total` в `runtime_scheduler` и `/__smoke__/retrain`.
+### Изменено
+- Инициализация Sentry и `/metrics` через фичефлаг.
+### Исправлено
+- Предупреждения Ruff `B034` и `E402`.
+
 ## [2025-09-15] - CI staged workflow
 ### Добавлено
 - Отдельные стадии `lint`, `unit`, `e2e/smoke` и `numeric` в CI.

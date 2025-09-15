@@ -7,6 +7,8 @@
 
 from collections import deque
 
+from app.config import get_settings
+
 try:
     import sentry_sdk  # type: ignore
 except Exception:  # pragma: no cover
@@ -51,19 +53,32 @@ except Exception:  # pragma: no cover
 
     Counter = Gauge = Histogram = _DummyMetric
 
+_s = get_settings()
+_LABELS = {"service": _s.app_name, "env": _s.env, "version": _s.git_sha}
+
 WINDOW_SIZE = 200
 
-pred_total = Counter("pred_total", "Total predictions", ["market", "league"])
+pred_total = Counter(
+    "pred_total",
+    "Total predictions",
+    ["market", "league", "service", "env", "version"],
+)
 prob_bins = Histogram(
     "prob_bins",
     "Prediction probability distribution",
-    ["market", "league"],
+    ["market", "league", "service", "env", "version"],
     buckets=[i / 10 for i in range(11)],
 )
 rolling_ece = Gauge(
-    "rolling_ece", "Rolling Expected Calibration Error", ["market", "league"]
+    "rolling_ece",
+    "Rolling Expected Calibration Error",
+    ["market", "league", "service", "env", "version"],
 )
-rolling_logloss = Gauge("rolling_logloss", "Rolling LogLoss", ["market", "league"])
+rolling_logloss = Gauge(
+    "rolling_logloss",
+    "Rolling LogLoss",
+    ["market", "league", "service", "env", "version"],
+)
 
 _windows: dict[tuple[str, str], deque[tuple[float, int]]] = {}
 
@@ -106,12 +121,11 @@ def _calc_logloss(items: deque[tuple[float, int]]) -> float:
     return total / len(items)
 
 
-def record_prediction(
-    market: str, league: str, y_prob: float, y_true: int | None
-) -> None:
+def record_prediction(market: str, league: str, y_prob: float, y_true: int | None) -> None:
     """Record prediction and update rolling metrics."""
-    pred_total.labels(market=market, league=league).inc()
-    prob_bins.labels(market=market, league=league).observe(y_prob)
+    labels = {"market": market, "league": league, **_LABELS}
+    pred_total.labels(**labels).inc()
+    prob_bins.labels(**labels).observe(y_prob)
     if y_true is None:
         return
 
@@ -120,9 +134,7 @@ def record_prediction(
 
     ece = _calc_ece(window)
     logloss = _calc_logloss(window)
-    rolling_ece.labels(market=market, league=league).set(ece)
-    rolling_logloss.labels(market=market, league=league).set(logloss)
+    rolling_ece.labels(**labels).set(ece)
+    rolling_logloss.labels(**labels).set(logloss)
     if ece > 0.05:
-        sentry_sdk.capture_message(
-            f"High ECE {ece:.3f} for {market}:{league}", level="warning"
-        )
+        sentry_sdk.capture_message(f"High ECE {ece:.3f} for {market}:{league}", level="warning")

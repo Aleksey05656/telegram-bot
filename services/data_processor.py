@@ -47,9 +47,7 @@ class DataProcessor:
             logger.warning("parse_dt_safe: failed to parse %r: %s", date_str, e)
             return None
 
-    def compute_rest_days(
-        self, prev_match_dt: datetime, next_match_dt: datetime
-    ) -> int:
+    def compute_rest_days(self, prev_match_dt: datetime, next_match_dt: datetime) -> int:
         """
         Вычисление количества дней отдыха между матчами.
         Args:
@@ -71,9 +69,7 @@ class DataProcessor:
             logger.error(f"Ошибка при вычислении дней отдыха: {e}")
             return 0
 
-    def compute_travel_load(
-        self, recent_fixtures: list[dict[str, Any]]
-    ) -> dict[str, int | float]:
+    def compute_travel_load(self, recent_fixtures: list[dict[str, Any]]) -> dict[str, int | float]:
         """
         Вычисление нагрузки от поездок на основе последних матчей.
         Args:
@@ -136,18 +132,13 @@ class DataProcessor:
         try:
             # Проверка на None
             if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
-                logger.warning(
-                    "Одна из координат для расчета расстояния Хаверсина равна None"
-                )
+                logger.warning("Одна из координат для расчета расстояния Хаверсина равна None")
                 return 0.0
             R = 6371.0  # Радиус Земли в км
             phi1, phi2 = math.radians(lat1), math.radians(lat2)
             dphi = math.radians(lat2 - lat1)
             dlamb = math.radians(lon2 - lon1)
-            a = (
-                math.sin(dphi / 2) ** 2
-                + math.cos(phi1) * math.cos(phi2) * math.sin(dlamb / 2) ** 2
-            )
+            a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlamb / 2) ** 2
             c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
             distance = R * c
             return distance
@@ -155,9 +146,7 @@ class DataProcessor:
             logger.error(f"Ошибка в расчете расстояния Хаверсина: {e}")
             return 0.0
 
-    def calculate_rolling_intensity(
-        self, fixtures: list[dict], window_days: int = 14
-    ) -> float:
+    def calculate_rolling_intensity(self, fixtures: list[dict], window_days: int = 14) -> float:
         """
         Расчет скользящей интенсивности матчей за указанный период.
         Args:
@@ -177,8 +166,7 @@ class DataProcessor:
                 f
                 for f in fixtures
                 if f.get("date")
-                and datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
-                >= start_date
+                and datetime.fromisoformat(f["date"].replace("Z", "+00:00")) >= start_date
             ]
             if not recent_fixtures:
                 return 0.0
@@ -198,12 +186,8 @@ class DataProcessor:
             avg_shots = total_shots / len(recent_fixtures) if recent_fixtures else 0
             avg_fouls = total_fouls / len(recent_fixtures) if recent_fixtures else 0
             # Нормализуем значения (примерные пороги)
-            shots_intensity = min(
-                10, avg_shots / 15 * 10
-            )  # 15 ударов ~ максимальная интенсивность
-            fouls_intensity = min(
-                10, avg_fouls / 20 * 10
-            )  # 20 фолов ~ максимальная интенсивность
+            shots_intensity = min(10, avg_shots / 15 * 10)  # 15 ударов ~ максимальная интенсивность
+            fouls_intensity = min(10, avg_fouls / 20 * 10)  # 20 фолов ~ максимальная интенсивность
             # Комбинируем показатели
             intensity = (shots_intensity + fouls_intensity) / 2
             logger.debug(
@@ -283,12 +267,8 @@ class DataProcessor:
             away_intensity = self.calculate_rolling_intensity(away_fixtures)
             # --- НОВАЯ ЛОГИКА: Расчет суммарных минут ключевых игроков ---
             # Используем последние 5 матчей для расчета доступности ядра
-            home_last5_fixtures = (
-                home_fixtures[-5:] if len(home_fixtures) >= 5 else home_fixtures
-            )
-            away_last5_fixtures = (
-                away_fixtures[-5:] if len(away_fixtures) >= 5 else away_fixtures
-            )
+            home_last5_fixtures = home_fixtures[-5:] if len(home_fixtures) >= 5 else home_fixtures
+            away_last5_fixtures = away_fixtures[-5:] if len(away_fixtures) >= 5 else away_fixtures
             # Агрегируем минуты для последних 5 матчей
             home_player_minutes = self.aggregate_minutes(
                 [{"players": f.get("lineups", [])} for f in home_last5_fixtures]
@@ -297,12 +277,12 @@ class DataProcessor:
                 [{"players": f.get("lineups", [])} for f in away_last5_fixtures]
             )
             # Определяем ядро: топ-7 игроков по минутам за последние 5 матчей
-            home_top_core = sorted(
-                home_player_minutes.items(), key=lambda x: x[1], reverse=True
-            )[:7]
-            away_top_core = sorted(
-                away_player_minutes.items(), key=lambda x: x[1], reverse=True
-            )[:7]
+            home_top_core = sorted(home_player_minutes.items(), key=lambda x: x[1], reverse=True)[
+                :7
+            ]
+            away_top_core = sorted(away_player_minutes.items(), key=lambda x: x[1], reverse=True)[
+                :7
+            ]
             # Суммируем минуты ключевых игроков
             home_core_minutes = sum(minutes for _, minutes in home_top_core)
             away_core_minutes = sum(minutes for _, minutes in away_top_core)
@@ -348,9 +328,7 @@ class DataProcessor:
                 "core_minutes": 0,
             }
 
-    def compute_match_importance(
-        self, table_row: dict[str, Any], rounds_left: int
-    ) -> float:
+    def compute_match_importance(self, table_row: dict[str, Any], rounds_left: int) -> float:
         """
         Вычисление важности матча на основе расстояния до порогов и оставшихся туров.
         Args:
@@ -370,9 +348,7 @@ class DataProcessor:
                 0,
                 table_row.get("pts_to_relegation_safety", float("inf")) or float("inf"),
             )
-            dist_euro = max(
-                0, table_row.get("pts_to_euro_spot", float("inf")) or float("inf")
-            )
+            dist_euro = max(0, table_row.get("pts_to_euro_spot", float("inf")) or float("inf"))
             # Чем ближе к порогу, тем важнее; нормируем
             # Используем 1/(1+x) для плавного убывания важности с увеличением расстояния
             score = 1 / (1 + dist_releg) + 1 / (1 + dist_euro)
@@ -420,9 +396,7 @@ class DataProcessor:
             logger.error(f"Ошибка при агрегации минут игроков: {e}")
             return {}
 
-    def is_probable_to_play(
-        self, player_id: int, lineups_: list[dict[str, Any]]
-    ) -> bool:
+    def is_probable_to_play(self, player_id: int, lineups_: list[dict[str, Any]]) -> bool:
         """
         Определяет, вероятно ли, что игрок сыграет в следующем матче.
         Args:
@@ -441,9 +415,7 @@ class DataProcessor:
                 for player in players:
                     if player.get("player_id") == player_id:
                         # Проверяем статус игрока
-                        status = (
-                            player.get("status", "available") or "available"
-                        ).lower()
+                        status = (player.get("status", "available") or "available").lower()
                         if status in ["available", "starter", "sub"]:
                             return True
                         elif status in ["injured", "suspended", "unavailable"]:
@@ -451,9 +423,7 @@ class DataProcessor:
             # Если игрок не найден в составах, считаем, что он доступен
             return True
         except Exception as e:
-            logger.error(
-                f"Ошибка при определении вероятности игры игрока {player_id}: {e}"
-            )
+            logger.error(f"Ошибка при определении вероятности игры игрока {player_id}: {e}")
             return True
 
     def core_availability(self, last5_lineups: list[dict[str, Any]]) -> float:
@@ -493,9 +463,7 @@ class DataProcessor:
             return 1.0  # В случае ошибки считаем ядро полностью доступным
 
     # ДОБАВЛЕНО: Обновлен метод ewma согласно инструкции
-    def ewma(
-        self, values: list[float], half_life_days: float, dates: list[datetime]
-    ) -> float:
+    def ewma(self, values: list[float], half_life_days: float, dates: list[datetime]) -> float:
         """
         Вычисление экспоненциально взвешенного скользящего среднего.
         Args:
@@ -529,9 +497,7 @@ class DataProcessor:
             if weights_sum > 0:
                 weights = weights / weights_sum
             else:
-                weights = np.ones_like(weights) / len(
-                    weights
-                )  # Равномерные веса если сумма 0
+                weights = np.ones_like(weights) / len(weights)  # Равномерные веса если сумма 0
             # Вычисляем взвешенное среднее
             result = float((np.array(values) * weights).sum())
             logger.debug(
@@ -584,15 +550,11 @@ class DataProcessor:
             )
             return adjusted_value
         except Exception as e:
-            logger.error(
-                f"Ошибка при корректировке метрики с учетом силы соперника: {e}"
-            )
+            logger.error(f"Ошибка при корректировке метрики с учетом силы соперника: {e}")
             return raw or 0.0
 
     # ДОБАВЛЕНО: Новый метод calculate_rolling_xg для расчета скользящих xG
-    def calculate_rolling_xg(
-        self, fixtures: list[dict], window: int = 5
-    ) -> dict[str, float]:
+    def calculate_rolling_xg(self, fixtures: list[dict], window: int = 5) -> dict[str, float]:
         """
         Расчет скользящего среднего xG для последних N матчей.
         Args:
@@ -618,21 +580,13 @@ class DataProcessor:
                     xg_values.append(float(xg))
                     date_str = fixture.get("date")
                     if date_str:
-                        dates.append(
-                            datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                        )
+                        dates.append(datetime.fromisoformat(date_str.replace("Z", "+00:00")))
             if not xg_values:
                 return {"xg_3": 0.0, "xg_5": 0.0, "xg_10": 0.0}
             # Рассчитываем скользящие средние для разных окон
-            xg_3 = (
-                np.mean(xg_values[-3:]) if len(xg_values) >= 3 else np.mean(xg_values)
-            )
-            xg_5 = (
-                np.mean(xg_values[-5:]) if len(xg_values) >= 5 else np.mean(xg_values)
-            )
-            xg_10 = (
-                np.mean(xg_values[-10:]) if len(xg_values) >= 10 else np.mean(xg_values)
-            )
+            xg_3 = np.mean(xg_values[-3:]) if len(xg_values) >= 3 else np.mean(xg_values)
+            xg_5 = np.mean(xg_values[-5:]) if len(xg_values) >= 5 else np.mean(xg_values)
+            xg_10 = np.mean(xg_values[-10:]) if len(xg_values) >= 10 else np.mean(xg_values)
             result = {"xg_3": float(xg_3), "xg_5": float(xg_5), "xg_10": float(xg_10)}
             logger.debug(f"Рассчитаны скользящие xG: {result}")
             return result
@@ -652,21 +606,15 @@ class DataProcessor:
         try:
             # Проверка на None
             if ppda_for_team is None or build_up_opp is None:
-                logger.warning(
-                    "Одно из значений для расчета стилевого несоответствия равно None"
-                )
+                logger.warning("Одно из значений для расчета стилевого несоответствия равно None")
                 return 0.0
             # Пример прокси: чем ниже PPDA у команды и выше билд-ап соперника — тем «жарче»
             # Избегаем деления на ноль или очень маленькое значение
             if (
                 ppda_for_team or 0.0
             ) <= 0.1:  # Исправлено: Проверка на минимальное значение для избежания деления на очень маленькое число
-                ppda_for_team = (
-                    0.1  # Минимальное значение для избежания деления на ноль
-                )
-            mismatch_index = max(
-                0.0, (1.0 / (ppda_for_team or 0.1)) + (build_up_opp or 0.0)
-            )
+                ppda_for_team = 0.1  # Минимальное значение для избежания деления на ноль
+            mismatch_index = max(0.0, (1.0 / (ppda_for_team or 0.1)) + (build_up_opp or 0.0))
             logger.debug(
                 f"Рассчитан индекс стилевого несоответствия: {mismatch_index:.4f} "
                 f"(PPDA команды: {ppda_for_team}, билд-ап соперника: {build_up_opp})"
@@ -689,17 +637,13 @@ class DataProcessor:
             if not minutes or minutes == 0:
                 return 0.0
             normalized_value = 90.0 * (value or 0.0) / minutes
-            logger.debug(
-                f"Нормализация per90: {value}/{minutes} минут = {normalized_value:.4f}"
-            )
+            logger.debug(f"Нормализация per90: {value}/{minutes} минут = {normalized_value:.4f}")
             return normalized_value
         except Exception as e:
             logger.error(f"Ошибка при нормализации per90: {e}")
             return 0.0
 
-    def winsorize(
-        self, x: np.ndarray, low: float = 0.01, high: float = 0.99
-    ) -> np.ndarray:
+    def winsorize(self, x: np.ndarray, low: float = 0.01, high: float = 0.99) -> np.ndarray:
         """
         Winsorизация массива значений (ограничение выбросов).
         Args:
@@ -743,9 +687,7 @@ class DataProcessor:
                 logger.debug("Стандартное отклонение лиги равно 0, возвращаем 0.0")
                 return 0.0
             z_score = ((x or 0.0) - (league_mean or 0.0)) / (league_std or 1.0)
-            logger.debug(
-                f"Z-оценка: ({x} - {league_mean}) / {league_std} = {z_score:.4f}"
-            )
+            logger.debug(f"Z-оценка: ({x} - {league_mean}) / {league_std} = {z_score:.4f}")
             return z_score
         except Exception as e:
             logger.error(f"Ошибка при вычислении z-оценки: {e}")
@@ -854,15 +796,8 @@ class DataProcessor:
             match_lat = match_venue.get("lat", 0) or 0
             match_lon = match_venue.get("lon", 0) or 0
             # Проверка на None перед расчетом расстояния
-            if (
-                team_lat is None
-                or team_lon is None
-                or match_lat is None
-                or match_lon is None
-            ):
-                logger.warning(
-                    "Одна из координат для расчета признаков путешествия равна None"
-                )
+            if team_lat is None or team_lon is None or match_lat is None or match_lon is None:
+                logger.warning("Одна из координат для расчета признаков путешествия равна None")
                 team_lat = team_lat or 0
                 team_lon = team_lon or 0
                 match_lat = match_lat or 0
@@ -971,9 +906,7 @@ class DataProcessor:
                     away_goals = match.get("away_goals", 0)
                     if home_goals is not None and away_goals is not None:
                         # Определяем, чьи голы мы анализируем
-                        if (
-                            match.get("home") is True
-                        ):  # Если это домашний матч для команды
+                        if match.get("home") is True:  # Если это домашний матч для команды
                             team_goals = home_goals
                             opponent_goals = away_goals
                         else:  # Если это выездной матч для команды
@@ -1013,9 +946,7 @@ class DataProcessor:
         missing_entries = df.isnull().sum().sum()
         return float(missing_entries) / int(total_entries)
 
-    def add_missing_mask(
-        self, features: dict[str, Any]
-    ) -> tuple[dict[str, Any], dict[str, int]]:
+    def add_missing_mask(self, features: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int]]:
         """
         Добавление маски пропущенных значений к признакам.
         Args:
@@ -1067,9 +998,7 @@ class DataProcessor:
                 return None
             try:
                 # Парсим дату матча
-                match_date = datetime.fromisoformat(
-                    match_date_str.replace("Z", "+00:00")
-                ).date()
+                match_date = datetime.fromisoformat(match_date_str.replace("Z", "+00:00")).date()
             except ValueError as e:
                 logger.error(f"Ошибка парсинга даты матча {fixture_id}: {e}")
                 return None
@@ -1078,9 +1007,7 @@ class DataProcessor:
             if not home_team_id or not away_team_id:
                 logger.error(f"Не указаны команды для матча {fixture_id}")
                 return None
-            logger.debug(
-                f"Матч {fixture_id}: {home_team_id} vs {away_team_id} на {match_date}"
-            )
+            logger.debug(f"Матч {fixture_id}: {home_team_id} vs {away_team_id} на {match_date}")
             # Определяем диапазон дат для получения недавних матчей (последние 90 дней)
             date_to = match_date
             date_from = date_to - timedelta(days=90)
@@ -1103,51 +1030,27 @@ class DataProcessor:
             # Обрабатываем результаты
             weather_data = results[0] if not isinstance(results[0], Exception) else None
             lineups_data = results[1] if not isinstance(results[1], Exception) else None
-            home_injuries = (
-                results[2] if not isinstance(results[2], Exception) else None
-            )
-            away_injuries = (
-                results[3] if not isinstance(results[3], Exception) else None
-            )
-            standings_data = (
-                results[4] if not isinstance(results[4], Exception) else None
-            )
-            home_fixtures_raw = (
-                results[5] if not isinstance(results[5], Exception) else []
-            )
-            away_fixtures_raw = (
-                results[6] if not isinstance(results[6], Exception) else []
-            )
+            home_injuries = results[2] if not isinstance(results[2], Exception) else None
+            away_injuries = results[3] if not isinstance(results[3], Exception) else None
+            standings_data = results[4] if not isinstance(results[4], Exception) else None
+            home_fixtures_raw = results[5] if not isinstance(results[5], Exception) else []
+            away_fixtures_raw = results[6] if not isinstance(results[6], Exception) else []
             # Проверяем на ошибки получения данных
             if isinstance(results[0], Exception):
-                logger.error(
-                    f"Ошибка при получении погоды для матча {fixture_id}: {results[0]}"
-                )
+                logger.error(f"Ошибка при получении погоды для матча {fixture_id}: {results[0]}")
             if isinstance(results[1], Exception):
-                logger.error(
-                    f"Ошибка при получении составов для матча {fixture_id}: {results[1]}"
-                )
+                logger.error(f"Ошибка при получении составов для матча {fixture_id}: {results[1]}")
             if isinstance(results[2], Exception):
-                logger.error(
-                    f"Ошибка при получении травм команды {home_team_id}: {results[2]}"
-                )
+                logger.error(f"Ошибка при получении травм команды {home_team_id}: {results[2]}")
             if isinstance(results[3], Exception):
-                logger.error(
-                    f"Ошибка при получении травм команды {away_team_id}: {results[3]}"
-                )
+                logger.error(f"Ошибка при получении травм команды {away_team_id}: {results[3]}")
             if isinstance(results[4], Exception):
-                logger.error(
-                    f"Ошибка при получении таблицы для матча {fixture_id}: {results[4]}"
-                )
+                logger.error(f"Ошибка при получении таблицы для матча {fixture_id}: {results[4]}")
             if isinstance(results[5], Exception):
-                logger.error(
-                    f"Ошибка при получении матчей команды {home_team_id}: {results[5]}"
-                )
+                logger.error(f"Ошибка при получении матчей команды {home_team_id}: {results[5]}")
                 home_fixtures_raw = []
             if isinstance(results[6], Exception):
-                logger.error(
-                    f"Ошибка при получении матчей команды {away_team_id}: {results[6]}"
-                )
+                logger.error(f"Ошибка при получении матчей команды {away_team_id}: {results[6]}")
                 away_fixtures_raw = []
             # Формируем контекст матча
             match_context = {
@@ -1159,12 +1062,8 @@ class DataProcessor:
                 "lineups": lineups_data,
                 "home_injuries": home_injuries,
                 "away_injuries": away_injuries,
-                "standings": standings_data.get("standings", [])
-                if standings_data
-                else [],
-                "rounds_left": standings_data.get("rounds_left")
-                if standings_data
-                else None,
+                "standings": standings_data.get("standings", []) if standings_data else [],
+                "rounds_left": standings_data.get("rounds_left") if standings_data else None,
                 "home_last_matches": home_fixtures_raw,
                 "away_last_matches": away_fixtures_raw,
                 "league_id": fixture.get("league_id"),  # Добавлено: league_id
@@ -1184,12 +1083,8 @@ class DataProcessor:
                 )
                 if home_table_row and away_table_row:
                     # Вычисляем важность для каждой команды
-                    home_importance = self.compute_match_importance(
-                        home_table_row, rounds_left
-                    )
-                    away_importance = self.compute_match_importance(
-                        away_table_row, rounds_left
-                    )
+                    home_importance = self.compute_match_importance(home_table_row, rounds_left)
+                    away_importance = self.compute_match_importance(away_table_row, rounds_left)
                     # Берем максимальную важность из двух
                     match_importance = max(home_importance, away_importance)
                     logger.debug(f"Важность матча {fixture_id}: {match_importance:.3f}")
@@ -1204,9 +1099,7 @@ class DataProcessor:
             logger.info(f"Контекст для матча {fixture_id} успешно собран")
             return match_context
         except Exception as e:
-            logger.error(
-                f"Ошибка при получении контекста матча {fixture_id}: {e}", exc_info=True
-            )
+            logger.error(f"Ошибка при получении контекста матча {fixture_id}: {e}", exc_info=True)
             return None
 
     async def process_match(
@@ -1244,14 +1137,10 @@ class DataProcessor:
             )
             # Добавлено: Получаем Build-up Play домашней и гостевой команд
             home_build_up_task = asyncio.create_task(
-                self.client.get_team_stats(
-                    home_team_id, match_date, stat_type="build_up_play"
-                )
+                self.client.get_team_stats(home_team_id, match_date, stat_type="build_up_play")
             )
             away_build_up_task = asyncio.create_task(
-                self.client.get_team_stats(
-                    away_team_id, match_date, stat_type="build_up_play"
-                )
+                self.client.get_team_stats(away_team_id, match_date, stat_type="build_up_play")
             )
             # Дожидаемся завершения всех задач
             (
@@ -1289,9 +1178,7 @@ class DataProcessor:
             away_build_up_play = None
             # Обработка PPDA домашней команды
             if isinstance(home_ppda, Exception):
-                logger.error(
-                    f"Ошибка при получении PPDA команды {home_team_id}: {home_ppda}"
-                )
+                logger.error(f"Ошибка при получении PPDA команды {home_team_id}: {home_ppda}")
             else:
                 # Предполагаем, что home_ppda - это словарь с ключами 'ppda_for' и 'ppda_against'
                 # Или это список/словарь, где нужно извлечь эти значения
@@ -1305,9 +1192,7 @@ class DataProcessor:
                     home_ppda_against = ppda_dict.get("ppda_against", None)
             # Обработка PPDA гостевой команды
             if isinstance(away_ppda, Exception):
-                logger.error(
-                    f"Ошибка при получении PPDA команды {away_team_id}: {away_ppda}"
-                )
+                logger.error(f"Ошибка при получении PPDA команды {away_team_id}: {away_ppda}")
             else:
                 if isinstance(away_ppda, dict):
                     away_ppda_for = away_ppda.get("ppda_for", None)
@@ -1328,9 +1213,7 @@ class DataProcessor:
                 elif isinstance(home_build_up, dict):
                     home_build_up_play = home_build_up.get("build_up_play", None)
                 elif isinstance(home_build_up, list) and len(home_build_up) > 0:
-                    build_up_dict = (
-                        home_build_up[0] if isinstance(home_build_up[0], dict) else {}
-                    )
+                    build_up_dict = home_build_up[0] if isinstance(home_build_up[0], dict) else {}
                     home_build_up_play = build_up_dict.get("build_up_play", None)
             # Обработка Build-up Play гостевой команды
             if isinstance(away_build_up, Exception):
@@ -1343,22 +1226,16 @@ class DataProcessor:
                 elif isinstance(away_build_up, dict):
                     away_build_up_play = away_build_up.get("build_up_play", None)
                 elif isinstance(away_build_up, list) and len(away_build_up) > 0:
-                    build_up_dict = (
-                        away_build_up[0] if isinstance(away_build_up[0], dict) else {}
-                    )
+                    build_up_dict = away_build_up[0] if isinstance(away_build_up[0], dict) else {}
                     away_build_up_play = build_up_dict.get("build_up_play", None)
             # Добавлено: Расчет стилевого несоответствия
             style_mismatch_index = None
             if home_ppda_for is not None and away_build_up_play is not None:
                 # PPDA домашней команды против Build-up гостевой команды
-                style_mismatch_index = self.style_mismatch(
-                    home_ppda_for, away_build_up_play
-                )
+                style_mismatch_index = self.style_mismatch(home_ppda_for, away_build_up_play)
             elif away_ppda_for is not None and home_build_up_play is not None:
                 # PPDA гостевой команды против Build-up домашней команды (альтернативный вариант)
-                style_mismatch_index = self.style_mismatch(
-                    away_ppda_for, home_build_up_play
-                )
+                style_mismatch_index = self.style_mismatch(away_ppda_for, home_build_up_play)
             # Формируем итоговые данные
             processed_data = {
                 "fixture_id": fixture_id,
@@ -1381,9 +1258,7 @@ class DataProcessor:
             logger.error(error_msg, exc_info=True)
             return False, None, error_msg
 
-    async def process_matches_batch(
-        self, matches: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    async def process_matches_batch(self, matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Пакетная обработка списка матчей.
         """
@@ -1462,16 +1337,10 @@ def build_features(fixtures: pd.DataFrame) -> pd.DataFrame:
         season_dummies = pd.get_dummies(df["season_id"], prefix="season")
         df = pd.concat([df, season_dummies], axis=1)
     # Добавлено: стандартизация метрик внутри лиги (пример для xg)
-    if (
-        "league_id" in df.columns
-        and "home_xg" in df.columns
-        and "away_xg" in df.columns
-    ):
+    if "league_id" in df.columns and "home_xg" in df.columns and "away_xg" in df.columns:
         # Рассчитываем средние и стандартные отклонения по лигам для xg
         league_stats = (
-            df.groupby("league_id")[["home_xg", "away_xg"]]
-            .agg(["mean", "std"])
-            .reset_index()
+            df.groupby("league_id")[["home_xg", "away_xg"]].agg(["mean", "std"]).reset_index()
         )
         league_stats.columns = [
             "league_id",
@@ -1519,9 +1388,7 @@ def make_time_series_splits(
             continue
         t_cut = df_sorted.loc[split_point, date_col]
         train_mask = df_sorted[date_col] <= (t_cut - pd.Timedelta(days=gap_days))
-        if (
-            df_sorted[date_col].max() - df_sorted[date_col].min()
-        ).days < min_train_days:
+        if (df_sorted[date_col].max() - df_sorted[date_col].min()).days < min_train_days:
             continue
         train_idx = df_sorted.index[train_mask].to_numpy()
         valid_idx = df_sorted.index[~train_mask].to_numpy()
@@ -1532,11 +1399,6 @@ def make_time_series_splits(
 # === КОНЕЦ НОВЫХ УТИЛИТ ===
 # Создание экземпляра процессора данных
 data_processor = DataProcessor()
-# data_processor.py
-
-from datetime import datetime
-
-import numpy as np
 
 
 def parse_dt_safe(date_str: str) -> datetime | None:
@@ -1556,10 +1418,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     delta_phi = np.radians(lat2 - lat1)
     delta_lambda = np.radians(lon2 - lon1)
 
-    a = (
-        np.sin(delta_phi / 2) ** 2
-        + np.cos(phi1) * np.cos(phi2) * np.sin(delta_lambda / 2) ** 2
-    )
+    a = np.sin(delta_phi / 2) ** 2 + np.cos(phi1) * np.cos(phi2) * np.sin(delta_lambda / 2) ** 2
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     return R * c
 

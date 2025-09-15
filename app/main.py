@@ -6,13 +6,17 @@
 """
 
 import os
+
 from fastapi import FastAPI
+
+from workers.retrain_scheduler import schedule_retrain  # type: ignore
+from workers.runtime_scheduler import jobs_registered_total as _rt_jobs_total  # type: ignore
+from workers.runtime_scheduler import list_jobs as _rt_list_jobs
+from workers.runtime_scheduler import register as _rt_register
 
 from .config import get_settings
 from .middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 from .observability import init_observability
-from workers.retrain_scheduler import schedule_retrain  # type: ignore
-from workers.runtime_scheduler import register as _rt_register, list_jobs as _rt_list_jobs  # type: ignore
 
 app = FastAPI()
 settings = get_settings()
@@ -31,6 +35,7 @@ app.add_middleware(ProcessingTimeMiddleware)
 def health():
     return {"status": "ok"}
 
+
 # --- Retrain wiring (feature-flagged by RETRAIN_CRON) ---
 _retrain_enabled = False
 _effective_cron = None
@@ -44,6 +49,7 @@ if _cron_env and _cron_env.lower() not in {"off", "disabled", "none", "false"}:
         _retrain_enabled = False
         _effective_cron = None
 
+
 @app.get("/__smoke__/retrain")
 def retrain_smoke():
     """Report retrain registration status and configured crons."""
@@ -53,6 +59,7 @@ def retrain_smoke():
         "count": len(jobs),
         "crons": [j["cron"] for j in jobs],
         "effective_cron": _effective_cron,
+        "jobs_registered_total": _rt_jobs_total(),
     }
 
 
