@@ -1,0 +1,8 @@
+/health 200 application/json
+/metrics 200 text/plain; version=0.0.4; charset=utf-8
+/__smoke__/retrain 200 application/json
+/__smoke__/sentry 200 application/json
+....                                                                                                                     [100%]
+4 passed, 14 deselected in 1.15s
+
+18 deselected in 0.94s
