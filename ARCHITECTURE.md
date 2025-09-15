@@ -34,7 +34,9 @@ See `docs/Project.md` for a detailed design.
 
 `services/simulator.py` uses `ml/sim/bivariate_poisson.py` to generate correlated
 scores. Aggregators expose markets 1x2, totals (0.5–5.5), BTTS and correct
-score grid 0..6 with tail `OTHER`.
+score grid 0..6 with tail `OTHER`. The prediction pipeline calls the simulator
+after computing final λ and persists markets to SQLite and Markdown report.
+Parameters are configurable via `SIM_RHO`, `SIM_N`, `SIM_CHUNK`.
 
 ## Storage
 

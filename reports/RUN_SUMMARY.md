@@ -18,10 +18,10 @@
 - pytest tests/storage/test_predictions_store.py -q – pass
 - pytest tests/smoke/test_run_simulation_cli.py -q – pass
 
-## Simulation
-- n_sims: 10000, rho: 0.1
-- markets: 1x2, totals, btts, cs
-- ECE report: reports/metrics/ECE_simulation_default_H_vs_A.md
+## Simulation Integration
+- n_sims: 512, rho: 0.1
+- entropy: 1x2=1.5798, totals=0.9189, cs=3.7127
+- report: reports/metrics/SIM_S_H_vs_A.md
 - SQLite: var/predictions.sqlite
 
 ## Next Steps

@@ -49,6 +49,13 @@ python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1
 Predictions are stored via SQLite fallback (`storage/persistence.py`).
 Table `predictions(match_id, market, selection, prob, ts, season, extra)`.
 DB path is taken from `PREDICTIONS_DB_URL` (defaults to `var/predictions.sqlite`).
+Each pipeline run also writes a Markdown report
+`reports/metrics/SIM_{SEASON}_{home}_vs_{away}.md` with entropy stats.
+Control parameters via environment variables:
+
+- `SIM_RHO` – correlation coefficient (default `0.1`)
+- `SIM_N` – number of simulations (default `10000`)
+- `SIM_CHUNK` – chunk size for vectorized draws (default `100000`)
 
 ## Services & Workers (скелеты)
 
@@ -82,6 +89,7 @@ DB path is taken from `PREDICTIONS_DB_URL` (defaults to `var/predictions.sqlite`
 - `MODEL_REGISTRY_PATH` — каталог LocalModelRegistry (по умолчанию `artifacts/`).
 - `RETRAIN_CRON` — crontab для планировщика (пусто/`off` выключает).
 - `SEASON_ID` — сезон для скрипта обучения (по умолчанию `23855`).
+- `SIM_RHO`, `SIM_N`, `SIM_CHUNK` — параметры симуляции (корреляция, число прогонов и размер чанка).
 
 ## Modifiers validation
 
