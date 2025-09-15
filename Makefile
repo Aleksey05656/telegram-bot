@@ -82,7 +82,8 @@ pre-commit-smart:
 	PRE_COMMIT_HOME=$(PRE_COMMIT_HOME) $(PY) scripts/run_precommit.py run --all-files || true
 
 smoke:
-	python -m scripts.verify
+	@echo "==> Running smoke tests"
+	pytest -vv -k "smoke or test_endpoints"
 
 pre-commit-offline:
 	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"

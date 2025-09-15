@@ -65,7 +65,4 @@ def get_settings() -> Settings:
 
 def reset_settings_cache() -> None:
     """Сброс кэша настроек для тестов/смоуков при смене env."""
-    try:
-        get_settings.cache_clear()  # type: ignore[attr-defined]
-    except Exception:
-        pass
+    get_settings.cache_clear()  # type: ignore[attr-defined]

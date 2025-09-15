@@ -84,22 +84,16 @@ async def run_training_pipeline(
         for league_id, df in datasets.items():
             if len(df) >= min_matches_threshold:
                 large_leagues[league_id] = df
-                logger.info(
-                    f"Лига {league_id} классифицирована как крупная ({len(df)} матчей)"
-                )
+                logger.info(f"Лига {league_id} классифицирована как крупная ({len(df)} матчей)")
             else:
                 small_leagues[league_id] = df
-                logger.info(
-                    f"Лига {league_id} классифицирована как мелкая ({len(df)} матчей)"
-                )
+                logger.info(f"Лига {league_id} классифицирована как мелкая ({len(df)} матчей)")
         # Создаем объединенный датасет для мелких лиг
         global_dataset = None
         if small_leagues:
             small_dfs = list(small_leagues.values())
             global_dataset = pd.concat(small_dfs, ignore_index=True)
-            logger.info(
-                f"Создан глобальный датасет для мелких лиг: {len(global_dataset)} матчей"
-            )
+            logger.info(f"Создан глобальный датасет для мелких лиг: {len(global_dataset)} матчей")
         # Обучаем модели для крупных лиг
         markets = ["1x2", "btts", "ou_2_5"]
         for league_id, df_league in large_leagues.items():
@@ -141,9 +135,7 @@ async def run_training_pipeline(
                         f"Сохраненные артефакты: {list(saved_paths.keys())}"
                     )
                 except Exception as e:
-                    logger.error(
-                        f"Ошибка при обучении глобальной модели для рынка {market}: {e}"
-                    )
+                    logger.error(f"Ошибка при обучении глобальной модели для рынка {market}: {e}")
                     continue
         logger.info("🏁 Пайплайн обучения моделей завершен")
     except Exception as e:
@@ -158,23 +150,9 @@ async def async_main() -> None:
     try:
         logger.info("🚀 Запуск пайплайна обучения моделей")
         # Загружаем датасеты (в реальной реализации из файлов или БД)
-        # Пример загрузки из CSV файлов:
-        datasets: dict[int, pd.DataFrame] = {}
-        # В реальной реализации здесь будет загрузка датасетов
-        # Например:
-        # import os
-        # dataset_files = [f for f in os.listdir("data/datasets") if f.endswith("_dataset.csv")]
-        # for file in dataset_files:
-        #     league_id = int(file.split("_")[1])
-        #     df = pd.read_csv(f"data/datasets/{file}")
-        #     datasets[league_id] = df
-        # Для демонстрации создаем пустой словарь
-        # В реальной реализации здесь будут загруженные датасеты
-        datasets = {}  # Загрузите реальные датасеты здесь
+        datasets: dict[int, pd.DataFrame] = {}  # Загрузите реальные датасеты здесь
         if not datasets:
-            logger.warning(
-                "Нет датасетов для обучения. Пожалуйста, сначала подготовьте датасеты."
-            )
+            logger.warning("Нет датасетов для обучения. Пожалуйста, сначала подготовьте датасеты.")
             return
         # Запускаем пайплайн обучения
         await run_training_pipeline(datasets, min_matches_threshold=1500)

@@ -32,9 +32,7 @@ class Settings(BaseSettings):
     # === НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЭТАПА 1 ===
     MODELS_DIR: str = "models"
     MODEL_VERSION: str | None = None  # если None — генерируется по MODEL_VERSION_FORMAT
-    MODEL_VERSION_FORMAT: str = (
-        "%Y%m%d%H%M"  # точность до минут по умолчанию; можно сменить в .env
-    )
+    MODEL_VERSION_FORMAT: str = "%Y%m%d%H%M"  # точность до минут по умолчанию; можно сменить в .env
     CALIBRATION_METHOD: str = "platt"  # 'platt' | 'isotonic' | 'beta'
     CV_N_SPLITS: int = 6
     CV_GAP_DAYS: int = 0
@@ -109,8 +107,8 @@ class Settings(BaseSettings):
             version_num = int(v[1:])
             if version_num < 0:
                 raise ValueError("Версия кэша должна быть положительной")
-        except ValueError:
-            raise ValueError("После 'v' должна следовать цифра")
+        except ValueError as e:
+            raise ValueError("После 'v' должна следовать цифра") from e
         return v
 
     @field_validator("MODEL_VERSION")

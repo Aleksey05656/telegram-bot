@@ -31,7 +31,7 @@ def main() -> None:
     if offenders:
         gi = ROOT / ".ruffignore"
         text = gi.read_text(encoding="utf-8") if gi.exists() else ""
-        existing = set(ln.strip() for ln in text.splitlines() if ln.strip())
+        existing = {ln.strip() for ln in text.splitlines() if ln.strip()}
         add = [f"/{o}" for o in offenders if f"/{o}" not in existing]
         if add:
             with gi.open("a", encoding="utf-8", newline="\n") as f:
