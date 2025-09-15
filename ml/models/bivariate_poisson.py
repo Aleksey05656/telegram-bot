@@ -1,5 +1,6 @@
 # ml/models/bivariate_poisson.py
 """Bivariate Poisson модель для прогнозирования коррелированных исходов."""
+import math
 from typing import Any
 
 import numpy as np
@@ -117,9 +118,7 @@ class BivariatePoisson:
             for i in range(max_goals + 1):
                 for j in range(max_goals + 1):
                     prob_matrix[i, j] = self.prob(i, j)
-            logger.debug(
-                f"Сгенерирована матрица вероятностей. Сумма: {prob_matrix.sum():.6f}"
-            )
+            logger.debug(f"Сгенерирована матрица вероятностей. Сумма: {prob_matrix.sum():.6f}")
             return prob_matrix
         except Exception as e:
             logger.error(f"Ошибка при генерации матрицы вероятностей: {e}")
@@ -169,9 +168,7 @@ class BivariatePoisson:
             logger.error(f"Ошибка при вычислении BTTS: {e}")
             return 0.5, 0.5
 
-    def calculate_totals(
-        self, threshold: float = 2.5, max_goals: int = 6
-    ) -> tuple[float, float]:
+    def calculate_totals(self, threshold: float = 2.5, max_goals: int = 6) -> tuple[float, float]:
         """
         Вычисление вероятностей тотала.
         Args:
@@ -252,9 +249,7 @@ def estimate_rho(feature_vector: dict[str, Any], default_rho: float = 0.1) -> fl
         )
         # Ограничиваем rho разумными значениями
         rho_estimate = max(0.0, min(rho_estimate, 0.3))
-        logger.debug(
-            f"Оценено rho: {rho_estimate:.3f} (style_mismatch={style_mismatch:.3f})"
-        )
+        logger.debug(f"Оценено rho: {rho_estimate:.3f} (style_mismatch={style_mismatch:.3f})")
         return rho_estimate
     except Exception as e:
         logger.error(f"Ошибка при оценке rho: {e}")
@@ -278,8 +273,8 @@ def score_matrix(
                 pm[gh, ga] = pmf(gh, ga, lam_home, lam_away, rho)
             else:
                 # независимая аппроксимация
-                def pois(k, l):
-                    return (l**k) * np.exp(-l) / float(np.math.factorial(k))
+                def pois(k, lam):
+                    return (lam**k) * np.exp(-lam) / float(math.factorial(k))
 
                 pm[gh, ga] = pois(gh, lam_home) * pois(ga, lam_away)
     if pm.sum() > 0:
@@ -304,25 +299,10 @@ def outcome_probabilities(
     p_home = float(np.triu(M, k=1).sum())
     p_away = float(np.tril(M, k=-1).sum())
     p_draw = float(np.trace(M))
-    p_btts_yes = float(M[1:, 1:].sum())
-    p_btts_no = 1.0 - p_btts_yes
-    p_over_2_5 = float(
-        sum(
-            M[gh, ga]
-            for gh in range(M.shape[0])
-            for ga in range(M.shape[1])
-            if (gh + ga) > 2
-        )
-    )
-    p_under_2_5 = 1.0 - p_over_2_5
     return {
         "home": p_home,
         "draw": p_draw,
         "away": p_away,
-        "btts_yes": p_btts_yes,
-        "btts_no": p_btts_no,
-        "over_2_5": p_over_2_5,
-        "under_2_5": p_under_2_5,
     }
 
 

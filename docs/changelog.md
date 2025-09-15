@@ -1,3 +1,12 @@
+## [2025-09-15] - Enforce numeric test suite
+### Добавлено
+- Жёсткая проверка `needs_np` тестов в CI.
+### Изменено
+- Удалена переменная окружения `NEEDS_NP_PATTERNS`, упрощён `conftest_np_guard`.
+- Переименован smoke-тест `TaskManager.cleanup` во избежание конфликтов.
+### Исправлено
+- Bivariate Poisson utilities совместимы с NumPy 2.x.
+
 ## [2025-09-15] - Numpy guard and CI fallback
 ### Добавлено
 - Защита тестов, требующих numpy/pandas, с шаблонами через ENV.

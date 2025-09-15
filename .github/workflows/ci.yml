@@ -43,5 +43,12 @@ jobs:
         env:
           SPORTMONKS_STUB: 1
           SPORTMONKS_API_KEY: dummy
-          NEEDS_NP_PATTERNS: "test_ml.py|test_services.py|test_metrics.py|test_prediction"
         run: pytest -q
+      - name: Ensure numeric tests ran
+        run: |
+          skips=$(pytest -m needs_np -q -rs | grep -i 'skipped' || true)
+          if [ -n "$skips" ]; then
+            echo "Numeric tests were skipped:";
+            echo "$skips";
+            exit 1;
+          fi
