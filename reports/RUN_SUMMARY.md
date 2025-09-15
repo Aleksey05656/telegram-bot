@@ -1,3 +1,18 @@
+# Run Summary (2025-09-15)
+
+## Applied Tasks
+- CI staged workflow
+
+## Lint
+- make lint-app – warnings (see log)
+- make lint – warnings (B034, E402)
+- pre-commit – no files to check
+
+## Tests
+- pytest – pass (31)
+- make smoke – pass
+- needs_np – 14 passed, no SKIP
+
 # Run Summary (2025-09-16)
 
 ## Applied Tasks

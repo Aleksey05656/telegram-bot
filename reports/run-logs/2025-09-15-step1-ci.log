@@ -1,0 +1,296 @@
+/**
+ * @file: reports/run-logs/2025-09-15-step1-ci.log
+ * @description: Lint and test run outputs after CI workflow restructure
+ * @dependencies: make lint-app, make lint, pre-commit, pytest, make smoke
+ * @created: 2025-09-15
+ */
+$ make lint-app && make lint
+python scripts/syntax_partition.py
+syntax_partition: 20 parseable, 0 invalid; +0 to .ruffignore, +0 to .gitignore
+syntax_partition: wrote /workspace/telegram-bot/.lint_targets_app
+[lint-app] targets: 19 files
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+Found 1 error (1 fixed, 0 remaining).
+reformatted /workspace/telegram-bot/app/data_processor/__init__.py
+reformatted /workspace/telegram-bot/app/data_processor/io.py
+reformatted /workspace/telegram-bot/app/data_processor/feature_engineering.py
+reformatted /workspace/telegram-bot/app/data_processor/validators.py
+reformatted /workspace/telegram-bot/app/data_processor/transformers.py
+reformatted /workspace/telegram-bot/app/main.py
+
+All done! ✨ 🍰 ✨
+6 files reformatted, 14 files left unchanged.
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+All checks passed!
+All done! ✨ 🍰 ✨
+20 files would be left unchanged.
+LINT_STRICT=0
+[lenient lint] ruff fix + isort + black (без фейла)
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+B034 `re.split` should pass `maxsplit` and `flags` as keyword arguments to avoid confusion due to unintuitive argument positions
+  --> tests/contracts/test_env_example_contract.py:37:9
+   |
+35 |     text = env_path.read_text(encoding="utf-8")
+36 |     env_vars = {
+37 |         re.split("=", line, 1)[0] for line in text.splitlines() if line and not line.startswith("#")
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+38 |     }
+39 |     expected = _settings_env_vars()
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_prediction_pipeline_local_registry_e2e.py:24:1
+   |
+22 |     pd = None
+23 |
+24 | from app.ml.model_registry import LocalModelRegistry
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25 | from app.ml.prediction_pipeline import PredictionPipeline
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_prediction_pipeline_local_registry_e2e.py:25:1
+   |
+24 | from app.ml.model_registry import LocalModelRegistry
+25 | from app.ml.prediction_pipeline import PredictionPipeline
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_task_manager_cleanup.py:13:1
+   |
+11 | pytestmark = pytest.mark.needs_np
+12 |
+13 | from datetime import datetime, timedelta
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |
+15 | from workers.task_manager import TaskManager
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_task_manager_cleanup.py:15:1
+   |
+13 | from datetime import datetime, timedelta
+14 |
+15 | from workers.task_manager import TaskManager
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+Found 11 errors (6 fixed, 5 remaining).
+Fixing /workspace/telegram-bot/workers/runtime_scheduler.py
+reformatted /workspace/telegram-bot/data_processor.py
+reformatted /workspace/telegram-bot/database/cache.py
+reformatted /workspace/telegram-bot/database/cache_postgres.py
+reformatted /workspace/telegram-bot/config.py
+reformatted /workspace/telegram-bot/logger.py
+reformatted /workspace/telegram-bot/metrics/metrics.py
+reformatted /workspace/telegram-bot/database/db_logging.py
+reformatted /workspace/telegram-bot/scripts/prepare_datasets.py
+reformatted /workspace/telegram-bot/scripts/run_training_pipeline.py
+reformatted /workspace/telegram-bot/services/prediction_pipeline.py
+reformatted /workspace/telegram-bot/ml/models/poisson_regression_model.py
+reformatted /workspace/telegram-bot/ml/models/poisson_model.py
+reformatted /workspace/telegram-bot/telegram/bot.py
+reformatted /workspace/telegram-bot/telegram/handlers/terms.py
+reformatted /workspace/telegram-bot/services/sportmonks_client.py
+reformatted /workspace/telegram-bot/telegram/utils/formatter.py
+reformatted /workspace/telegram-bot/services/recommendation_engine.py
+reformatted /workspace/telegram-bot/tests/smoke/test_retrain_registration.py
+reformatted /workspace/telegram-bot/tests/test_prediction_pipeline_local_registry_e2e.py
+reformatted /workspace/telegram-bot/workers/runtime_scheduler.py
+reformatted /workspace/telegram-bot/telegram/handlers/predict.py
+reformatted /workspace/telegram-bot/services/data_processor.py
+
+All done! ✨ 🍰 ✨
+22 files reformatted, 61 files left unchanged.
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+B034 `re.split` should pass `maxsplit` and `flags` as keyword arguments to avoid confusion due to unintuitive argument positions
+  --> tests/contracts/test_env_example_contract.py:37:9
+   |
+35 |     text = env_path.read_text(encoding="utf-8")
+36 |     env_vars = {
+37 |         re.split("=", line, 1)[0] for line in text.splitlines() if line and not line.startswith("#")
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+38 |     }
+39 |     expected = _settings_env_vars()
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_prediction_pipeline_local_registry_e2e.py:24:1
+   |
+22 |     pd = None
+23 |
+24 | from app.ml.model_registry import LocalModelRegistry
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25 | from app.ml.prediction_pipeline import PredictionPipeline
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_prediction_pipeline_local_registry_e2e.py:25:1
+   |
+24 | from app.ml.model_registry import LocalModelRegistry
+25 | from app.ml.prediction_pipeline import PredictionPipeline
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_task_manager_cleanup.py:13:1
+   |
+11 | pytestmark = pytest.mark.needs_np
+12 |
+13 | from datetime import datetime, timedelta
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |
+15 | from workers.task_manager import TaskManager
+   |
+
+E402 Module level import not at top of file
+  --> tests/test_task_manager_cleanup.py:15:1
+   |
+13 | from datetime import datetime, timedelta
+14 |
+15 | from workers.task_manager import TaskManager
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+Found 5 errors.
+
+$ pre-commit run --files .github/workflows/ci.yml docs/changelog.md docs/tasktracker.md --config .pre-commit-config.offline.yaml
+ruff.................................................(no files to check)Skipped
+black................................................(no files to check)Skipped
+isort................................................(no files to check)Skipped
+
+$ pytest -q
+........FF.....................                                                                                          [100%]
+=========================================================== FAILURES ===========================================================
+____________________________________________________ test_compute_rest_days ____________________________________________________
+
+    def test_compute_rest_days():
+>       from services.data_processor import compute_rest_days  # noqa: E402
+
+tests/test_services.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+services/data_processor.py:13: in <module>
+    from services.sportmonks_client import sportmonks_client
+services/sportmonks_client.py:666: in <module>
+    sportmonks_client = SportMonksClient()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <services.sportmonks_client.SportMonksClient object at 0x7f664c9d6d50>, api_token = None
+
+    def __init__(self, api_token: str = None):
+        """Инициализация клиента API SportMonks."""
+        self.api_token = api_token or get_settings().sportmonks_api_key
+        self.base_url = "https://api.sportmonks.com/v3/football"
+        if not self.api_token:
+>           raise ValueError("API token for SportMonks is required.")
+E           ValueError: API token for SportMonks is required.
+
+services/sportmonks_client.py:126: ValueError
+______________________________________________________ test_haversine_km _______________________________________________________
+
+    def test_haversine_km():
+>       from services.data_processor import haversine_km  # noqa: E402
+
+tests/test_services.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+services/data_processor.py:13: in <module>
+    from services.sportmonks_client import sportmonks_client
+services/sportmonks_client.py:666: in <module>
+    sportmonks_client = SportMonksClient()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <services.sportmonks_client.SportMonksClient object at 0x7f6647d44690>, api_token = None
+
+    def __init__(self, api_token: str = None):
+        """Инициализация клиента API SportMonks."""
+        self.api_token = api_token or get_settings().sportmonks_api_key
+        self.base_url = "https://api.sportmonks.com/v3/football"
+        if not self.api_token:
+>           raise ValueError("API token for SportMonks is required.")
+E           ValueError: API token for SportMonks is required.
+
+services/sportmonks_client.py:126: ValueError
+=================================================== short test summary info ====================================================
+FAILED tests/test_services.py::test_compute_rest_days - ValueError: API token for SportMonks is required.
+FAILED tests/test_services.py::test_haversine_km - ValueError: API token for SportMonks is required.
+2 failed, 29 passed in 3.37s
+
+$ SPORTMONKS_STUB=1 SPORTMONKS_API_KEY=dummy pytest -q
+...............................                                                                                          [100%]
+31 passed in 2.35s
+
+$ make smoke
+python -m scripts.verify
+
+$ NEEDS_NP_PATTERNS= pytest -q -m needs_np || true
+.....FF.......                                                                                                           [100%]
+=========================================================== FAILURES ===========================================================
+____________________________________________________ test_compute_rest_days ____________________________________________________
+
+    def test_compute_rest_days():
+>       from services.data_processor import compute_rest_days  # noqa: E402
+
+tests/test_services.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+services/data_processor.py:13: in <module>
+    from services.sportmonks_client import sportmonks_client
+services/sportmonks_client.py:666: in <module>
+    sportmonks_client = SportMonksClient()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <services.sportmonks_client.SportMonksClient object at 0x7f7f80d72150>, api_token = None
+
+    def __init__(self, api_token: str = None):
+        """Инициализация клиента API SportMonks."""
+        self.api_token = api_token or get_settings().sportmonks_api_key
+        self.base_url = "https://api.sportmonks.com/v3/football"
+        if not self.api_token:
+>           raise ValueError("API token for SportMonks is required.")
+E           ValueError: API token for SportMonks is required.
+
+services/sportmonks_client.py:126: ValueError
+______________________________________________________ test_haversine_km _______________________________________________________
+
+    def test_haversine_km():
+>       from services.data_processor import haversine_km  # noqa: E402
+
+tests/test_services.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+services/data_processor.py:13: in <module>
+    from services.sportmonks_client import sportmonks_client
+services/sportmonks_client.py:666: in <module>
+    sportmonks_client = SportMonksClient()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <services.sportmonks_client.SportMonksClient object at 0x7f7f804c56d0>, api_token = None
+
+    def __init__(self, api_token: str = None):
+        """Инициализация клиента API SportMonks."""
+        self.api_token = api_token or get_settings().sportmonks_api_key
+        self.base_url = "https://api.sportmonks.com/v3/football"
+        if not self.api_token:
+>           raise ValueError("API token for SportMonks is required.")
+E           ValueError: API token for SportMonks is required.
+
+services/sportmonks_client.py:126: ValueError
+=================================================== short test summary info ====================================================
+FAILED tests/test_services.py::test_compute_rest_days - ValueError: API token for SportMonks is required.
+FAILED tests/test_services.py::test_haversine_km - ValueError: API token for SportMonks is required.
+2 failed, 12 passed, 17 deselected in 2.49s
+
+$ SPORTMONKS_STUB=1 SPORTMONKS_API_KEY=dummy NEEDS_NP_PATTERNS= pytest -q -m needs_np || true
+..............                                                                                                           [100%]
+14 passed, 17 deselected in 2.19s
