@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     prometheus: PrometheusSettings = PrometheusSettings()
     git_sha: str = Field(default="dev", alias="GIT_SHA")
     rate_limit: RateLimitSettings = RateLimitSettings()
+    sim_rho: float = Field(default=0.1, alias="SIM_RHO")
+    sim_n: int = Field(default=10000, alias="SIM_N")
+    sim_chunk: int = Field(default=100000, alias="SIM_CHUNK")
 
 
 @lru_cache(1)

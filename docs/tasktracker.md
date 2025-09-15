@@ -1,3 +1,12 @@
+## Задача: Entropy analytics and simulation settings
+- **Статус**: В процессе
+- **Описание**: Добавить расчёт энтропии рынков и параметры симуляции.
+- **Шаги выполнения**:
+  - [x] Реализован модуль энтропии и тесты.
+  - [x] Добавлены переменные окружения и настройки.
+  - [ ] Интеграция в prediction_pipeline и отчёты.
+- **Зависимости**: services/simulator.py, ml/metrics/entropy.py, config.py, app/config.py, .env.example, ml/sim/bivariate_poisson.py
+
 ## Задача: Ruff warnings cleanup
 - **Статус**: Завершена
 - **Описание**: Устранить предупреждения Ruff F401/I001/UP037/UP035/UP045.
