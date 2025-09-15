@@ -57,6 +57,21 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 - `RETRAIN_CRON` — crontab для планировщика (пусто/`off` выключает).
 - `SEASON_ID` — сезон для скрипта обучения (по умолчанию `23855`).
 
+
+## Тесты без NumPy/Pandas (офлайн/прокси)
+
+Если `numpy` и `pandas` недоступны (например, в офлайн окружении),
+тесты, помеченные `@pytest.mark.needs_np` или подпадающие под шаблоны
+`test_ml.py`, `test_services.py`, `test_metrics.py`, `test_prediction`
+будут автоматически пропущены.
+Шаблоны можно переопределить переменной окружения:
+
+```bash
+NEEDS_NP_PATTERNS="test_ml.py|test_services.py" pytest -q
+```
+
+В CI переменная `NEEDS_NP_PATTERNS` уже выставлена автоматически.
+
 ## Tests
 
 - Контрактный тест сверяет `.env.example` с `app.config.Settings`.

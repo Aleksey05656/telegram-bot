@@ -1,3 +1,12 @@
+## [2025-09-15] - Numpy guard and CI fallback
+### Добавлено
+- Защита тестов, требующих numpy/pandas, с шаблонами через ENV.
+### Изменено
+- CI запускает ruff/isort/black при падении pre-commit.
+- README и pytest.ini документируют пропуск тестов без численного стека.
+### Исправлено
+- —
+
 ## [2025-09-15] - Pin numpy/pandas versions
 ### Добавлено
 - Ограничения numpy>=1.26,<2.0 и pandas==2.2.2.
