@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import pytest
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
 
 pytestmark = pytest.mark.needs_np
 
@@ -21,16 +23,13 @@ except Exception:  # pragma: no cover
 from app.ml.model_registry import LocalModelRegistry
 from app.ml.prediction_pipeline import PredictionPipeline
 
-
 class _Preproc:
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.fillna(0)
 
-
 class _Model:
     def predict_proba(self, X):
         return np.full((len(X), 2), 0.5)
-
 
 def test_pipeline_with_local_registry(tmp_path):
     reg = LocalModelRegistry(base_dir=tmp_path)

@@ -4,6 +4,10 @@
 @dependencies: workers.task_manager
 @created: 2025-09-17
 """
+import pytest
+pytest.importorskip("numpy")
+
+pytestmark = pytest.mark.needs_np
 
 from workers.task_manager import TaskManager
 

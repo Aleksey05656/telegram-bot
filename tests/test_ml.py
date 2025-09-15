@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 
 import pytest
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+
 
 pytestmark = pytest.mark.needs_np
 

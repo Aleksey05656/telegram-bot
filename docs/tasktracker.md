@@ -1,3 +1,12 @@
+## Задача: Numpy guard and CI fallback
+- **Статус**: Завершена
+- **Описание**: Добавить пропуск numpy/pandas тестов без стека, обновить CI и документацию.
+- **Шаги выполнения**:
+  - [x] Добавлен tests/conftest_np_guard.py
+  - [x] Обновлены pytest.ini, README и CI workflow
+  - [x] Прогнаны линтеры и тесты
+- **Зависимости**: tests/conftest_np_guard.py, pytest.ini, README.md, .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Pin numpy/pandas and update ML docs
 - **Статус**: Завершена
 - **Описание**: Добавить ограничения numpy>=1.26,<2.0 и pandas==2.2.2, пересобрать окружение, проверить numpy.math, обновить ML-стек и прогнать pytest.
