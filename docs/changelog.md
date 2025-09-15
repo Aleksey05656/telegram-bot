@@ -1,3 +1,13 @@
+## [2025-09-15] - Offline pre-commit ruff fix
+### Добавлено
+- Локальные хуки `trailing-whitespace` и `end-of-file-fixer` для офлайн линтинга.
+### Изменено
+- Хук Ruff запускается как `ruff check --fix`.
+- `isort` и `black` вызываются через `python -m`.
+- Цель `pre-commit-offline` в `Makefile` использует `--config` и `--all-files`.
+### Исправлено
+- —
+
 ## [2025-09-15] - Sentry flag and metrics labels
 ### Добавлено
 - Переменные `SENTRY_ENABLED`, `GIT_SHA` и метки `service/env/version` в метриках.

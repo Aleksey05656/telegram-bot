@@ -1,3 +1,13 @@
+## Задача: Fix offline pre-commit configuration
+- **Статус**: Завершена
+- **Описание**: Обновить офлайн pre-commit конфиг, добавить локальные хуки и задокументировать изменения.
+- **Шаги выполнения**:
+  - [x] Исправлен `.pre-commit-config.offline.yaml` (ruff check, локальные хуки, isort/black).
+  - [x] Обновлена цель `pre-commit-offline` в `Makefile`.
+  - [x] Обновлены README, changelog и tasktracker.
+  - [x] Прогнаны линтеры, тесты и smoke.
+- **Зависимости**: .pre-commit-config.offline.yaml, Makefile, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline numeric stack support
 - **Статус**: Завершена
 - **Описание**: Настроить кеш колёс, расширить офлайн pre-commit ruff и задокументировать CI numeric enforcement.
