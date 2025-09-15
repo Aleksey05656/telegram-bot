@@ -1,0 +1,72 @@
+diff --git a/ml/base_poisson_glm.py b/ml/base_poisson_glm.py
+--- a/ml/base_poisson_glm.py
++++ b/ml/base_poisson_glm.py
+@@ -1,7 +1,7 @@
+-/**
+- * @file: base_poisson_glm.py
+- * @description: Базовая модель Poisson-GLM для расчёта λ_home и λ_away.
+- * @dependencies: numpy
+- * @created: 2025-08-23
+- */
++"""
++@file: base_poisson_glm.py
++@description: Базовая модель Poisson-GLM для расчёта λ_home и λ_away.
++@dependencies: numpy
++@created: 2025-08-23
++"""
+ from typing import Any, Dict, List
+
+diff --git a/ml/modifiers_model.py b/ml/modifiers_model.py
+--- a/ml/modifiers_model.py
++++ b/ml/modifiers_model.py
+@@ -1,7 +1,7 @@
+-/**
+- * @file: modifiers_model.py
+- * @description: Динамические модификаторы λ и калибровочный слой.
+- * @dependencies: logger, config, numpy, pandas, joblib, sklearn
+- * @created: 2025-08-23
+- */
++"""
++@file: modifiers_model.py
++@description: Динамические модификаторы λ и калибровочный слой.
++@dependencies: logger, config, numpy, pandas, joblib, sklearn
++@created: 2025-08-23
++"""
+ import asyncio
+
+diff --git a/ml/montecarlo_simulator.py b/ml/montecarlo_simulator.py
+--- a/ml/montecarlo_simulator.py
++++ b/ml/montecarlo_simulator.py
+@@ -1,7 +1,7 @@
+-/**
+- * @file: montecarlo_simulator.py
+- * @description: Минимальный Пуассон-симулятор для расчёта рынков.
+- * @dependencies: numpy
+- * @created: 2025-08-23
+- */
++"""
++@file: montecarlo_simulator.py
++@description: Минимальный Пуассон-симулятор для расчёта рынков.
++@dependencies: numpy
++@created: 2025-08-23
++"""
+ from dataclasses import dataclass
+
+diff --git a/ml/calibration.py b/ml/calibration.py
+--- a/ml/calibration.py
++++ b/ml/calibration.py
+@@ -1,7 +1,7 @@
+-/**
+- * @file: calibration.py
+- * @description: Калибровка вероятностей (Platt/Isotonic).
+- * @dependencies: numpy, sklearn
+- * @created: 2025-08-23
+- */
++"""
++@file: calibration.py
++@description: Калибровка вероятностей (Platt/Isotonic).
++@dependencies: numpy, sklearn
++@created: 2025-08-23
++"""
+ from typing import Any, Dict, List, Optional
+

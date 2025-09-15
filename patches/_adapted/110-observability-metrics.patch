@@ -1,0 +1,47 @@
+# Patch 110-observability-metrics: ensure /metrics route and smoke-test
+# Apply:    git apply patches/110-observability-metrics.patch
+# Revert:   git apply -R patches/110-observability-metrics.patch
+# Summary: use PlainTextResponse for Prometheus metrics and add smoke test.
+
+diff --git a/app/observability.py b/app/observability.py
+--- a/app/observability.py
++++ b/app/observability.py
+@@
+-import sentry_sdk
+-from fastapi import FastAPI, Response
+-from prometheus_client import Counter, generate_latest
++import sentry_sdk
++from fastapi import FastAPI, Response
++from fastapi.responses import PlainTextResponse
++from prometheus_client import Counter, generate_latest
+@@
+-        @app.get(settings.prometheus.endpoint)
+-        def metrics() -> Response:
+-            return Response(generate_latest(), media_type="text/plain")
++        @app.get(settings.prometheus.endpoint)
++        def metrics() -> PlainTextResponse:
++            return PlainTextResponse(generate_latest(), media_type="text/plain; version=0.0.4")
+
+diff --git a/tests/smoke/test_metrics_endpoint.py b/tests/smoke/test_metrics_endpoint.py
+new file mode 100644
+--- /dev/null
++++ b/tests/smoke/test_metrics_endpoint.py
+@@
++"""
++@file: tests/smoke/test_metrics_endpoint.py
++@description: Smoke test for Prometheus /metrics endpoint
++@dependencies: app.main
++@created: 2025-09-15
++"""
++
++from fastapi.testclient import TestClient
++
++from app.main import app
++
++
++def test_metrics_endpoint_returns_text_plain():
++    client = TestClient(app)
++    resp = client.get("/metrics")
++    assert resp.status_code == 200
++    assert resp.headers["content-type"].startswith("text/plain")
++    assert "# HELP" in resp.text

@@ -1,3 +1,12 @@
+## Задача: Add endpoint smoke tests and offline lint in CI
+- **Статус**: Завершена
+- **Описание**: Добавить smoke-тесты /health, /metrics, /__smoke__/retrain, /__smoke__/sentry и обновить CI для использования make pre-commit-smart.
+- **Шаги выполнения**:
+  - [x] Добавить tests/smoke/test_endpoints.py
+  - [x] Обновить .github/workflows/ci.yml
+  - [x] Прогнать lint и тесты
+- **Зависимости**: tests/smoke/test_endpoints.py, .github/workflows/ci.yml
+
 ## Задача: Unify observability and add metrics test
 - **Статус**: Завершена
 - **Описание**: Удалить дублирующий observability, обновить эндпоинт /metrics и добавить smoke-тест.
