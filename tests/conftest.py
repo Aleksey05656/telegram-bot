@@ -12,6 +12,16 @@ import sys
 import pytest
 
 
+# Автоматически включаем STUB-режим SportMonks для тестов,
+# если ключ отсутствует или равен "dummy".
+@pytest.fixture(autouse=True, scope="session")
+def _force_sportmonks_stub():
+    key = os.getenv("SPORTMONKS_API_KEY", "")
+    if (not key) or (key.lower() == "dummy"):
+        os.environ["SPORTMONKS_STUB"] = "1"
+    return
+
+
 def _numpy_stack_ok() -> bool:
     """
     Пытаемся импортировать numpy/pandas и сделать примитивные вызовы.

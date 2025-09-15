@@ -1,3 +1,12 @@
+## [2025-09-15] - SportMonks stub client and tests
+### Добавлено
+- Клиент SportMonks с режимом заглушки.
+- Тесты для проверки stub-логики.
+### Изменено
+- .env.example документирует переменную SPORTMONKS_STUB.
+### Исправлено
+- —
+
 ## [2025-09-15] - Add smoke tests and CI offline lint
 ### Добавлено
 - Smoke-тесты для базовых эндпоинтов.

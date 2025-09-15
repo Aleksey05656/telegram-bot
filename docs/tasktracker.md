@@ -1,3 +1,12 @@
+## Задача: SportMonks stub client
+- **Статус**: Завершена
+- **Описание**: Добавить клиента SportMonks с режимом заглушки и тесты.
+- **Шаги выполнения**:
+  - [x] Реализовать клиента с режимом заглушки
+  - [x] Автоматически включать stub в тестах
+  - [x] Добавить юнит-тесты и обновить .env.example
+- **Зависимости**: app/integrations/sportmonks_client.py, tests/test_sportmonks_stub.py, .env.example
+
 ## Задача: Add endpoint smoke tests and offline lint in CI
 - **Статус**: Завершена
 - **Описание**: Добавить smoke-тесты /health, /metrics, /__smoke__/retrain, /__smoke__/sentry и обновить CI для использования make pre-commit-smart.
