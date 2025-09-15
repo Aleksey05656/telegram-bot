@@ -61,6 +61,28 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 - `RETRAIN_CRON` — crontab для планировщика (пусто/`off` выключает).
 - `SEASON_ID` — сезон для скрипта обучения (по умолчанию `23855`).
 
+## Modifiers validation
+
+CLI `scripts/validate_modifiers.py` сравнивает качество базовых λ и итоговых λ после модификаторов.
+
+```bash
+python scripts/validate_modifiers.py --season-id 23855 --input data/val.csv --alpha 0.005 --l2 1.0 --tol 0.0 --tol-ece 0.0
+```
+
+Метрики:
+
+- `logloss` — средний отрицательный логарифм правдоподобия Пуассона;
+- `ece` — калибровка по вероятности события (0–1).
+
+Отчёт сохраняется в `reports/metrics/MODIFIERS_<SEASON>.md`.
+Порог `--tol` (для logloss) и `--tol-ece` задаёт допустимое ухудшение.
+
+## CI numeric enforcement (modifiers)
+
+В job `numeric` выполняется CLI проверки модификаторов. Шаг завершается с ошибкой,
+если `logloss` ухудшился больше `TOL_LOSS` или `ece` больше `TOL_ECE`.
+Значения по умолчанию берутся из переменных окружения `TOL_LOSS` и `TOL_ECE`.
+
 
 ## Тесты без NumPy/Pandas (офлайн/прокси)
 

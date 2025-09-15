@@ -99,3 +99,10 @@ jobs:
             echo 'Numeric tests were skipped'
             exit 1
           fi
+      - name: Validate modifiers improvement
+        env:
+          SEASON_ID: "${{ env.SEASON_ID || 'default' }}"
+          TOL_LOSS: "0.00"
+          TOL_ECE: "0.00"
+        run: |
+          python scripts/validate_modifiers.py --season-id "${SEASON_ID}" --input data/val.csv --alpha 0.005 --l2 1.0 --tol "${TOL_LOSS}" --tol-ece "${TOL_ECE}"

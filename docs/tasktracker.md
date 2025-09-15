@@ -507,3 +507,13 @@
   - [x] Реализован фичефлаг Sentry и метки в /metrics.
   - [x] Добавлен jobs_registered_total и обновлён /__smoke__/retrain.
 - **Зависимости**: app/observability.py, app/config.py, workers/runtime_scheduler.py, app/main.py
+
+## Задача: Валидация модификаторов
+- **Статус**: Завершена
+- **Описание**: Добавить метрики модификатора base vs final, CLI и CI-гейт.
+- **Шаги выполнения**:
+  - [x] Расчёт и логирование `glm_base_*` и `glm_mod_final_*`.
+  - [x] CLI `scripts/validate_modifiers.py` с отчётом.
+  - [x] CI-шаг проверки улучшения.
+  - [x] Обновлена документация и сводки.
+- **Зависимости**: services/prediction_pipeline.py, scripts/validate_modifiers.py, .github/workflows/ci.yml, README.md, ARCHITECTURE.md, docs/Project.md, tests/ml/test_modifiers_metrics.py, tests/smoke/test_validate_modifiers_cli.py

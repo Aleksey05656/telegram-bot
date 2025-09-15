@@ -17,5 +17,11 @@
 - pytest tests/ml/test_modifiers.py -q – pass (1)
 - pytest tests/ml/test_bipoisson_sim.py -q – pass (1)
 
+## Modifiers validation
+- base_logloss: 1.4236, final_logloss: 1.4236, delta: 0.0000
+- base_ece: 0.0147, final_ece: 0.0147, delta: 0.0000
+- report: reports/metrics/MODIFIERS_default.md
+- gate: OK
+
 ## Next Steps
-- Реализовать модификаторы и симуляции
+- —

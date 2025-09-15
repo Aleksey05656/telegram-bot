@@ -1,3 +1,13 @@
+## [2025-09-15] - Modifiers validation
+### Добавлено
+- Метрики модификатора base vs final в `PredictionPipeline`.
+- CLI `scripts/validate_modifiers.py` и smoke-тест.
+- CI-гейт проверки модификаторов.
+### Изменено
+- README, ARCHITECTURE.md, docs/Project.md, workflow CI.
+### Исправлено
+- —
+
 ## [2025-09-15] - Monte-Carlo simulator
 ### Добавлено
 - Модуль `ml/sim/bivariate_poisson.py`, сервис `services/simulator.py`, скрипт `run_simulation.py` и тесты симуляций.
