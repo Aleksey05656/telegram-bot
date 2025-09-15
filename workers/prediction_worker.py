@@ -12,15 +12,12 @@ from database.cache_postgres import cache, init_cache
 from logger import logger
 from metrics import record_prediction
 from ml.models.poisson_regression_model import poisson_regression_model
-from observability import init_observability
 from services.data_processor import DataProcessor
 from services.recommendation_engine import recommendation_engine
 from telegram.utils.formatter import format_prediction_result
 
 # Константы для сообщений
-ERROR_MESSAGE = (
-    "❌ Произошла внутренняя ошибка при генерации прогноза. Попробуйте позже."
-)
+ERROR_MESSAGE = "❌ Произошла внутренняя ошибка при генерации прогноза. Попробуйте позже."
 WARNING_MODEL_OUTDATED = (
     "⚠️ <b>Внимание!</b>\n"
     "Данные для прогнозирования устарели. \n"
@@ -46,8 +43,6 @@ class PredictionWorker:
         try:
             if not settings.TELEGRAM_BOT_TOKEN:
                 raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
-
-            init_observability()
 
             # Инициализация бота
             self.bot = Bot(
@@ -81,9 +76,7 @@ class PredictionWorker:
             bool: Успешность обработки
         """
         start_time = time.time()
-        logger.info(
-            f"[{job_id}] Начало обработки прогноза для {home_team} vs {away_team}"
-        )
+        logger.info(f"[{job_id}] Начало обработки прогноза для {home_team} vs {away_team}")
         lock = None
         if cache and cache.redis_client:
             lock_key = f"prediction_lock:{home_team}:{away_team}"
@@ -114,9 +107,7 @@ class PredictionWorker:
 
             # Получение расширенных данных
             processor = DataProcessor()
-            success, data, error = await processor.get_augmented_data(
-                home_team, away_team
-            )
+            success, data, error = await processor.get_augmented_data(home_team, away_team)
 
             if not success:
                 error_msg = f"❌ Не удалось получить данные для прогноза: {error}"
@@ -138,9 +129,7 @@ class PredictionWorker:
             )
 
             league = match_data.get("league", "unknown")
-            prob_home = float(
-                prediction.get("probabilities", {}).get("probability_home_win", 0.0)
-            )
+            prob_home = float(prediction.get("probabilities", {}).get("probability_home_win", 0.0))
             record_prediction("1x2", league, prob_home, None)
 
             # Отправка результата пользователю
@@ -169,9 +158,7 @@ class PredictionWorker:
         """Вспомогательный метод для отправки сообщений."""
         if self.bot is not None:
             try:
-                await self.bot.send_message(
-                    chat_id=chat_id, text=text, parse_mode="HTML"
-                )
+                await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
             except Exception as e:
                 logger.error(f"Ошибка при отправке сообщения: {e}")
 
@@ -179,17 +166,13 @@ class PredictionWorker:
         """Отправка сообщения об ошибке пользователю."""
         await self._send_message(chat_id, ERROR_MESSAGE)
 
-    async def run_single_job(
-        self, chat_id: int, home_team: str, away_team: str, job_id: str
-    ):
+    async def run_single_job(self, chat_id: int, home_team: str, away_team: str, job_id: str):
         """Запуск одной задачи прогнозирования."""
         try:
             await self.initialize()
             await self.process_prediction(chat_id, home_team, away_team, job_id)
         except Exception as e:
-            logger.error(
-                f"[{job_id}] Ошибка при выполнении одиночной задачи: {e}", exc_info=True
-            )
+            logger.error(f"[{job_id}] Ошибка при выполнении одиночной задачи: {e}", exc_info=True)
         finally:
             # Здесь можно добавить логику очистки ресурсов
             pass
@@ -203,9 +186,7 @@ class PredictionWorker:
             # Регистрация обработчиков сигналов
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGTERM, signal.SIGINT):
-                loop.add_signal_handler(
-                    sig, lambda: asyncio.create_task(self.shutdown())
-                )
+                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
 
             # В непрерывном режиме worker обычно прослушивает очередь задач
             # Здесь должна быть логика получения задач из очереди RQ
@@ -280,9 +261,7 @@ async def main():
 # Внутри она запускает асинхронную логику.
 
 
-def process_prediction(
-    chat_id: int, home_team: str, away_team: str, job_id: str
-) -> bool:
+def process_prediction(chat_id: int, home_team: str, away_team: str, job_id: str) -> bool:
     """
     Функция для вызова из очереди задач RQ.
     Эта функция должна быть синхронной, так как вызывается RQ.
@@ -349,9 +328,7 @@ async def _send_error_message_to_user(chat_id: int):
         await bot.send_message(chat_id=chat_id, text=ERROR_MESSAGE, parse_mode="HTML")
         await bot.session.close()
     except Exception as send_error:
-        logger.error(
-            f"Ошибка при отправке сообщения об ошибке пользователю: {send_error}"
-        )
+        logger.error(f"Ошибка при отправке сообщения об ошибке пользователю: {send_error}")
 
 
 # --- КОНЕЦ ФУНКЦИИ ДЛЯ ВЫЗОВА ИЗ RQ ---

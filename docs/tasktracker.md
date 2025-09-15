@@ -1,3 +1,29 @@
+## Задача: Unify observability and add metrics test
+- **Статус**: Завершена
+- **Описание**: Удалить дублирующий observability, обновить эндпоинт /metrics и добавить smoke-тест.
+- **Шаги выполнения**:
+  - [x] Удалить устаревший observability.py
+  - [x] Обновить endpoint /metrics
+  - [x] Добавить smoke-тест
+- **Зависимости**: app/observability.py, tests/smoke/test_metrics_endpoint.py
+
+## Задача: Replace C-style headers with docstrings
+- **Статус**: Завершена
+- **Описание**: Переписать заголовки файлов app/data_processor на docstring.
+- **Шаги выполнения**:
+  - [x] Конвертировать заголовки в docstring
+  - [x] Прогнать lint и pytest
+- **Зависимости**: app/data_processor/*
+
+## Задача: Align env example with config
+- **Статус**: Завершена
+- **Описание**: Синхронизировать .env.example с app/config.py и добавить алиасы для настроек.
+- **Шаги выполнения**:
+  - [x] Добавить недостающие переменные окружения
+  - [x] Добавить алиасы для Prometheus и RateLimit
+  - [x] Прогнать lint и pytest
+- **Зависимости**: .env.example, app/config.py
+
 ## Задача: Repository inventory refresh
 - **Статус**: Завершена
 - **Описание**: Обновить снимки документации, структуры и конфигураций.

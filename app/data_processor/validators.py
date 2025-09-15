@@ -1,9 +1,9 @@
-/**
- * @file: validators.py
- * @description: Column validation utilities for data processing.
- * @dependencies: pandas, data_processor.validate_required_columns
- * @created: 2025-09-10
- */
+"""
+@file: validators.py
+@description: Column validation utilities for data processing.
+@dependencies: pandas, data_processor.validate_required_columns
+@created: 2025-09-10
+"""
 from __future__ import annotations
 
 import pandas as pd

@@ -1,3 +1,27 @@
+## [2025-09-15] - Unify observability and add metrics test
+### Добавлено
+- Smoke-тест для эндпоинта /metrics.
+### Изменено
+- Метрики отдаются через PlainTextResponse с указанием версии.
+### Исправлено
+- Удалён дублирующий модуль observability.
+
+## [2025-09-15] - Convert data_processor headers to docstrings
+### Добавлено
+- —
+### Изменено
+- Заголовки файлов data_processor переписаны на докстринги.
+### Исправлено
+- —
+
+## [2025-09-15] - Align env example with config
+### Добавлено
+- Добавлены переменные окружения TELEGRAM_BOT_TOKEN, SPORTMONKS_API_KEY, ODDS_API_KEY, DATABASE_URL, REDIS_HOST, REDIS_PORT, REDIS_DB в .env.example.
+### Изменено
+- PrometheusSettings и RateLimitSettings используют алиасы для переменных окружения.
+### Исправлено
+- —
+
 ## [2025-09-14] - Repository inventory refresh
 ### Добавлено
 - Обновлён отчёт `reports/INVENTORY.md` с актуальными снимками документации, структуры и TODO.
