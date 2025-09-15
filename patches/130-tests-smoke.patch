@@ -1,0 +1,43 @@
+# Patch 130-tests-smoke: add TestClient smoke tests for critical endpoints
+# Apply:    git apply patches/130-tests-smoke.patch
+# Revert:   git apply -R patches/130-tests-smoke.patch
+# Summary: adds smoke tests for /health, /metrics, /__smoke__/retrain and /__smoke__/sentry.
+
+diff --git a/tests/smoke/test_endpoints.py b/tests/smoke/test_endpoints.py
+new file mode 100644
+--- /dev/null
++++ b/tests/smoke/test_endpoints.py
+@@
++"""
++@file: tests/smoke/test_endpoints.py
++@description: Smoke coverage for basic service endpoints
++@dependencies: app.main
++@created: 2025-09-15
++"""
++
++from fastapi.testclient import TestClient
++
++from app.main import app
++
++
++client = TestClient(app)
++
++
++def test_health_ok():
++    assert client.get("/health").status_code == 200
++
++
++def test_metrics_ok():
++    r = client.get("/metrics")
++    assert r.status_code == 200
++    assert r.headers["content-type"].startswith("text/plain")
++
++
++def test_sentry_smoke():
++    r = client.get("/__smoke__/sentry")
++    assert r.status_code == 200
++
++
++def test_retrain_smoke():
++    r = client.get("/__smoke__/retrain")
++    assert r.status_code == 200

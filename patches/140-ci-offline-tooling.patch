@@ -1,0 +1,19 @@
+# Patch 140-ci-offline-tooling: add offline fallback for pre-commit in CI
+# Apply:    git apply patches/140-ci-offline-tooling.patch
+# Revert:   git apply -R patches/140-ci-offline-tooling.patch
+# Summary: use `make pre-commit-smart` to allow offline linting.
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@
+-    - name: Install pre-commit hooks
+-      run: |
+-        pip install pre-commit
+-        pre-commit install-hooks
+-    - name: Lint
+-      run: pre-commit run --all-files
++    - name: Install pre-commit
++      run: pip install pre-commit
++    - name: Lint (online with offline fallback)
++      run: make pre-commit-smart

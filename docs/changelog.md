@@ -1,3 +1,19 @@
+## [2025-09-14] - Repository inventory refresh
+### Добавлено
+- Обновлён отчёт `reports/INVENTORY.md` с актуальными снимками документации, структуры и TODO.
+### Изменено
+- —
+### Исправлено
+- —
+
+## [2025-09-13] - Repository inventory report
+### Добавлено
+- Отчёт `reports/INVENTORY.md` с инвентаризацией репозитория.
+### Изменено
+- —
+### Исправлено
+- —
+
 ## [2025-09-12] - Smart pre-commit fallback
 ### Добавлено
 - Скрипт `scripts/run_precommit.py` и конфиг `.pre-commit-config.offline.yaml` для офлайн запуска.
