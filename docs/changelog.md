@@ -1,3 +1,11 @@
+## [2025-09-15] - Add smoke tests and CI offline lint
+### Добавлено
+- Smoke-тесты для базовых эндпоинтов.
+### Изменено
+- CI использует `make pre-commit-smart` для офлайн линтинга.
+### Исправлено
+- —
+
 ## [2025-09-15] - Unify observability and add metrics test
 ### Добавлено
 - Smoke-тест для эндпоинта /metrics.
