@@ -6,35 +6,57 @@
 """
 from __future__ import annotations
 
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from ml.sim.bivariate_poisson import simulate_bivariate_poisson
+from ml.sim.bivariate_poisson import simulate_bipoisson
 
 
 class Simulator:
     def run(
-        self, lam_home: float, lam_away: float, rho: float, n_sims: int = 10000
-    ) -> dict[str, Any]:
-        home, away = simulate_bivariate_poisson(lam_home, lam_away, rho, n_sims)
-        probs_cs = Counter(zip(home, away, strict=False))
+        self,
+        lam_home: float,
+        lam_away: float,
+        rho: float,
+        n_sims: int = 10000,
+        return_samples: bool = False,
+    ) -> dict[str, Any] | tuple[dict[str, Any], np.ndarray, np.ndarray]:
+        home, away = simulate_bipoisson(lam_home, lam_away, rho, n_sims)
         total = float(n_sims)
+
+        markets: dict[str, Any] = {}
+
         win1 = float(np.sum(home > away)) / total
         draw = float(np.sum(home == away)) / total
         win2 = float(np.sum(home < away)) / total
-        btts = float(np.sum((home > 0) & (away > 0))) / total
-        over = float(np.sum(home + away > 2.5)) / total
-        under = 1.0 - over
-        cs = {f"{h}:{a}": c / total for (h, a), c in probs_cs.items()}
-        return {
-            "1X2": {"1": win1, "X": draw, "2": win2},
-            "BTTS": {"yes": btts, "no": 1 - btts},
-            "Totals": {"over_2_5": over, "under_2_5": under},
-            "CS": cs,
+        markets["1x2"] = {"1": win1, "x": draw, "2": win2}
+
+        markets["btts"] = {
+            "yes": float(np.sum((home > 0) & (away > 0))) / total,
+            "no": float(np.sum((home == 0) | (away == 0))) / total,
         }
+
+        total_goals = home + away
+        totals: dict[str, dict[str, float]] = {}
+        for t in np.arange(0.5, 5.6, 1.0):
+            over = float(np.sum(total_goals > t)) / total
+            under = float(np.sum(total_goals < t)) / total
+            totals[f"{t:.1f}"] = {"over": over, "under": under}
+        markets["totals"] = totals
+
+        cs: dict[str, float] = {}
+        for h in range(7):
+            for a in range(7):
+                cs[f"{h}:{a}"] = float(np.sum((home == h) & (away == a))) / total
+        other_prob = 1.0 - float(np.sum([cs[k] for k in cs]))
+        cs["OTHER"] = other_prob
+        markets["cs"] = cs
+
+        if return_samples:
+            return markets, home, away
+        return markets
 
     def save(self, result: dict[str, Any], path: Path) -> None:
         import json

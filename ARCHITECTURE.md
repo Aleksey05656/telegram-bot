@@ -29,3 +29,15 @@ PredictionPipeline сначала вычисляет базовые λ, зате
 Core libs: numpy >=1.26,<2.0 and pandas 2.2.2.
 
 See `docs/Project.md` for a detailed design.
+
+## Simulation & Markets
+
+`services/simulator.py` uses `ml/sim/bivariate_poisson.py` to generate correlated
+scores. Aggregators expose markets 1x2, totals (0.5–5.5), BTTS and correct
+score grid 0..6 with tail `OTHER`.
+
+## Storage
+
+`storage/persistence.py` provides `SQLitePredictionsStore` writing probabilities
+to table `predictions(match_id, market, selection, prob, ts, season, extra)`
+with SQLite fallback (`PREDICTIONS_DB_URL`).
