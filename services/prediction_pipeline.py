@@ -118,6 +118,69 @@ class PredictionPipeline:
             final_ece = ece_poisson(y_true, final_pred)
             record_metrics("glm_mod_final_logloss", final_logloss, tags_final)
             record_metrics("glm_mod_final_ece", final_ece, tags_final)
+
+        settings = get_settings()
+        if settings.sim_n <= 0:
+            logger.info("sim_skipped=true")
+        else:
+            from datetime import datetime
+            from pathlib import Path
+
+            from services.simulator import render_markdown, simulate_markets
+            from storage.persistence import SQLitePredictionsStore
+
+            lam_home = float(pred_home[0])
+            lam_away = float(pred_away[0])
+            markets = simulate_markets(lam_home, lam_away, settings.sim_rho, settings.sim_n)
+
+            season = str(df.get("season", [os.getenv("SEASON_ID", "default")])[0])
+            home_team = str(df.get("home", ["home"])[0])
+            away_team = str(df.get("away", ["away"])[0])
+            date_val = df.get("date", [datetime.utcnow()])[0]
+            date_iso = (
+                date_val.isoformat()
+                if hasattr(date_val, "isoformat")
+                else datetime.utcnow().isoformat()
+            )
+            match_id = f"{season}:{home_team}_vs_{away_team}:{date_iso}"
+            ts_iso = datetime.utcnow().isoformat()
+
+            store = SQLitePredictionsStore(
+                os.getenv("PREDICTIONS_DB_URL", "var/predictions.sqlite")
+            )
+            records = []
+            for sel, prob in markets.get("1x2", {}).items():
+                records.append((match_id, "1x2", sel, prob, {"ts": ts_iso, "season": season}))
+            for thr, sp in markets.get("totals", {}).items():
+                for sel, prob in sp.items():
+                    records.append(
+                        (match_id, f"totals_{thr}", sel, prob, {"ts": ts_iso, "season": season})
+                    )
+            for sel, prob in markets.get("btts", {}).items():
+                records.append((match_id, "btts", sel, prob, {"ts": ts_iso, "season": season}))
+            for score, prob in markets.get("cs", {}).items():
+                records.append((match_id, "cs", score, prob, {"ts": ts_iso, "season": season}))
+            store.bulk_write(records)
+
+            report_path = Path("reports/metrics") / f"SIM_{season}_{home_team}_vs_{away_team}.md"
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                render_markdown(markets, settings.sim_n, settings.sim_rho), encoding="utf-8"
+            )
+
+            tags_sim = {
+                "service": settings.app_name,
+                "env": settings.env,
+                "version": settings.git_sha,
+                "season": season,
+                "n_sims": str(settings.sim_n),
+                "rho": str(settings.sim_rho),
+                "modifiers_applied": "true" if modifiers_applied else "false",
+            }
+            record_metrics("sim_entropy_1x2", markets["entropy"]["1x2"], tags_sim)
+            record_metrics("sim_entropy_totals", markets["entropy"]["totals"], tags_sim)
+            record_metrics("sim_entropy_cs", markets["entropy"]["cs"], tags_sim)
+
         try:
             import numpy as np
 

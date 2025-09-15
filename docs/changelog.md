@@ -1,3 +1,12 @@
+## [2025-09-15] - Simulation pipeline integration
+### Добавлено
+- Monte-Carlo simulation integrated into prediction pipeline with SQLite writes and Markdown reports.
+- CI uploads simulation artifacts and integration test ensures markets are persisted.
+### Изменено
+- README.md, ARCHITECTURE.md, reports/RUN_SUMMARY.md.
+### Исправлено
+- —
+
 ## [2025-09-15] - Entropy analytics and simulation settings
 ### Добавлено
 - Модуль `ml/metrics/entropy.py` и тесты.

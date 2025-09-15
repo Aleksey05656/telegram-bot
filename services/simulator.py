@@ -74,18 +74,40 @@ class Simulator:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
 
-def render_markdown(markets: dict[str, Any]) -> str:
-    """Render markets and entropies into a Markdown table."""
-    lines = ["|Market|Selection|Prob|", "|---|---|---|"]
+def simulate_markets(
+    lam_home: float,
+    lam_away: float,
+    rho: float,
+    n_sims: int = 10000,
+    return_samples: bool = False,
+) -> dict[str, Any] | tuple[dict[str, Any], np.ndarray, np.ndarray]:
+    """Convenience wrapper around :class:`Simulator`."""
+    sim = Simulator()
+    return sim.run(lam_home, lam_away, rho, n_sims, return_samples)
+
+
+def render_markdown(markets: dict[str, Any], n_sims: int, rho: float) -> str:
+    """Render markets and entropies into a Markdown report."""
+    lines = [f"n_sims: {n_sims}", f"rho: {rho}", "", "### 1X2", "|Sel|Prob|", "|---|---|"]
     for sel, prob in markets.get("1x2", {}).items():
-        lines.append(f"|1X2|{sel}|{prob:.4f}|")
-    if "totals" in markets:
-        mt = markets["totals"].get("2.5") or next(iter(markets["totals"].values()))
-        for sel, prob in mt.items():
-            lines.append(f"|totals 2.5|{sel}|{prob:.4f}|")
+        lines.append(f"|{sel}|{prob:.4f}|")
+
+    lines.extend(["", "### Totals", "|Thr|Sel|Prob|", "|---|---|---|"])
+    for thr, sp in markets.get("totals", {}).items():
+        for sel, prob in sp.items():
+            lines.append(f"|{thr}|{sel}|{prob:.4f}|")
+
+    lines.extend(["", "### BTTS", "|Sel|Prob|", "|---|---|"])
     for sel, prob in markets.get("btts", {}).items():
-        lines.append(f"|btts|{sel}|{prob:.4f}|")
-    lines.append(f"|entropy|1x2|{markets['entropy']['1x2']:.4f}|")
-    lines.append(f"|entropy|totals|{markets['entropy']['totals']:.4f}|")
-    lines.append(f"|entropy|cs|{markets['entropy']['cs']:.4f}|")
+        lines.append(f"|{sel}|{prob:.4f}|")
+
+    lines.extend(["", "### Correct Score", "|Score|Prob|", "|---|---|"])
+    for score, prob in markets.get("cs", {}).items():
+        lines.append(f"|{score}|{prob:.4f}|")
+
+    ent = markets.get("entropy", {})
+    lines.extend(["", "### Entropy", "|Market|H|", "|---|---|"])
+    lines.append(f"|1x2|{ent.get('1x2', 0.0):.4f}|")
+    lines.append(f"|totals|{ent.get('totals', 0.0):.4f}|")
+    lines.append(f"|cs|{ent.get('cs', 0.0):.4f}|")
     return "\n".join(lines)

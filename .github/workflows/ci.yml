@@ -106,3 +106,13 @@ jobs:
           TOL_ECE: "0.00"
         run: |
           python scripts/validate_modifiers.py --season-id "${SEASON_ID}" --input data/val.csv --alpha 0.005 --l2 1.0 --tol "${TOL_LOSS}" --tol-ece "${TOL_ECE}"
+      - name: Upload simulation artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: metrics-and-artifacts
+          path: |
+            reports/metrics/**/*.md
+            reports/metrics/**/*.png
+            artifacts/**/*
+            var/predictions.sqlite
+          retention-days: 14
