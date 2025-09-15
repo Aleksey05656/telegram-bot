@@ -1,9 +1,9 @@
-/**
- * @file: calibration.py
- * @description: Калибровка вероятностей (Platt/Isotonic).
- * @dependencies: numpy, sklearn
- * @created: 2025-08-23
- */
+"""
+@file: calibration.py
+@description: Калибровка вероятностей (Platt/Isotonic).
+@dependencies: numpy, sklearn
+@created: 2025-08-23
+"""
 from typing import Any, Dict, List, Optional
 
 import numpy as np

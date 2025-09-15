@@ -20,8 +20,8 @@ class SentrySettings(BaseModel):
 
 
 class PrometheusSettings(BaseModel):
-    enabled: bool = Field(default=True, alias="PROMETHEUS_ENABLED")
-    endpoint: str = Field(default="/metrics", alias="PROMETHEUS_ENDPOINT")
+    enabled: bool = True
+    endpoint: str = "/metrics"
 
 
 class RateLimitSettings(BaseModel):
@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     )
     app_name: str = Field(default="ml-service", alias="APP_NAME")
     debug: bool = Field(default=False, alias="DEBUG")
+    env: str = Field(default="local", alias="ENV")
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    sportmonks_api_key: str = Field(default="", alias="SPORTMONKS_API_KEY")
+    retrain_cron: str | None = Field(default=None, alias="RETRAIN_CRON")
     sentry: SentrySettings = SentrySettings()
     prometheus: PrometheusSettings = PrometheusSettings()
     rate_limit: RateLimitSettings = RateLimitSettings()

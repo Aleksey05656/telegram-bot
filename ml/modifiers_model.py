@@ -1,9 +1,9 @@
-/**
- * @file: modifiers_model.py
- * @description: Динамические модификаторы λ и калибровочный слой.
- * @dependencies: logger, config, numpy, pandas, joblib, sklearn
- * @created: 2025-08-23
- */
+"""
+@file: modifiers_model.py
+@description: Динамические модификаторы λ и калибровочный слой.
+@dependencies: logger, config, numpy, pandas, joblib, sklearn
+@created: 2025-08-23
+"""
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple

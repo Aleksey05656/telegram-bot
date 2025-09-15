@@ -12,8 +12,8 @@ pytestmark = pytest.mark.needs_np
 
 def test_services_prediction_pipeline_stub():
     try:
-        import pandas as pd
         import numpy as np  # noqa: F401
+        import pandas as pd
     except Exception:
         pytest.skip("numerical stack unavailable")
 
@@ -30,7 +30,7 @@ def test_services_prediction_pipeline_stub():
 
                 return np.full((len(X), 2), 0.5)
 
-        def load(self, name: str):
+        def load(self, name: str, season: int | None = None):
             return self._M()
 
     df = pd.DataFrame({"x": [1, 2, 3]})
@@ -50,6 +50,7 @@ def test_workers_retrain_scheduler_register_called(monkeypatch):
 
     used = schedule_retrain(_register, cron_expr="0 4 * * *")
     assert used == "0 4 * * *"
-    assert "cron" in calls and "fn" in calls
+    assert "cron" in calls
+    assert "fn" in calls
     # ensure callable
     calls["fn"]()
