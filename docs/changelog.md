@@ -1,3 +1,13 @@
+## [2025-09-15] - Release candidate v1.0.0-rc1
+### Добавлено
+- APP_VERSION field and version labels in metrics and reports.
+- requirements.lock and Makefile targets deps-lock/deps-sync.
+- CI exports APP_VERSION and GIT_SHA with RC summary step.
+### Изменено
+- README and ARCHITECTURE mention version visibility and offline lock.
+### Исправлено
+- .env.example synced with Settings.
+
 ## [2025-09-15] - Simulation pipeline integration
 ### Добавлено
 - Monte-Carlo simulation integrated into prediction pipeline with SQLite writes and Markdown reports.

@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     sentry: SentrySettings = SentrySettings()
     prometheus: PrometheusSettings = PrometheusSettings()
     git_sha: str = Field(default="dev", alias="GIT_SHA")
+    app_version: str = Field(default="0.0.0", alias="APP_VERSION")
     rate_limit: RateLimitSettings = RateLimitSettings()
     sim_rho: float = Field(default=0.1, alias="SIM_RHO")
     sim_n: int = Field(default=10000, alias="SIM_N")

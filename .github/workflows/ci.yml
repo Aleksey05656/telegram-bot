@@ -5,6 +5,10 @@
 
 name: CI
 
+env:
+  APP_VERSION: v1.0.0-rc1
+  GIT_SHA: ${{ github.sha }}
+
 on:
   push:
     branches: [ main, master ]
@@ -116,3 +120,5 @@ jobs:
             artifacts/**/*
             var/predictions.sqlite
           retention-days: 14
+      - name: Publish RC summary
+        run: python scripts/publish_rc_summary.py

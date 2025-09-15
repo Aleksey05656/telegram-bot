@@ -526,3 +526,13 @@
   - [x] CI-шаг проверки улучшения.
   - [x] Обновлена документация и сводки.
 - **Зависимости**: services/prediction_pipeline.py, scripts/validate_modifiers.py, .github/workflows/ci.yml, README.md, ARCHITECTURE.md, docs/Project.md, tests/ml/test_modifiers_metrics.py, tests/smoke/test_validate_modifiers_cli.py
+
+## Задача: Release Candidate v1.0.0-rc1
+- **Статус**: Завершена
+- **Описание**: Подготовить релиз-кандидат, зафиксировать версии и обновить CI.
+- **Шаги выполнения**:
+  - [x] Зафиксированы зависимости в requirements.lock
+  - [x] Добавлен APP_VERSION и прокинут в метрики и отчёты
+  - [x] Обновлён CI и шаг публикации RC summary
+  - [x] Сформированы release notes
+- **Зависимости**: app/config.py, metrics/metrics.py, scripts/run_simulation.py, requirements.lock, .github/workflows/ci.yml, reports/RELEASE_NOTES_RC.md

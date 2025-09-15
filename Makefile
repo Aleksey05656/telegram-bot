@@ -90,3 +90,9 @@ pre-commit-offline:
 	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
 check: lint test smoke
+
+deps-lock:
+	$(PY) scripts/deps_lock.py
+
+deps-sync:
+	$(PIP) install --no-index --find-links wheels/ -r requirements.lock
