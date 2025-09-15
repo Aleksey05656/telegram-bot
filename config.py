@@ -74,6 +74,11 @@ class Settings(BaseSettings):
         "enable_calibration": True,
     }
 
+    # --- Simulation ---
+    SIM_RHO: float = 0.1
+    SIM_N: int = 10000
+    SIM_CHUNK: int = 100000
+
     # --- Динамические поля ---
     @computed_field  # Генерируется на основе других полей
     @property

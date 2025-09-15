@@ -1,10 +1,12 @@
 """
 @file: bivariate_poisson.py
-@description: Simulate correlated Poisson goal counts.
-@dependencies: numpy
+@description: Simulate correlated Poisson goal counts with optional chunking.
+@dependencies: numpy, os
 @created: 2025-09-15
 """
 from __future__ import annotations
+
+import os
 
 import numpy as np
 
@@ -39,7 +41,16 @@ def simulate_bipoisson(
     lam_a_ind = lam_away - lam_c
 
     rng = np.random.default_rng(seed)
-    shared = rng.poisson(lam_c, n_sims)
-    home = rng.poisson(lam_h_ind, n_sims) + shared
-    away = rng.poisson(lam_a_ind, n_sims) + shared
+    chunk_size = int(os.getenv("SIM_CHUNK", "100000"))
+    homes = []
+    aways = []
+    remaining = n_sims
+    while remaining > 0:
+        batch = min(remaining, chunk_size)
+        shared = rng.poisson(lam_c, batch)
+        homes.append(rng.poisson(lam_h_ind, batch) + shared)
+        aways.append(rng.poisson(lam_a_ind, batch) + shared)
+        remaining -= batch
+    home = np.concatenate(homes)
+    away = np.concatenate(aways)
     return home, away

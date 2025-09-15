@@ -1,3 +1,13 @@
+## [2025-09-15] - Entropy analytics and simulation settings
+### Добавлено
+- Модуль `ml/metrics/entropy.py` и тесты.
+- Параметры окружения `SIM_RHO`, `SIM_N`, `SIM_CHUNK`.
+- Энтропии рынков в `services/simulator.py`.
+### Изменено
+- `.env.example`, `config.py`, `app/config.py`, `ml/sim/bivariate_poisson.py`.
+### Исправлено
+- —
+
 ## [2025-09-15] - Simulation markets and calibration
 ### Добавлено
 - Bi-Poisson simulator with correlated goals and market aggregations (1x2, totals, BTTS, CS).
