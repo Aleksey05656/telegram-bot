@@ -1,3 +1,12 @@
+## Задача: Ruff warnings cleanup
+- **Статус**: Завершена
+- **Описание**: Устранить предупреждения Ruff F401/I001/UP037/UP035/UP045.
+- **Шаги выполнения**:
+  - [x] Удалены неиспользуемые импорты и упорядочены импорты.
+  - [x] Обновлены аннотации типов на современный синтаксис.
+  - [x] Прогнаны pre-commit, линты и тесты.
+- **Зависимости**: scripts/syntax_partition.py, tests/test_ml.py, services/prediction_pipeline.py, workers/retrain_scheduler.py, docs/changelog.md, docs/tasktracker.md, reports/RUN_SUMMARY.md
+
 ## Задача: Fix Ruff leftovers and verbose smoke
 - **Статус**: Завершена
 - **Описание**: Устранить предупреждения Ruff B904/C401/ERA001 и сделать цель smoke говорящей.

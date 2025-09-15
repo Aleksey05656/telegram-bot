@@ -4,10 +4,8 @@
 @dependencies: os, optional training task
 @created: 2025-09-12
 """
-from __future__ import annotations
-
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
 
 
 def _default_task():
@@ -30,8 +28,8 @@ def _default_task():
 
 def schedule_retrain(
     register: Callable[[str, Callable[[], None]], None],
-    cron_expr: Optional[str] = None,
-    task: Optional[Callable[[], None]] = None,
+    cron_expr: str | None = None,
+    task: Callable[[], None] | None = None,
 ) -> str:
     """
     Register periodic retrain job.
