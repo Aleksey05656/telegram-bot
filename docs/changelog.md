@@ -1,3 +1,15 @@
+## [2025-09-17] - Env contract and pipeline tests
+### Добавлено
+- Контрактный тест `.env.example` ↔ `app.config.Settings`.
+- E2E тест PredictionPipeline с LocalModelRegistry.
+- Smoke-тест TaskManager.cleanup.
+### Изменено
+- Исправлен `.pre-commit-config.offline.yaml`.
+- `.env.example` синхронизирован с настройками Sentry.
+- README.md и ARCHITECTURE.md дополнены разделом о тестах.
+### Исправлено
+- —
+
 ## [2025-09-16] - ENV contract and cleanup utilities
 ### Добавлено
 - LocalModelRegistry для сохранения моделей по сезонам.

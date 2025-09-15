@@ -11,7 +11,7 @@ Updated 2025-09-10.
 
 - **app/** – FastAPI application with configuration, middlewares and observability.
 - **services/** – business logic and data processing utilities.
-- **ml/** – machine learning models and training scripts.
-- **tests/** – unit, contract and integration tests.
+- **ml/** – machine learning models, `LocalModelRegistry` and prediction pipeline.
+- **tests/** – unit, contract, smoke and end-to-end tests.
 
 See `docs/Project.md` for a detailed design.
