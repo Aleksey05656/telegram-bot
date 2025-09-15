@@ -29,7 +29,7 @@ class _Registry:
 
             return np.full((len(X), 2), 0.5)
 
-    def load(self, name: str):
+    def load(self, name: str, season: int | None = None):
         return self._M()
 
 

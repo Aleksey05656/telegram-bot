@@ -1,3 +1,13 @@
+## [2025-09-16] - ENV contract and cleanup utilities
+### Добавлено
+- LocalModelRegistry для сохранения моделей по сезонам.
+- Функции TaskManager.clear_all и cleanup с тестами.
+### Изменено
+- .env.example и app/config.py синхронизированы с переменными ENV, PROMETHEUS__*, RETRAIN_CRON.
+- Заголовки в telegram/middlewares и ml/* переписаны на docstrings.
+### Исправлено
+- —
+
 ## [2025-09-15] - SportMonks stub client and tests
 ### Добавлено
 - Клиент SportMonks с режимом заглушки.

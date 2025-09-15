@@ -1,9 +1,9 @@
-/**
- * @file: telegram/middlewares.py
- * @description: Custom middlewares for Telegram bot.
- * @dependencies: aiogram
- * @created: 2025-08-24
- */
+"""
+@file: telegram/middlewares.py
+@description: Custom middlewares for Telegram bot.
+@dependencies: aiogram
+@created: 2025-08-24
+"""
 from __future__ import annotations
 
 import statistics

@@ -1,0 +1,16 @@
+LINT_STRICT=0
+[lenient lint] ruff fix + isort + black (без фейла)
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+All checks passed!
+reformatted /workspace/telegram-bot/workers/task_manager.py
+
+All done! ✨ 🍰 ✨
+1 file reformatted, 78 files left unchanged.
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+All checks passed!

@@ -1,9 +1,9 @@
-/**
- * @file: montecarlo_simulator.py
- * @description: Минимальный Пуассон-симулятор для расчёта рынков.
- * @dependencies: numpy
- * @created: 2025-08-23
- */
+"""
+@file: montecarlo_simulator.py
+@description: Минимальный Пуассон-симулятор для расчёта рынков.
+@dependencies: numpy
+@created: 2025-08-23
+"""
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 

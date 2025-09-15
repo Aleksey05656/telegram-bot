@@ -11,6 +11,8 @@ from typing import Any
 
 import pandas as pd
 
+from .model_registry import LocalModelRegistry
+
 
 class DummyModel:
     def predict_proba(self, X):
@@ -21,12 +23,19 @@ class DummyModel:
         return p
 
 
-def train_base_glm(train_df: pd.DataFrame | None, cfg: dict | None) -> Any:
+def train_base_glm(
+    train_df: pd.DataFrame | None,
+    cfg: dict | None,
+    *,
+    season_id: int | None = None,
+    registry: LocalModelRegistry | None = None,
+) -> Any:
     """
     Минимальная заглушка обучения GLM:
-    - возвращает/сохраняет DummyModel
+    - возвращает и сохраняет DummyModel в реестр
     - встраивается в pipeline до появления реального обучения
     """
     model = DummyModel()
-    # TODO: сохранить модель в реестр (локально/S3). Пока возвращаем.
+    reg = registry or LocalModelRegistry()
+    reg.save(model, "base_glm", season=season_id)
     return model

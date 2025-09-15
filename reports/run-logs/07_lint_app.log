@@ -1,0 +1,26 @@
+python scripts/syntax_partition.py
+syntax_partition: 20 parseable, 0 invalid; +0 to .ruffignore, +0 to .gitignore
+syntax_partition: wrote /workspace/telegram-bot/.lint_targets_app
+[lint-app] targets: 19 files
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+Found 1 error (1 fixed, 0 remaining).
+reformatted /workspace/telegram-bot/app/data_processor/__init__.py
+reformatted /workspace/telegram-bot/app/data_processor/feature_engineering.py
+reformatted /workspace/telegram-bot/app/data_processor/transformers.py
+reformatted /workspace/telegram-bot/app/data_processor/validators.py
+reformatted /workspace/telegram-bot/app/data_processor/io.py
+reformatted /workspace/telegram-bot/app/ml/model_registry.py
+reformatted /workspace/telegram-bot/app/main.py
+
+All done! ✨ 🍰 ✨
+7 files reformatted, 13 files left unchanged.
+warning: The top-level linter settings are deprecated in favour of their counterparts in the `lint` section. Please update the following options in `ruff.toml`:
+  - 'extend-select' -> 'lint.extend-select'
+  - 'ignore' -> 'lint.ignore'
+  - 'per-file-ignores' -> 'lint.per-file-ignores'
+All checks passed!
+All done! ✨ 🍰 ✨
+20 files would be left unchanged.

@@ -1,7 +1,7 @@
 # workers/task_manager.py
 """Менеджер задач для обработки прогнозов в фоне."""
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import redis
@@ -30,15 +30,11 @@ class TaskManager:
             logger.info("TaskManager: Начало инициализации...")
             # Проверяем, не инициализирован ли уже менеджер
             if self.redis_conn is not None:
-                logger.warning(
-                    "TaskManager: Уже инициализирован, пропускаем инициализацию"
-                )
+                logger.warning("TaskManager: Уже инициализирован, пропускаем инициализацию")
                 return
 
             # Подключение к Redis
-            logger.debug(
-                f"TaskManager: Подключение к Redis по URL: {settings.REDIS_URL}"
-            )
+            logger.debug(f"TaskManager: Подключение к Redis по URL: {settings.REDIS_URL}")
             self.redis_conn = Redis.from_url(settings.REDIS_URL, decode_responses=False)
 
             # Проверка соединения
@@ -98,9 +94,7 @@ class TaskManager:
             )
             # - ДИАГНОСТИКА: Проверка инициализации -
             if not self.redis_conn:
-                logger.error(
-                    f"[{job_id}] enqueue_prediction: Redis connection не инициализирован!"
-                )
+                logger.error(f"[{job_id}] enqueue_prediction: Redis connection не инициализирован!")
                 return None
             if not self.prediction_queue:
                 logger.error(
@@ -114,9 +108,7 @@ class TaskManager:
             # Импортируем функцию обработки непосредственно здесь, чтобы избежать циклических импортов
             from workers.prediction_worker import process_prediction
 
-            logger.debug(
-                f"[{job_id}] enqueue_prediction: Постановка задачи в очередь RQ..."
-            )
+            logger.debug(f"[{job_id}] enqueue_prediction: Постановка задачи в очередь RQ...")
             # Ставим задачу в очередь
             job_obj = self.prediction_queue.enqueue(
                 process_prediction,
@@ -130,9 +122,7 @@ class TaskManager:
                 result_ttl=86400,  # Время жизни результата 1 день
                 meta={"priority": priority, "type": "prediction"},
             )
-            logger.info(
-                f"[{job_id}] ✅ Задача прогнозирования успешно поставлена в очередь"
-            )
+            logger.info(f"[{job_id}] ✅ Задача прогнозирования успешно поставлена в очередь")
             return job_obj
         except Exception as e:
             logger.error(
@@ -160,20 +150,14 @@ class TaskManager:
                 logger.error("enqueue_retraining: Redis connection не инициализирован!")
                 return None
             if not self.retraining_queue:
-                logger.error(
-                    "enqueue_retraining: Очередь retraining_queue не инициализирована!"
-                )
+                logger.error("enqueue_retraining: Очередь retraining_queue не инициализирована!")
                 return None
-            logger.debug(
-                "enqueue_retraining: Redis и очередь инициализированы корректно."
-            )
+            logger.debug("enqueue_retraining: Redis и очередь инициализированы корректно.")
             # - КОНЕЦ ДИАГНОСТИКИ -
             # Импортируем функцию обучения непосредственно здесь
             from scripts.train_model import train_and_persist
 
-            logger.debug(
-                "enqueue_retraining: Постановка задачи переобучения в очередь RQ..."
-            )
+            logger.debug("enqueue_retraining: Постановка задачи переобучения в очередь RQ...")
             # Ставим задачу переобучения в очередь
             job_obj = self.retraining_queue.enqueue(
                 train_and_persist,
@@ -188,9 +172,7 @@ class TaskManager:
                     "timestamp": datetime.now().isoformat(),
                 },
             )
-            logger.info(
-                f"✅ Задача переобучения успешно поставлена в очередь (причина: {reason})"
-            )
+            logger.info(f"✅ Задача переобучения успешно поставлена в очередь (причина: {reason})")
             return job_obj
         except Exception as e:
             logger.error(
@@ -198,6 +180,39 @@ class TaskManager:
                 exc_info=True,
             )
             return None
+
+    # --- Maintenance utilities ---
+    def clear_all(self) -> int:
+        """Очистить все очереди. Возвращает количество удалённых задач."""
+        removed = 0
+        for q in (self.prediction_queue, self.retraining_queue):
+            if not q:
+                continue
+            try:
+                removed += q.count  # type: ignore[attr-defined]
+                q.empty()
+            except Exception:
+                continue
+        return removed
+
+    def cleanup(self, days: int = 7) -> int:
+        """Удалить задачи старше заданного количества дней."""
+        if not self.redis_conn:
+            return 0
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        removed = 0
+        for q in (self.prediction_queue, self.retraining_queue):
+            if not q:
+                continue
+            for job_id in list(q.job_ids):  # type: ignore[attr-defined]
+                try:
+                    job = q.fetch_job(job_id)
+                    if job and getattr(job, "enqueued_at", None) and job.enqueued_at < cutoff:
+                        job.delete()
+                        removed += 1
+                except Exception:
+                    continue
+        return removed
 
     def get_job_status(self, job_id: str) -> dict[str, Any] | None:
         """Получение статуса задачи по её ID.
@@ -208,9 +223,7 @@ class TaskManager:
         """
         # Проверка инициализации
         if not self.redis_conn:
-            logger.warning(
-                "Попытка получить статус задачи при неинициализированном TaskManager"
-            )
+            logger.warning("Попытка получить статус задачи при неинициализированном TaskManager")
             return None
         try:
             # Получаем задачу по ID
@@ -238,9 +251,7 @@ class TaskManager:
         """
         # Проверка инициализации
         if not self.redis_conn:
-            logger.warning(
-                "Попытка отменить задачу при неинициализированном TaskManager"
-            )
+            logger.warning("Попытка отменить задачу при неинициализированном TaskManager")
             return False
         try:
             # Получаем задачу по ID
@@ -267,15 +278,11 @@ class TaskManager:
         try:
             # Проверка инициализации
             if not self.redis_conn or not self.retraining_queue:
-                logger.warning(
-                    "TaskManager не инициализирован для проверки условий переобучения"
-                )
+                logger.warning("TaskManager не инициализирован для проверки условий переобучения")
                 return False
 
             # Получаем настройки из конфигурации
-            retrain_new_matches_threshold = getattr(
-                settings, "RETRAIN_NEW_MATCHES_THRESHOLD", 50
-            )
+            retrain_new_matches_threshold = getattr(settings, "RETRAIN_NEW_MATCHES_THRESHOLD", 50)
             retrain_model_age_threshold_days = getattr(
                 settings, "RETRAIN_MODEL_AGE_THRESHOLD_DAYS", 7
             )
@@ -305,9 +312,7 @@ class TaskManager:
                     # Проверяем возраст модели
                     if poisson_regression_model.is_model_outdated():
                         # Получаем дату последнего обновления модели
-                        last_updated_str = poisson_regression_model.ratings.get(
-                            "last_updated"
-                        )
+                        last_updated_str = poisson_regression_model.ratings.get("last_updated")
                         if last_updated_str:
                             last_updated = datetime.fromisoformat(last_updated_str)
                             model_age_days = (datetime.now() - last_updated).days
@@ -319,9 +324,7 @@ class TaskManager:
                                     f"(порог {retrain_model_age_threshold_days} дней)"
                                 )
                 except Exception as age_check_error:
-                    logger.error(
-                        f"Ошибка при проверке возраста модели: {age_check_error}"
-                    )
+                    logger.error(f"Ошибка при проверке возраста модели: {age_check_error}")
 
             # 3. Триггер: "сдвиг дистрибуции" (заглушка - в реальной реализации здесь будет логика)
             if not should_retrain or force_check:
@@ -344,9 +347,7 @@ class TaskManager:
                 logger.info(f"Начало переобучения модели (причина: {retrain_reason})")
                 retrain_job = self.enqueue_retraining(reason=retrain_reason)
                 if retrain_job:
-                    logger.info(
-                        f"✅ Переобучение запущено успешно (задача: {retrain_job.id})"
-                    )
+                    logger.info(f"✅ Переобучение запущено успешно (задача: {retrain_job.id})")
                     return True
                 else:
                     logger.error("❌ Не удалось запустить переобучение")
@@ -356,9 +357,7 @@ class TaskManager:
                 return False
 
         except Exception as e:
-            logger.error(
-                f"Ошибка при проверке условий переобучения: {e}", exc_info=True
-            )
+            logger.error(f"Ошибка при проверке условий переобучения: {e}", exc_info=True)
             return False
 
     def get_queue_stats(self) -> dict[str, Any]:
@@ -374,38 +373,24 @@ class TaskManager:
             )
 
             # Статистика для очереди прогнозов
-            started_registry = StartedJobRegistry(
-                "predictions", connection=self.redis_conn
-            )
-            finished_registry = FinishedJobRegistry(
-                "predictions", connection=self.redis_conn
-            )
-            failed_registry = FailedJobRegistry(
-                "predictions", connection=self.redis_conn
-            )
+            started_registry = StartedJobRegistry("predictions", connection=self.redis_conn)
+            finished_registry = FinishedJobRegistry("predictions", connection=self.redis_conn)
+            failed_registry = FailedJobRegistry("predictions", connection=self.redis_conn)
             # Статистика для очереди переобучения
-            retrain_started_registry = StartedJobRegistry(
-                "retraining", connection=self.redis_conn
-            )
+            retrain_started_registry = StartedJobRegistry("retraining", connection=self.redis_conn)
             retrain_finished_registry = FinishedJobRegistry(
                 "retraining", connection=self.redis_conn
             )
-            retrain_failed_registry = FailedJobRegistry(
-                "retraining", connection=self.redis_conn
-            )
+            retrain_failed_registry = FailedJobRegistry("retraining", connection=self.redis_conn)
             return {
                 "predictions": {
-                    "queued": len(self.prediction_queue)
-                    if self.prediction_queue
-                    else 0,
+                    "queued": len(self.prediction_queue) if self.prediction_queue else 0,
                     "started": len(started_registry),
                     "finished": len(finished_registry),
                     "failed": len(failed_registry),
                 },
                 "retraining": {
-                    "queued": len(self.retraining_queue)
-                    if self.retraining_queue
-                    else 0,
+                    "queued": len(self.retraining_queue) if self.retraining_queue else 0,
                     "started": len(retrain_started_registry),
                     "finished": len(retrain_finished_registry),
                     "failed": len(retrain_failed_registry),
@@ -438,18 +423,10 @@ class TaskManager:
                         {
                             "id": job.id,
                             "status": job.get_status(),
-                            "created_at": job.created_at.isoformat()
-                            if job.created_at
-                            else None,
-                            "enqueued_at": job.enqueued_at.isoformat()
-                            if job.enqueued_at
-                            else None,
-                            "started_at": job.started_at.isoformat()
-                            if job.started_at
-                            else None,
-                            "ended_at": job.ended_at.isoformat()
-                            if job.ended_at
-                            else None,
+                            "created_at": job.created_at.isoformat() if job.created_at else None,
+                            "enqueued_at": job.enqueued_at.isoformat() if job.enqueued_at else None,
+                            "started_at": job.started_at.isoformat() if job.started_at else None,
+                            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
                             "exc_info": job.exc_info,
                             "meta": job.meta,
                         }
@@ -475,9 +452,7 @@ def enqueue_prediction(
     chat_id: int, home_team: str, away_team: str, job_id: str, priority: str = "normal"
 ) -> Job | None:
     """Совместимость с предыдущей версией."""
-    return task_manager.enqueue_prediction(
-        chat_id, home_team, away_team, job_id, priority
-    )
+    return task_manager.enqueue_prediction(chat_id, home_team, away_team, job_id, priority)
 
 
 def get_job_status(job_id: str) -> dict[str, Any] | None:
@@ -488,6 +463,16 @@ def get_job_status(job_id: str) -> dict[str, Any] | None:
 def cancel_job(job_id: str) -> bool:
     """Совместимость с предыдущей версией."""
     return task_manager.cancel_job(job_id)
+
+
+def clear_all() -> int:
+    """Очистить все очереди (совместимость)."""
+    return task_manager.clear_all()
+
+
+def cleanup(days: int = 7) -> int:
+    """Очистить задачи старше N дней (совместимость)."""
+    return task_manager.cleanup(days)
 
 
 # Функции для CLI использования
@@ -517,8 +502,8 @@ def main():
         stats = task_manager.get_queue_stats()
         print(json.dumps(stats, indent=2, ensure_ascii=False))
     elif args.action == "cleanup":
-        # TODO: Реализовать очистку старых задач
-        print("Очистка задач еще не реализована")
+        removed = task_manager.cleanup(days=args.days)
+        print(f"Удалено задач: {removed}")
     elif args.action == "failed":
         failed_jobs = task_manager.get_failed_jobs(limit=20)
         print(json.dumps(failed_jobs, indent=2, ensure_ascii=False, default=str))

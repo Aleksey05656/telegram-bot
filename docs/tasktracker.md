@@ -1,3 +1,29 @@
+## Задача: ENV contract sync
+- **Статус**: Завершена
+- **Описание**: Синхронизировать .env.example и app/config.py с обязательными переменными.
+- **Шаги выполнения**:
+  - [x] Обновлены .env.example и app/config.py
+  - [x] Добавлены переменные ENV, PROMETHEUS__*, RETRAIN_CRON
+  - [x] Прогнаны тесты
+- **Зависимости**: .env.example, app/config.py
+
+## Задача: Replace legacy headers with docstrings
+- **Статус**: Завершена
+- **Описание**: Конвертировать C-style заголовки в telegram/middlewares и ml/* на docstrings.
+- **Шаги выполнения**:
+  - [x] Обновлены соответствующие файлы
+  - [x] Прогнаны линтеры
+- **Зависимости**: telegram/middlewares.py, ml/
+
+## Задача: Local model registry and task cleanup
+- **Статус**: Завершена
+- **Описание**: Добавить LocalModelRegistry и функции очистки задач.
+- **Шаги выполнения**:
+  - [x] Реализован LocalModelRegistry и сохранение модели
+  - [x] Добавлены TaskManager.clear_all и cleanup с тестами
+  - [x] Обновлены PredictionPipeline и train_base_glm
+- **Зависимости**: app/ml/model_registry.py, app/ml/train_base_glm.py, app/ml/prediction_pipeline.py, workers/task_manager.py, tests/test_registry_local.py, tests/test_task_manager_cleanup.py
+
 ## Задача: SportMonks stub client
 - **Статус**: Завершена
 - **Описание**: Добавить клиента SportMonks с режимом заглушки и тесты.

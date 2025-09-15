@@ -1,0 +1,7 @@
+[pre-commit smart] trying online first, with fallback to offline config
+PRE_COMMIT_HOME=.cache/pre-commit python scripts/run_precommit.py run --all-files || true
+[pre-commit] network/remote blocked; falling back to offline config
+An error has occurred: InvalidConfigError: 
+==> File .pre-commit-config.offline.yaml
+=====> Expected a Config map but got a list
+Check the log at /workspace/telegram-bot/.cache/pre-commit/pre-commit.log

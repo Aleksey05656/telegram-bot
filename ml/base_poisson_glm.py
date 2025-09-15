@@ -1,9 +1,9 @@
-/**
- * @file: base_poisson_glm.py
- * @description: Базовая модель Poisson-GLM для расчёта λ_home и λ_away.
- * @dependencies: numpy
- * @created: 2025-08-23
- */
+"""
+@file: base_poisson_glm.py
+@description: Базовая модель Poisson-GLM для расчёта λ_home и λ_away.
+@dependencies: numpy
+@created: 2025-08-23
+"""
 from typing import Any, Dict, List
 
 import numpy as np

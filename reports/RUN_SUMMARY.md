@@ -1,3 +1,26 @@
+# Run Summary (2025-09-16)
+
+## Applied Tasks
+- I1 ENV contract
+- I2 Headers to docstrings
+- I4 Model registry persistence
+- I5 Task manager cleanup
+
+## Lint
+- make lint-app – pass
+- make lint – pass
+- pre-commit-smart – config error (offline)
+
+## Tests
+- selected tests – pass (7)
+- test_env_contract_required – none
+
+## Smoke
+- make smoke – pass
+
+## ENV Contract
+- .env.example and app/config.py aligned
+
 # Run Summary (2025-09-15)
 
 ## Patches
