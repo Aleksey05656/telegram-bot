@@ -28,6 +28,8 @@ telegram-bot/
 ├─ logger.py                 | логирование (Loguru JSON + Sentry)
 ├─ observability.py          | инициализация Sentry и Prometheus
 ├─ app/
+│  ├─ integrations/
+│  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
 │  └─ data_processor/           | фасад старого data_processor.py
 │     ├─ __init__.py
 │     ├─ validators.py
