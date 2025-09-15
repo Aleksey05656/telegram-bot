@@ -1,3 +1,12 @@
+## Задача: SportMonks stub default and Ruff cleanup
+- **Статус**: Завершена
+- **Описание**: Включить STUB SportMonks при отсутствии ключа и устранить указанные предупреждения Ruff.
+- **Шаги выполнения**:
+  - [x] Автовключение STUB в tests/conftest.py.
+  - [x] Исправлены предупреждения Ruff (B904, B025, ERA001, UP038, C401) и синтаксис telegram/models.py.
+  - [x] Прогнаны pre-commit, линт и тесты.
+- **Зависимости**: tests/conftest.py, services/recommendation_engine.py, telegram/bot.py, ml/models/poisson_regression_model.py, services/sportmonks_client.py, ml/modifiers_model.py, scripts/black_partition.py, telegram/models.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Fix offline pre-commit configuration
 - **Статус**: Завершена
 - **Описание**: Обновить офлайн pre-commit конфиг, добавить локальные хуки и задокументировать изменения.

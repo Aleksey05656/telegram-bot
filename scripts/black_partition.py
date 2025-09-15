@@ -77,9 +77,7 @@ def main() -> None:
         gi = ROOT / ".gitignore"
         seen = set()
         if gi.exists():
-            seen = set(
-                ln.strip() for ln in gi.read_text(encoding="utf-8").splitlines() if ln.strip()
-            )
+            seen = {ln.strip() for ln in gi.read_text(encoding="utf-8").splitlines() if ln.strip()}
         add_lines = []
         for p in offenders:
             rel = p.relative_to(ROOT).as_posix()

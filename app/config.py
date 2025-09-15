@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -60,10 +60,7 @@ class Settings(BaseSettings):
 
 @lru_cache(1)
 def get_settings() -> Settings:
-    try:
-        return Settings()  # auto-reads env via pydantic-settings v2
-    except ValidationError:
-        raise
+    return Settings()  # auto-reads env via pydantic-settings v2
 
 
 def reset_settings_cache() -> None:

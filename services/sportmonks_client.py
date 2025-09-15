@@ -2,6 +2,7 @@
 """Клиент для взаимодействия с API SportMonks."""
 import hashlib
 import json
+import os
 from datetime import date
 from functools import wraps
 from typing import Any
@@ -30,9 +31,7 @@ async def invalidate_fixture_lineups(match_id: int):
             await cache.invalidate_lineups(match_id)
             logger.info(f"Кэш лайнапа для матча {match_id} инвалидирован.")
         except Exception as e:
-            logger.error(
-                f"Ошибка при инвалидации кэша лайнапа для матча {match_id}: {e}"
-            )
+            logger.error(f"Ошибка при инвалидации кэша лайнапа для матча {match_id}: {e}")
 
 
 # --- Конец добавления ---
@@ -46,9 +45,7 @@ async def fetch_lineup_api(fixture_id: int) -> dict[str, Any] | None:
     # или вызвать внутреннюю часть get_lineups напрямую.
     # Для демонстрации возвращаем результат из существующего метода.
     # ВАЖНО: Эта функция не должна использовать кэш внутри себя напрямую.
-    # return await sportmonks_client.get_lineups(fixture_id) # Это может вызвать рекурсию
-    # Лучше реализовать логику получения данных напрямую из API здесь.
-    # Пока используем заглушку.
+    # Заглушка: вместо прямого запроса к API возвращаем None.
     logger.debug(f"Заглушка fetch_lineup_api вызвана для матча {fixture_id}")
     return None  # Реализация зависит от внутренней структуры get_lineups
 
@@ -61,12 +58,8 @@ def cached(ttl: int = 300):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             # Генерируем ключ кэша из имени функции и аргументов
-            cache_string = json.dumps(
-                {"args": args, "kwargs": kwargs}, sort_keys=True, default=str
-            )
-            cache_key = (
-                f"{func.__name__}:{hashlib.md5(cache_string.encode()).hexdigest()}"
-            )
+            cache_string = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True, default=str)
+            cache_key = f"{func.__name__}:{hashlib.md5(cache_string.encode()).hexdigest()}"
             # Пытаемся получить данные из кэша
             try:
                 cached_result = await cache.get(cache_key)
@@ -81,9 +74,7 @@ def cached(ttl: int = 300):
                 # Сохраняем результат в кэш
                 try:
                     await cache.set(cache_key, result, ttl=ttl)
-                    logger.debug(
-                        f"Результат {func.__name__} сохранен в кэш на {ttl} секунд"
-                    )
+                    logger.debug(f"Результат {func.__name__} сохранен в кэш на {ttl} секунд")
                 except Exception as e:
                     logger.error(f"Ошибка при сохранении данных в кэш: {e}")
                 return result
@@ -122,7 +113,10 @@ class SportMonksClient:
         """Инициализация клиента API SportMonks."""
         self.api_token = api_token or get_settings().sportmonks_api_key
         self.base_url = "https://api.sportmonks.com/v3/football"
-        if not self.api_token:
+        if (not self.api_token) or (self.api_token.lower() == "dummy"):
+            os.environ.setdefault("SPORTMONKS_STUB", "1")
+            self.api_token = ""
+        if not os.getenv("SPORTMONKS_STUB") and not self.api_token:
             raise ValueError("API token for SportMonks is required.")
         logger.info("SportMonksClient инициализирован")
 
@@ -155,15 +149,11 @@ class SportMonksClient:
                     )
                     return None
         except Exception as e:
-            logger.error(
-                f"Ошибка при получении данных матча {fixture_id}: {e}", exc_info=True
-            )
+            logger.error(f"Ошибка при получении данных матча {fixture_id}: {e}", exc_info=True)
             return None
 
     @cached(ttl=900)  # Кэшируем на 15 минут
-    async def get_weather(
-        self, team_id: int, match_date: date
-    ) -> dict[str, Any] | None:
+    async def get_weather(self, team_id: int, match_date: date) -> dict[str, Any] | None:
         """Получение прогноза погоды для матча.
         Args:
             team_id (int): ID команды (для определения локации)
@@ -214,9 +204,7 @@ class SportMonksClient:
                     )
                     return cached_lineups
             except Exception as e:
-                logger.error(
-                    f"Ошибка при получении составов из кэша для матча {fixture_id}: {e}"
-                )
+                logger.error(f"Ошибка при получении составов из кэша для матча {fixture_id}: {e}")
         # Если в кэше нет данных, получаем их напрямую
         try:
             session = await self._get_session()
@@ -274,9 +262,7 @@ class SportMonksClient:
                     squad_data = data.get("data", {}).get("squad", [])
                     # Фильтруем только травмированных игроков
                     injuries = [
-                        player
-                        for player in squad_data
-                        if player.get("player", {}).get("injured")
+                        player for player in squad_data if player.get("player", {}).get("injured")
                     ]
                     return injuries
                 else:
@@ -307,9 +293,7 @@ class SportMonksClient:
             league_id = fixture.get("league_id")
             season_id = fixture.get("season_id")
             if not league_id or not season_id:
-                logger.error(
-                    f"Не удалось определить лигу или сезон для матча {fixture_id}"
-                )
+                logger.error(f"Не удалось определить лигу или сезон для матча {fixture_id}")
                 return None
             session = await self._get_session()
             url = f"{self.base_url}/tables/seasons/{season_id}"
@@ -323,9 +307,7 @@ class SportMonksClient:
                         if table.get("league_id") == league_id:
                             # Получаем количество оставшихся туров (примерная логика)
                             # В реальной реализации это может потребовать дополнительного API вызова
-                            rounds_left = (
-                                10  # Заглушка, в реальности нужно получить из API
-                            )
+                            rounds_left = 10  # Заглушка, в реальности нужно получить из API
                             return {
                                 "standings": table.get("standings", []),
                                 "rounds_left": rounds_left,
@@ -394,11 +376,7 @@ class SportMonksClient:
                         # Добавлено: Получаем составы для этого матча, если они есть
                         # Это необходимо для расчета суммарных минут ключевых игроков
                         # Предполагается, что get_lineups возвращает данные о составах для конкретного матча
-                        # fixture_lineups = await self.get_lineups(fixture.get("id")) # Это может быть слишком медленно
-                        # Лучше запросить составы отдельно или вместе с fixtures, если API позволяет.
-                        # Пока оставим это замечание. В data_processor будем использовать данные,
-                        # которые уже есть в контексте матча (если они будут добавлены позже).
-                        # fixture["lineups"] = fixture_lineups # Закомментировано, так как требует отдельного запроса
+                        # Запрос составов может замедлить ответ; пока пропускаем.
                     return fixtures
                 else:
                     logger.error(
@@ -439,9 +417,7 @@ class SportMonksClient:
                         stat_name = stat.get("name", "")
                         stat_value = stat.get("value")
                         if stat_name == "PPDA":
-                            result_stats["ppda"] = (
-                                float(stat_value) if stat_value else 10.0
-                            )
+                            result_stats["ppda"] = float(stat_value) if stat_value else 10.0
                         elif stat_name == "Shots":
                             result_stats["shots"] = stat_value
                         elif stat_name == "Shots On Target":
@@ -468,13 +444,9 @@ class SportMonksClient:
                                     pass  # Игнорируем, если не удалось преобразовать
                         # Добавлено: обработка xG метрик
                         elif stat_name == "xG":
-                            result_stats["xg_for"] = (
-                                float(stat_value) if stat_value else None
-                            )
+                            result_stats["xg_for"] = float(stat_value) if stat_value else None
                         elif stat_name == "xG Against":
-                            result_stats["xg_against"] = (
-                                float(stat_value) if stat_value else None
-                            )
+                            result_stats["xg_against"] = float(stat_value) if stat_value else None
                     logger.debug(f"Получена статистика для команды ID {team_id}")
                     return result_stats
                 else:
@@ -557,9 +529,7 @@ class SportMonksClient:
                         logger.warning(f"Команда с названием '{team_name}' не найдена")
                         return None
                 else:
-                    logger.error(
-                        f"Ошибка поиска команды '{team_name}': статус {response.status}"
-                    )
+                    logger.error(f"Ошибка поиска команды '{team_name}': статус {response.status}")
                     return None
         except Exception as e:
             logger.error(f"Ошибка при поиске команды '{team_name}': {e}", exc_info=True)
