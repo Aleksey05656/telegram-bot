@@ -452,3 +452,12 @@
   - [x] Упрощён пропуск тестов через маркер `needs_np`
   - [x] Добавлена проверка отсутствия SKIP для численных тестов
 - **Зависимости**: .github/workflows/ci.yml, tests/conftest_np_guard.py
+
+## Задача: CI staged workflow
+- **Статус**: Завершена
+- **Описание**: Разделить GitHub Actions на стадии lint → unit → e2e/smoke → numeric с локальными wheels.
+- **Шаги выполнения**:
+  - [x] Перестроен workflow на отдельные jobs
+  - [x] Добавлен fallback ruff/isort/black при недоступности pre-commit
+  - [x] Стадия numeric использует `pip.conf` и проверяет отсутствие SKIP у @needs_np
+- **Зависимости**: .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md

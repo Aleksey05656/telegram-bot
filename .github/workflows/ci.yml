@@ -12,7 +12,29 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-test:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Lint (online with offline fallback)
+        run: |
+          make pre-commit-smart || {
+            ruff . && isort --check --diff . && black --check .
+          }
+
+  unit:
+    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,27 +50,52 @@ jobs:
         run: |
           python -m pip install -U pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Install pre-commit
-        run: pip install pre-commit
-      - name: Lint (online with offline fallback)
-        run: |
-          make pre-commit-smart || {
-            ruff . && isort --check --diff . && black --check .
-          }
-      - name: Smoke tests
-        run: make smoke
-      - name: E2E test
-        run: pytest -q tests/test_prediction_pipeline_local_registry_e2e.py
       - name: Tests
         env:
           SPORTMONKS_STUB: 1
           SPORTMONKS_API_KEY: dummy
         run: pytest -q
-      - name: Ensure numeric tests ran
+
+  e2e_smoke:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install deps
         run: |
-          skips=$(pytest -m needs_np -q -rs | grep -i 'skipped' || true)
-          if [ -n "$skips" ]; then
-            echo "Numeric tests were skipped:";
-            echo "$skips";
-            exit 1;
+          python -m pip install -U pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Smoke tests
+        run: make smoke
+      - name: E2E test
+        run: pytest -q tests/test_prediction_pipeline_local_registry_e2e.py
+
+  numeric:
+    needs: e2e_smoke
+    runs-on: ubuntu-latest
+    env:
+      PIP_CONFIG_FILE: pip.conf
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Numeric tests
+        run: |
+          output=$(pytest -m needs_np -q -rs)
+          echo "$output"
+          if echo "$output" | grep -i 'skipped'; then
+            echo 'Numeric tests were skipped'
+            exit 1
           fi
