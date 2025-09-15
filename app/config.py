@@ -15,6 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SentrySettings(BaseModel):
+    enabled: bool = False
     dsn: str | None = None
     environment: Literal["local", "dev", "stage", "prod"] = "local"
 
@@ -53,6 +54,7 @@ class Settings(BaseSettings):
     retrain_cron: str | None = Field(default=None, alias="RETRAIN_CRON")
     sentry: SentrySettings = SentrySettings()
     prometheus: PrometheusSettings = PrometheusSettings()
+    git_sha: str = Field(default="dev", alias="GIT_SHA")
     rate_limit: RateLimitSettings = RateLimitSettings()
 
 

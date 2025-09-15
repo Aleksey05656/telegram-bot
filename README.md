@@ -9,6 +9,10 @@
 
 Telegram bot that exposes a FastAPI service and ML pipeline for football match predictions.
 
+## Observability
+
+Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics include constant labels `service`, `env` and `version` (derived from `GIT_SHA`).
+
 ## Quick start
 
 ```bash

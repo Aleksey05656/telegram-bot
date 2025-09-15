@@ -41,6 +41,7 @@
     telegram-bot/
     ├── config.py                 # Конфигурация (.env, MODEL_VERSION, API keys)
     ├── logger.py                 # Логирование (Loguru, JSON sink, Sentry)
+    ├── observability.py          # Sentry (SENTRY_ENABLED) и Prometheus /metrics c метками service/env/version
     ├── database/                 # PostgreSQL + Redis
     │   ├── cache.py
     │   ├── db_logging.py

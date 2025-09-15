@@ -34,7 +34,9 @@ def test_env_example_matches_settings():
     env_path = Path(".env.example")
     text = env_path.read_text(encoding="utf-8")
     env_vars = {
-        re.split("=", line, 1)[0] for line in text.splitlines() if line and not line.startswith("#")
+        re.split("=", line, maxsplit=1)[0]
+        for line in text.splitlines()
+        if line and not line.startswith("#")
     }
     expected = _settings_env_vars()
     missing = expected - env_vars

@@ -1,10 +1,14 @@
 # telegram/handlers/predict.py
 """Обработчик команды /predict для прогнозирования результатов матчей."""
 import asyncio
+import math
+import os
 import uuid
 from datetime import datetime
 from typing import Any
 
+import joblib
+import numpy as np
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -63,9 +67,7 @@ def compute_probs(
     try:
         from ml.models.poisson_model import poisson_model
 
-        logger.info(
-            f"Вычисление вероятностей: λ_дом={lambda_home:.3f}, λ_гост={lambda_away:.3f}"
-        )
+        logger.info(f"Вычисление вероятностей: λ_дом={lambda_home:.3f}, λ_гост={lambda_away:.3f}")
         # Подготавливаем входные данные для модели
         input_data = {
             "expected_home_goals": lambda_home,
@@ -196,16 +198,12 @@ async def process_teams_input(message: Message, state: FSMContext):
             f"Критическая ошибка в обработчике process_teams_input для пользователя {message.from_user.id}: {e}",
             exc_info=True,
         )
-        await message.answer(
-            "❌ Произошла ошибка при обработке вашего запроса. Попробуйте еще раз."
-        )
+        await message.answer("❌ Произошла ошибка при обработке вашего запроса. Попробуйте еще раз.")
         await state.clear()
 
 
 # Основная функция прогнозирования (интеграция всего пайплайна)
-async def generate_full_prediction(
-    match_id: int, home_team: str, away_team: str
-) -> dict[str, Any]:
+async def generate_full_prediction(match_id: int, home_team: str, away_team: str) -> dict[str, Any]:
     """Генерация полного прогноза по всему пайплайну.
     Args:
         match_id (int): ID матча
@@ -215,9 +213,7 @@ async def generate_full_prediction(
         Dict[str, Any]: Полный прогноз
     """
     try:
-        logger.info(
-            f"[{match_id}] Начало полного прогнозирования: {home_team} vs {away_team}"
-        )
+        logger.info(f"[{match_id}] Начало полного прогнозирования: {home_team} vs {away_team}")
         # === 1. Сбор данных и генерация фич (data_processor) ===
         features = await build_features(match_id)
         if not features:
@@ -390,9 +386,7 @@ def apply_weather_field(
         (
             modified_lambda_home,
             modified_lambda_away,
-        ) = prediction_modifier.apply_weather_field(
-            lambda_home, lambda_away, weather, pitch_type
-        )
+        ) = prediction_modifier.apply_weather_field(lambda_home, lambda_away, weather, pitch_type)
         logger.debug(
             f"Применены модификаторы погоды и поля: "
             f"домашняя {lambda_home:.3f}->{modified_lambda_home:.3f}, "
@@ -433,9 +427,7 @@ def apply_lineup_uncertainty(
         )
         return modified_lambda_home, modified_lambda_away
     except Exception as e:
-        logger.error(
-            f"Ошибка при применении модификатора неопределенности состава: {e}"
-        )
+        logger.error(f"Ошибка при применении модификатора неопределенности состава: {e}")
         return lambda_home, lambda_away
 
 
@@ -474,9 +466,7 @@ async def enqueue_prediction(home_team_name: str, away_team_name: str) -> str | 
 async def cb_make_prediction(callback: CallbackQuery, state: FSMContext):
     """Обработчик callback для кнопки 'Сделать прогноз'."""
     try:
-        logger.info(
-            f"Пользователь {callback.from_user.id} нажал кнопку 'Сделать прогноз'"
-        )
+        logger.info(f"Пользователь {callback.from_user.id} нажал кнопку 'Сделать прогноз'")
         await callback.message.edit_text(
             "Введите названия команд в формате:\n`Команда 1 - Команда 2`",
             parse_mode="Markdown",
@@ -489,20 +479,9 @@ async def cb_make_prediction(callback: CallbackQuery, state: FSMContext):
             exc_info=True,
         )
         try:
-            await callback.answer(
-                "❌ Произошла ошибка. Попробуйте позже.", show_alert=True
-            )
-        except:
+            await callback.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+        except Exception:
             pass
-
-
-# === Добавленные хелперы ===
-import math
-import os
-from typing import Any
-
-import joblib
-import numpy as np
 
 
 def _models_dir() -> str:
@@ -578,9 +557,7 @@ def compute_confidence(prob_dist: np.ndarray, agreement: float | None = None) ->
     H = -np.sum(p * np.log(p))
     Hmax = math.log(len(p)) if len(p) else 1.0
     base = 1.0 - (H / Hmax)
-    return float(
-        base if agreement is None else 0.8 * base + 0.2 * max(0.0, min(1.0, agreement))
-    )
+    return float(base if agreement is None else 0.8 * base + 0.2 * max(0.0, min(1.0, agreement)))
 
 
 def apply_postprocessing_for_1x2(
@@ -592,25 +569,18 @@ def apply_postprocessing_for_1x2(
     p = probs_1x2.copy()
     if calibrator is not None and hasattr(calibrator, "predict"):
         p_in = {
-            k: np.array([v], dtype=float)
-            for k, v in p.items()
-            if k in ("home", "draw", "away")
+            k: np.array([v], dtype=float) for k, v in p.items() if k in ("home", "draw", "away")
         }
         try:
             p_out = calibrator.predict(p_in)
-            p = {
-                k: float(p_out.get(k, np.array([p[k]]))[0])
-                for k in ("home", "draw", "away")
-            }
+            p = {k: float(p_out.get(k, np.array([p[k]]))[0]) for k in ("home", "draw", "away")}
             s = sum(p.values())
             if s > 0:
                 for k in p:
                     p[k] /= s
         except Exception:
             pass
-    prob_vec = np.array(
-        [p.get("home", 0.0), p.get("draw", 0.0), p.get("away", 0.0)], dtype=float
-    )
+    prob_vec = np.array([p.get("home", 0.0), p.get("draw", 0.0), p.get("away", 0.0)], dtype=float)
     conf = compute_confidence(prob_vec)
     # Версию можно прочитать из meta.json при необходимости
     return p, conf, ""

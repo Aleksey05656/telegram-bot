@@ -461,3 +461,12 @@
   - [x] Добавлен fallback ruff/isort/black при недоступности pre-commit
   - [x] Стадия numeric использует `pip.conf` и проверяет отсутствие SKIP у @needs_np
 - **Зависимости**: .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
+## Задача: Sentry фичефлаг и метки метрик
+- **Статус**: Завершена
+- **Описание**: Добавить SENTRY_ENABLED, GIT_SHA, метки service/env/version и счётчик jobs_registered_total.
+- **Шаги выполнения**:
+  - [x] Добавлен SENTRY_ENABLED и GIT_SHA в .env.example и настройки.
+  - [x] Реализован фичефлаг Sentry и метки в /metrics.
+  - [x] Добавлен jobs_registered_total и обновлён /__smoke__/retrain.
+- **Зависимости**: app/observability.py, app/config.py, workers/runtime_scheduler.py, app/main.py

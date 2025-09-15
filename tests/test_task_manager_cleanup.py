@@ -4,14 +4,15 @@
 @dependencies: workers.task_manager
 @created: 2025-09-16
 """
+from datetime import datetime, timedelta
+
 import pytest
+
+from workers.task_manager import TaskManager
+
 pytest.importorskip("numpy")
 
 pytestmark = pytest.mark.needs_np
-
-from datetime import datetime, timedelta
-
-from workers.task_manager import TaskManager
 
 
 def test_cleanup_no_connection():

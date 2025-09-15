@@ -8,21 +8,30 @@
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
-from prometheus_client import Counter, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 
 from .config import Settings
 
-REQUESTS_TOTAL = Counter("requests_total", "Total requests")
+REQUESTS_TOTAL = Counter("requests_total", "Total requests", ["service", "env", "version"])
+BUILD_INFO = Gauge("build_info", "Build info", ["service", "env", "version"])
 
 
 def init_observability(app: FastAPI, settings: Settings):
-    if settings.sentry.dsn:
+    labels = {
+        "service": settings.app_name,
+        "env": settings.env,
+        "version": settings.git_sha,
+    }
+
+    BUILD_INFO.labels(**labels).set(1)
+
+    if settings.sentry.enabled and settings.sentry.dsn:
         sentry_sdk.init(dsn=settings.sentry.dsn, environment=settings.sentry.environment)
 
     @app.middleware("http")
     async def _count_requests(request, call_next):
         resp = await call_next(request)
-        REQUESTS_TOTAL.inc()
+        REQUESTS_TOTAL.labels(**labels).inc()
         return resp
 
     if settings.prometheus.enabled:
