@@ -1,23 +1,21 @@
 # Run Summary (2025-09-15)
 
 ## Applied Tasks
-- Ruff warnings cleanup
+- Очистка конфликтов и обновление зависимостей
+- Базовые λ (Poisson-GLM) с валидацией
+- Динамические модификаторы
+- Монте-Карло и Bi-Poisson
 
 ## Lint
-- pre-commit (offline) – OK (ruff-check, black, isort, trailing-whitespace, end-of-file-fixer)
-- make lint-app – pass
-- make lint – pass
+- `pip install -r requirements.txt -c constraints.txt --no-index --find-links wheels/` – ResolutionImpossible (scipy)
+- `pre-commit run -c .pre-commit-config.offline.yaml --all-files` – first run fixed files, second run passed
+- `make lint-app` – formatting applied, reverted
+- `make lint` – formatting applied, reverted
 
 ## Tests
-- pytest -q – pass (31)
-- pytest -q -m needs_np – pass (14)
-- make smoke – pass (8)
-  - /health → 200
-  - /metrics → 200 text/plain
-  - /__smoke__/retrain.jobs_registered_total → 0.0
-
-## Ruff Leftovers
-- none
+- pytest tests/ml/test_glm_training.py -q – pass (1)
+- pytest tests/ml/test_modifiers.py -q – pass (1)
+- pytest tests/ml/test_bipoisson_sim.py -q – pass (1)
 
 ## Next Steps
-- —
+- Реализовать модификаторы и симуляции
