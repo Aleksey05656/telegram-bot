@@ -20,14 +20,14 @@ class SentrySettings(BaseModel):
 
 
 class PrometheusSettings(BaseModel):
-    enabled: bool = True
-    endpoint: str = "/metrics"
+    enabled: bool = Field(default=True, alias="PROMETHEUS_ENABLED")
+    endpoint: str = Field(default="/metrics", alias="PROMETHEUS_ENDPOINT")
 
 
 class RateLimitSettings(BaseModel):
-    enabled: bool = True
-    requests: int = 60
-    per_seconds: int = 60
+    enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    requests: int = Field(default=60, alias="RATE_LIMIT_REQUESTS")
+    per_seconds: int = Field(default=60, alias="RATE_LIMIT_PER_SECONDS")
 
     @field_validator("requests", "per_seconds")
     @classmethod

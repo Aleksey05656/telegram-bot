@@ -1,9 +1,9 @@
-/**
- * @file: transformers.py
- * @description: Transformer builders for preprocessing pipelines.
- * @dependencies: data_processor.make_transformers
- * @created: 2025-09-10
- */
+"""
+@file: transformers.py
+@description: Transformer builders for preprocessing pipelines.
+@dependencies: data_processor.make_transformers
+@created: 2025-09-10
+"""
 from __future__ import annotations
 
 from typing import Any

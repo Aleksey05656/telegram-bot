@@ -10,7 +10,6 @@ from config import settings
 from database.cache_postgres import init_cache
 from logger import logger
 from ml.models.poisson_regression_model import poisson_regression_model
-from observability import init_observability
 from telegram.bot import main as bot_main  # Импорт перемещён сюда
 
 # Глобальная переменная для управления завершением
@@ -24,7 +23,6 @@ async def app_lifespan():
     setup_signal_handlers()
     logger.info(f"Запуск бота в режиме DEBUG={settings.DEBUG_MODE}")
     logger.info(f"Уровень логирования: {settings.LOG_LEVEL}")
-    init_observability()
 
     # Инициализация кэша и модели
     logger.info("Инициализация PostgreSQL кэша")
@@ -84,7 +82,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Получен KeyboardInterrupt. Завершение работы.")
     except Exception as e:
-        logger.critical(
-            f"Критическая ошибка при запуске приложения: {e}", exc_info=True
-        )
+        logger.critical(f"Критическая ошибка при запуске приложения: {e}", exc_info=True)
         sys.exit(1)

@@ -6,7 +6,8 @@
 """
 
 import sentry_sdk
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, generate_latest
 
 from .config import Settings
@@ -27,5 +28,5 @@ def init_observability(app: FastAPI, settings: Settings):
     if settings.prometheus.enabled:
 
         @app.get(settings.prometheus.endpoint)
-        def metrics() -> Response:
-            return Response(generate_latest(), media_type="text/plain")
+        def metrics() -> PlainTextResponse:
+            return PlainTextResponse(generate_latest(), media_type="text/plain; version=0.0.4")
