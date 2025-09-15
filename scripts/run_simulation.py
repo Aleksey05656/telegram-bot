@@ -16,9 +16,10 @@ from pathlib import Path
 import numpy as np
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from ml.calibration import calibration_report
-from services.simulator import Simulator
-from storage.persistence import SQLitePredictionsStore
+from app.config import get_settings  # noqa: E402
+from ml.calibration import calibration_report  # noqa: E402
+from services.simulator import Simulator  # noqa: E402
+from storage.persistence import SQLitePredictionsStore  # noqa: E402
 
 
 def main() -> None:
@@ -32,6 +33,8 @@ def main() -> None:
     parser.add_argument("--report-md")
     parser.add_argument("--write-db", action="store_true")
     args = parser.parse_args()
+    settings = get_settings()
+    version = settings.git_sha or settings.app_version
 
     def guess_lambda(name: str) -> float:
         return 1.2 + (len(name) % 3) * 0.1
@@ -100,7 +103,14 @@ def main() -> None:
             )
         )
         report_path.parent.mkdir(parents=True, exist_ok=True)
+        header = (
+            f"# Simulation {args.home} vs {args.away}\n\n"
+            f"version: {version}\n"
+            f"season: {args.season_id}\n"
+            f"rho: {args.rho}, n_sims: {args.n_sims}\n\n"
+        )
         with open(report_path, "w", encoding="utf-8") as f:
+            f.write(header)
             f.write("|market|ece_before|ece_after|delta|\n")
             f.write("|---|---|---|---|\n")
             for k, v in report.items():

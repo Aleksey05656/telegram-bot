@@ -11,7 +11,7 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 ## Observability
 
-Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics include constant labels `service`, `env` and `version` (derived from `GIT_SHA`).
+Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
 ## Quick start
 
@@ -22,6 +22,10 @@ make check
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
+
+## Dependency lock (offline)
+
+`requirements.lock` pins the exact versions used in this repository. Regenerate it offline via `make deps-lock` and install packages from local wheels with `make deps-sync`.
 
 ## ML stack
 

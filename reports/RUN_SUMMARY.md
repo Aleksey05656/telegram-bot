@@ -19,9 +19,11 @@
 - pytest tests/smoke/test_run_simulation_cli.py -q – pass
 
 ## Simulation Integration
-- n_sims: 512, rho: 0.1
-- entropy: 1x2=1.5798, totals=0.9189, cs=3.7127
-- report: reports/metrics/SIM_S_H_vs_A.md
+- n_sims: 10000, rho: 0.1
+- λ_final avg: H=1.3, A=1.3
+- entropy: 1x2=1.5737, totals=0.9980, cs=4.1949
+- base vs final LogLoss/ECE: 0.0000 / 0.0000
+- report: reports/metrics/SIM_default_H_vs_A.md
 - SQLite: var/predictions.sqlite
 
 ## Next Steps

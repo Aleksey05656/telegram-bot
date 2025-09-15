@@ -54,7 +54,8 @@ except Exception:  # pragma: no cover
     Counter = Gauge = Histogram = _DummyMetric
 
 _s = get_settings()
-_LABELS = {"service": _s.app_name, "env": _s.env, "version": _s.git_sha}
+_version = _s.git_sha or _s.app_version
+_LABELS = {"service": _s.app_name, "env": _s.env, "version": _version}
 
 WINDOW_SIZE = 200
 

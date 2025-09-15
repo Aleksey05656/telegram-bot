@@ -14,7 +14,7 @@ Updated 2025-09-10.
 - **ml/** – machine learning models и `LocalModelRegistry` (артефакты в каталоге `artifacts/` или `MODEL_REGISTRY_PATH`) и prediction pipeline.
 - **tests/** – unit, contract, smoke and end-to-end tests.
 - SportMonks client (`app/integrations/sportmonks_client.py`) переключает заглушку через `SPORTMONKS_STUB`.
-- Observability: Sentry controlled by `SENTRY_ENABLED`; Prometheus `/metrics` expose labels `service`, `env`, `version`.
+- Observability: Sentry controlled by `SENTRY_ENABLED`; Prometheus `/metrics` expose labels `service`, `env`, `version` (from `GIT_SHA` or `APP_VERSION`). Simulation reports include version info in their headers.
 
 ## λ_base → modifiers → λ_final
 

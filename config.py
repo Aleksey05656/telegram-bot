@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DEBUG_MODE: bool = False
     APP_ENV: str = "development"
+    APP_VERSION: str = "0.0.0"
+    GIT_SHA: str = "dev"
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
