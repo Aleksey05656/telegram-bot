@@ -15,4 +15,8 @@ Updated 2025-09-10.
 - **tests/** – unit, contract, smoke and end-to-end tests.
 - SportMonks client (`app/integrations/sportmonks_client.py`) переключает заглушку через `SPORTMONKS_STUB`.
 
+## ML stack
+
+Core libs: numpy >=1.26,<2.0 and pandas 2.2.2.
+
 See `docs/Project.md` for a detailed design.

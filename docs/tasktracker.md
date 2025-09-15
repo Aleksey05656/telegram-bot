@@ -1,3 +1,14 @@
+## Задача: Pin numpy/pandas and update ML docs
+- **Статус**: Завершена
+- **Описание**: Добавить ограничения numpy>=1.26,<2.0 и pandas==2.2.2, пересобрать окружение, проверить numpy.math, обновить ML-стек и прогнать pytest.
+- **Шаги выполнения**:
+  - [x] Обновлены requirements и constraints
+  - [x] make deps-fix
+  - [x] Поиск numpy.math
+  - [x] Запущен pytest
+  - [x] Обновлены README и ARCHITECTURE
+- **Зависимости**: requirements.txt, constraints.txt, README.md, ARCHITECTURE.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Cleanup TODOs and CI smoke
 - **Статус**: Завершена
 - **Описание**: Удалить устаревшие TODO, сократить предупреждения Ruff, добавить smoke/e2e в CI и обновить документацию.

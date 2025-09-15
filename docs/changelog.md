@@ -1,3 +1,11 @@
+## [2025-09-15] - Pin numpy/pandas versions
+### Добавлено
+- Ограничения numpy>=1.26,<2.0 и pandas==2.2.2.
+### Изменено
+- README и ARCHITECTURE: описан ML-стек.
+### Исправлено
+- —
+
 ## [2025-09-18] - Cleanup TODOs and CI smoke
 ### Добавлено
 - Шаги smoke и e2e в CI.

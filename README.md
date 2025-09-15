@@ -19,6 +19,11 @@ make check
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 
+## ML stack
+
+- numpy >=1.26,<2.0
+- pandas ==2.2.2
+
 ## Services & Workers (скелеты)
 
 Добавлены минимальные заготовки для боевого включения без падений в ограниченных окружениях:
