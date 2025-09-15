@@ -33,6 +33,12 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
   - читает `RETRAIN_CRON` из окружения (по умолчанию `0 3 * * *`);
   - ленивая подгрузка тренера для избежания тяжёлых импортов.
 
+## Tests
+
+- Контрактный тест сверяет `.env.example` с `app.config.Settings`.
+- E2E тест проверяет `PredictionPipeline` вместе с `LocalModelRegistry`.
+- Smoke-тест гарантирует, что `TaskManager.cleanup` не падает без Redis.
+
 Быстрая проверка:
 ```bash
 pytest -q -k test_services_workers_minimal

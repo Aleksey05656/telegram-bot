@@ -1,3 +1,14 @@
+## Задача: Offline pre-commit and ML tests
+- **Статус**: Завершена
+- **Описание**: Починить offline pre-commit config и добавить контрактные/ML тесты.
+- **Шаги выполнения**:
+  - [x] Исправлен `.pre-commit-config.offline.yaml`
+  - [x] Добавлен тест ENV-контракта
+  - [x] Написан e2e-тест PredictionPipeline + LocalModelRegistry
+  - [x] Добавлен smoke-тест TaskManager.cleanup
+  - [x] Обновлены README и ARCHITECTURE.md
+- **Зависимости**: .pre-commit-config.offline.yaml, tests/contracts/test_env_example_contract.py, tests/test_prediction_pipeline_local_registry_e2e.py, tests/smoke/test_task_manager_cleanup.py, README.md, ARCHITECTURE.md
+
 ## Задача: ENV contract sync
 - **Статус**: Завершена
 - **Описание**: Синхронизировать .env.example и app/config.py с обязательными переменными.
