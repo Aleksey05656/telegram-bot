@@ -1,9 +1,9 @@
-/**
- * @file: telegram/models.py
- * @description: Pydantic models for Telegram command arguments.
- * @dependencies: pydantic
- * @created: 2025-08-24
- */
+"""
+@file: telegram/models.py
+@description: Pydantic models for Telegram command arguments.
+@dependencies: pydantic
+@created: 2025-08-24
+"""
 from pydantic import BaseModel, Field
 
 

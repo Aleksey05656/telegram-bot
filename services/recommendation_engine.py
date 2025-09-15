@@ -117,9 +117,7 @@ class RecommendationEngine:
             d = float(probs.get("draw", probs.get("probability_draw", 0.0)))
             a = float(probs.get("away_win", probs.get("probability_away_win", 0.0)))
             vals = sorted([h, d, a], reverse=True)
-            return float(
-                max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0))
-            )
+            return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
         # 2-way
         if {"yes", "no"}.issubset(keys):
             p1, p2 = float(probs["yes"]), float(probs["no"])
@@ -133,9 +131,7 @@ class RecommendationEngine:
         # fallback
         try:
             vals = sorted([float(v) for v in probs.values()], reverse=True)
-            return float(
-                max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0))
-            )
+            return float(max(0.0, min(1.0, (vals[0] - vals[1]) if len(vals) >= 2 else 0.0)))
         except Exception:
             return 0.0
 
@@ -150,12 +146,10 @@ class RecommendationEngine:
         """Применяем штрафы за пропуски и устаревшие данные."""
         try:
             c = float(base)
-            c *= 1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(
-                missing_ratio
+            c *= 1 - float(CONFIDENCE.get("missing_penalty_alpha", 0.2)) * float(missing_ratio)
+            freshness_penalty = float(CONFIDENCE.get("freshness_penalty_alpha", 0.15)) * (
+                float(freshness_minutes) / 60.0
             )
-            freshness_penalty = float(
-                CONFIDENCE.get("freshness_penalty_alpha", 0.15)
-            ) * (float(freshness_minutes) / 60.0)
             c *= max(0.0, 1 - freshness_penalty)
             return float(max(0.0, min(1.0, c)))
         except Exception:
@@ -169,9 +163,7 @@ class RecommendationEngine:
             base, missing_ratio=missing_ratio, freshness_minutes=freshness_minutes
         )
 
-    async def generate_comprehensive_prediction(
-        self, match_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def generate_comprehensive_prediction(self, match_data: dict[str, Any]) -> dict[str, Any]:
         """Генерация комплексного прогноза."""
         try:
             logger.info(
@@ -214,9 +206,7 @@ class RecommendationEngine:
                             )
                         ),
                         "draw": float(
-                            poisson_result.get(
-                                "draw", poisson_result.get("probability_draw", 0.0)
-                            )
+                            poisson_result.get("draw", poisson_result.get("probability_draw", 0.0))
                         ),
                         "away_win": float(
                             poisson_result.get(
@@ -229,19 +219,13 @@ class RecommendationEngine:
                     # возвращаем в исходный нейминг, которым далее пользуется код
                     poisson_result.update(
                         {
-                            "home_win": calibrated_1x2.get(
-                                "home_win", to_calibrate["home_win"]
-                            ),
+                            "home_win": calibrated_1x2.get("home_win", to_calibrate["home_win"]),
                             "draw": calibrated_1x2.get("draw", to_calibrate["draw"]),
-                            "away_win": calibrated_1x2.get(
-                                "away_win", to_calibrate["away_win"]
-                            ),
+                            "away_win": calibrated_1x2.get("away_win", to_calibrate["away_win"]),
                             "probability_home_win": calibrated_1x2.get(
                                 "home_win", to_calibrate["home_win"]
                             ),
-                            "probability_draw": calibrated_1x2.get(
-                                "draw", to_calibrate["draw"]
-                            ),
+                            "probability_draw": calibrated_1x2.get("draw", to_calibrate["draw"]),
                             "probability_away_win": calibrated_1x2.get(
                                 "away_win", to_calibrate["away_win"]
                             ),
@@ -269,9 +253,7 @@ class RecommendationEngine:
                 confidence = self._penalize_confidence(
                     base_conf,
                     missing_ratio=missing_ratio,
-                    freshness_minutes=missing_data_info.get(
-                        "data_freshness_minutes", 0.0
-                    ),
+                    freshness_minutes=missing_data_info.get("data_freshness_minutes", 0.0),
                 )
             except Exception as _e:
                 logger.warning("Ошибка при расчёте confidence: %s", _e)
@@ -290,9 +272,7 @@ class RecommendationEngine:
                     else "Ставки не определены"
                 ),
                 "confidence": round(confidence, 3),
-                "risk_level": recommendations[0].risk_level.value
-                if recommendations
-                else "высокий",
+                "risk_level": recommendations[0].risk_level.value if recommendations else "высокий",
                 "recommendations_count": len(recommendations),
                 "generated_at": datetime.now().isoformat(),
                 "missing_data_info": missing_data_info,
@@ -340,9 +320,7 @@ class RecommendationEngine:
             logger.info("Комплексный прогноз сгенерирован")
             return detailed_prediction
         except Exception as e:
-            logger.error(
-                f"Ошибка при генерации комплексного прогноза: {e}", exc_info=True
-            )
+            logger.error(f"Ошибка при генерации комплексного прогноза: {e}", exc_info=True)
             return {
                 "model": "ThreeLevelPoisson",
                 "error": str(e),
@@ -357,13 +335,8 @@ class RecommendationEngine:
                     "data_freshness_minutes": 0.0,
                 },
             }
-        except Exception as e:
-            logger.error(f"Ошибка при расчете базовых λ: {e}")
-            return [1.5, 1.2]  # Значения по умолчанию
 
-    async def _prepare_match_context(
-        self, match_data: dict, team_stats: dict
-    ) -> dict[str, Any]:
+    async def _prepare_match_context(self, match_data: dict, team_stats: dict) -> dict[str, Any]:
         """Подготовка контекста матча."""
         try:
             # В реальной реализации здесь будет подготовка контекста
@@ -395,22 +368,14 @@ class RecommendationEngine:
             logger.debug("Генерация рекомендаций по ставкам")
             recommendations: list[BettingRecommendation] = []
             missing_ratio = (missing_data_info or {}).get("missing_ratio", 0.0)
-            data_freshness_minutes = (missing_data_info or {}).get(
-                "data_freshness_minutes", 0.0
-            )
+            data_freshness_minutes = (missing_data_info or {}).get("data_freshness_minutes", 0.0)
             # === Result market ===
             home_prob = float(
-                probabilities.get(
-                    "probability_home_win", probabilities.get("home_win", 0.0)
-                )
+                probabilities.get("probability_home_win", probabilities.get("home_win", 0.0))
             )
-            draw_prob = float(
-                probabilities.get("probability_draw", probabilities.get("draw", 0.0))
-            )
+            draw_prob = float(probabilities.get("probability_draw", probabilities.get("draw", 0.0)))
             away_prob = float(
-                probabilities.get(
-                    "probability_away_win", probabilities.get("away_win", 0.0)
-                )
+                probabilities.get("probability_away_win", probabilities.get("away_win", 0.0))
             )
             result_confidence = self._confidence_from_probs(
                 {
@@ -473,14 +438,10 @@ class RecommendationEngine:
                 recommendations.append(rec)
             # === Totals & BTTS markets ===
             over_prob = float(
-                probabilities.get(
-                    "probability_over_2_5", probabilities.get("over", 0.0)
-                )
+                probabilities.get("probability_over_2_5", probabilities.get("over", 0.0))
             )
             under_prob = float(
-                probabilities.get(
-                    "probability_under_2_5", probabilities.get("under", 0.0)
-                )
+                probabilities.get("probability_under_2_5", probabilities.get("under", 0.0))
             )
             total_corr_probs = {"over": over_prob, "under": under_prob}
             total_confidence = self._confidence_from_probs(total_corr_probs)
@@ -566,15 +527,10 @@ class RecommendationEngine:
                     btts_corr_probs = {"yes": btts_yes_corr, "no": btts_no_corr}
                     total_corr_probs = {"over": over_corr, "under": under_corr}
                     # Скорректированные вероятности BTTS/Тоталов (ключи {'yes','no'} и {'over','under'})
-                    btts_confidence = self.compute_confidence_from_margin(
-                        btts_corr_probs
-                    )
-                    total_confidence = self.compute_confidence_from_margin(
-                        total_corr_probs
-                    )
+                    btts_confidence = self.compute_confidence_from_margin(btts_corr_probs)
+                    total_confidence = self.compute_confidence_from_margin(total_corr_probs)
                     if btts_yes_corr > 0.5 and not any(
-                        r.market == "BTTS" and r.selection == "Yes"
-                        for r in recommendations
+                        r.market == "BTTS" and r.selection == "Yes" for r in recommendations
                     ):
                         risk_level = (
                             RiskLevel.HIGH
@@ -598,8 +554,7 @@ class RecommendationEngine:
                         rec.confidence = penalized_confidence
                         recommendations.append(rec)
                     if over_corr > 0.5 and not any(
-                        r.market == "Totals" and r.selection == "Over"
-                        for r in recommendations
+                        r.market == "Totals" and r.selection == "Over" for r in recommendations
                     ):
                         risk_level = (
                             RiskLevel.HIGH
@@ -623,9 +578,7 @@ class RecommendationEngine:
                         rec.confidence = penalized_confidence
                         recommendations.append(rec)
                 except Exception as bivar_error:
-                    logger.error(
-                        f"Ошибка при использовании Bivariate Poisson: {bivar_error}"
-                    )
+                    logger.error(f"Ошибка при использовании Bivariate Poisson: {bivar_error}")
             return recommendations
         except Exception as e:
             logger.error(f"Ошибка при генерации рекомендаций: {e}")

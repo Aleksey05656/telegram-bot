@@ -93,11 +93,7 @@ class PoissonRegressionModel:
                 with open(filepath, encoding="utf-8") as f:
                     self.team_ratings = json.load(f)
                 logger.info(f"Рейтинги команд загружены из {filepath}")
-                # Опционально: Обновить team_hash_map, если рейтинги влияют на него
-                # for team_id_str in self.team_ratings.keys():
-                #     team_id = int(team_id_str) # Предполагаем, что ключи - это ID команд как строки
-                #     if team_id not in self.team_hash_map:
-                #         self.team_hash_map[team_id] = self._hash_value(team_id)
+                # Опционально можно обновить team_hash_map, если рейтинги влияют на него.
             else:
                 logger.warning(
                     f"Файл с рейтингами {filepath} не найден. team_ratings останется пустым."
@@ -184,12 +180,8 @@ class PoissonRegressionModel:
                     self.team_hash_map[team_id] = self._hash_value(team_id)
             # Создаем признаки взаимодействия
             df_clean["league_id_hash"] = df_clean["league_id"].map(self.league_hash_map)
-            df_clean["home_team_id_hash"] = df_clean["home_team_id"].map(
-                self.team_hash_map
-            )
-            df_clean["away_team_id_hash"] = df_clean["away_team_id"].map(
-                self.team_hash_map
-            )
+            df_clean["home_team_id_hash"] = df_clean["home_team_id"].map(self.team_hash_map)
+            df_clean["away_team_id_hash"] = df_clean["away_team_id"].map(self.team_hash_map)
             df_clean["home_league_interaction"] = (
                 df_clean["home_team_id_hash"] * df_clean["league_id_hash"]
             )
@@ -229,9 +221,7 @@ class PoissonRegressionModel:
             all_features = continuous_features + categorical_features
             # Создаем признаки для домашней и гостевой команд
             # Домашняя команда предсказывает свои голы
-            home_feature_data = df_clean[
-                continuous_features + categorical_features
-            ].copy()
+            home_feature_data = df_clean[continuous_features + categorical_features].copy()
             # Поменяем местами некоторые признаки, чтобы они отражали перспективу домашней команды
             # Например, для предсказания голов домашней команды, мы используем её атаку и оборону соперника
             # Это требует переформулировки признаков. Пример ниже - упрощенный вариант.
@@ -243,9 +233,7 @@ class PoissonRegressionModel:
             y_home = df_clean["home_goals"].values
             # Для гостевой модели: цель - away_goals, признаки - гостевые и домашние (как оборона)
             # Аналогично, предполагаем, что данные подготовлены корректно.
-            away_feature_data = df_clean[
-                continuous_features + categorical_features
-            ].copy()
+            away_feature_data = df_clean[continuous_features + categorical_features].copy()
             X_away = away_feature_data.values
             y_away = df_clean["away_goals"].values
             logger.info(
@@ -355,12 +343,12 @@ class PoissonRegressionModel:
                 away_league_interaction,
                 home_league_interaction,  # Переставлены interactions
             ]
-            X_home_single = np.array(
-                continuous_features_home + categorical_features_home
-            ).reshape(1, -1)
-            X_away_single = np.array(
-                continuous_features_away + categorical_features_away
-            ).reshape(1, -1)
+            X_home_single = np.array(continuous_features_home + categorical_features_home).reshape(
+                1, -1
+            )
+            X_away_single = np.array(continuous_features_away + categorical_features_away).reshape(
+                1, -1
+            )
             return X_home_single, X_away_single
         except Exception as e:
             logger.error(f"Ошибка при подготовке признаков для матча: {e}")
@@ -392,12 +380,12 @@ class PoissonRegressionModel:
                         home_team = row["home_team_id"]  # Используем ID
                         away_team = row["away_team_id"]  # Используем ID
                         # Рассчитываем базовые λ (простая оценка)
-                        home_avg = league_data[
-                            league_data["home_team_id"] == home_team
-                        ]["home_goals"].mean()
-                        away_avg = league_data[
-                            league_data["away_team_id"] == away_team
-                        ]["away_goals"].mean()
+                        home_avg = league_data[league_data["home_team_id"] == home_team][
+                            "home_goals"
+                        ].mean()
+                        away_avg = league_data[league_data["away_team_id"] == away_team][
+                            "away_goals"
+                        ].mean()
                         if not np.isnan(home_avg) and not np.isnan(away_avg):
                             lambda_values.extend([home_avg, away_avg])
                     if lambda_values:
@@ -455,9 +443,7 @@ class PoissonRegressionModel:
                 logger.error("Пустой набор данных для обучения")
                 return None
             # Подготовка признаков
-            X_home, y_home, X_away, y_away, feature_names = self.prepare_features(
-                training_data
-            )
+            X_home, y_home, X_away, y_away, feature_names = self.prepare_features(training_data)
             if len(X_home) == 0 or len(X_away) == 0:
                 logger.error("Не удалось подготовить признаки для обучения.")
                 return None
@@ -568,9 +554,7 @@ class PoissonRegressionModel:
                 # Ограничение по умолчанию
                 lambda_home = min(lambda_home, 6.0)
                 lambda_away = min(lambda_away, 6.0)
-            logger.debug(
-                f"Рассчитаны λ: домашняя={lambda_home:.3f}, гостевая={lambda_away:.3f}"
-            )
+            logger.debug(f"Рассчитаны λ: домашняя={lambda_home:.3f}, гостевая={lambda_away:.3f}")
             return lambda_home, lambda_away
         except Exception as e:
             logger.error(f"Ошибка при расчете базовых λ: {e}")

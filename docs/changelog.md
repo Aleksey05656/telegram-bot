@@ -1,3 +1,11 @@
+## [2025-09-15] - SportMonks stub and Ruff cleanup
+### Добавлено
+- Автоматическое включение STUB SportMonks при отсутствии ключа API.
+### Изменено
+- —
+### Исправлено
+- Предупреждения Ruff B904, B025, ERA001, UP038, C401; исправлен `invalid-syntax` в `telegram/models.py`.
+
 ## [2025-09-15] - Offline pre-commit ruff fix
 ### Добавлено
 - Локальные хуки `trailing-whitespace` и `end-of-file-fixer` для офлайн линтинга.

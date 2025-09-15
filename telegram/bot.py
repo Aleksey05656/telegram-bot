@@ -92,9 +92,7 @@ class TelegramBot:
             self.dp.include_router(start.router)
             self.dp.include_router(help.router)
             self.dp.include_router(terms.router)
-            self.dp.include_router(
-                predict.router
-            )  # Более общий, регистрируем последним
+            self.dp.include_router(predict.router)  # Более общий, регистрируем последним
 
             logger.info("✅ Роутеры зарегистрированы")
         except Exception as e:
@@ -114,9 +112,7 @@ class TelegramBot:
                 BotCommand(command="examples", description="Примеры использования"),
                 BotCommand(command="stats", description="Статистика бота"),
                 BotCommand(command="terms", description="Условия использования"),
-                BotCommand(
-                    command="disclaimer", description="Отказ от ответственности"
-                ),
+                BotCommand(command="disclaimer", description="Отказ от ответственности"),
             ]
             await self.bot.set_my_commands(commands)
             logger.info("✅ Команды бота установлены")
@@ -135,10 +131,6 @@ class TelegramBot:
             bot_info = await self.bot.get_me()
             logger.info(f"✅ Бот @{bot_info.username} запущен и готов к работе")
             logger.info(f"🤖 Bot ID: {bot_info.id}")
-
-            # Отправка уведомления о запуске (в разработке)
-            # if settings.ADMIN_CHAT_ID:
-            #     await self.bot.send_message(settings.ADMIN_CHAT_ID, "✅ Бот успешно запущен!")
 
             if settings.DEBUG_MODE:
                 logger.info("🔧 Режим отладки включен")

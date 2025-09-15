@@ -4,9 +4,7 @@
 @dependencies: logger, config, numpy, pandas, joblib, sklearn
 @created: 2025-08-23
 """
-import asyncio
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import joblib
 import numpy as np
@@ -51,7 +49,7 @@ class PredictionModifier:
         lambda_away: float,
         core_avail_home: float,
         core_avail_away: float,
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         try:
             availability_threshold = 0.7
             factor_home = 0.98 if core_avail_home >= availability_threshold else 0.95
@@ -74,9 +72,9 @@ class PredictionModifier:
         self,
         lambda_home: float,
         lambda_away: float,
-        weather: Dict[str, Any],
+        weather: dict[str, Any],
         pitch_type: str,
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         try:
             wind_mps = weather.get("wind_mps", 0) if weather else 0
             rain_prob = weather.get("rain_prob", 0) if weather else 0
@@ -103,8 +101,8 @@ class PredictionModifier:
         self,
         base_lambda_home: float,
         base_lambda_away: float,
-        match_context: Dict[str, Any],
-    ) -> Tuple[float, float]:
+        match_context: dict[str, Any],
+    ) -> tuple[float, float]:
         try:
             logger.info("Начало применения динамических модификаторов...")
             modified_lambda_home = base_lambda_home
@@ -162,14 +160,14 @@ class PredictionModifier:
             logger.error("Ошибка при применении модификаторов: %s", e, exc_info=True)
             return base_lambda_home, base_lambda_away
 
-    def _calculate_player_impact(self, missing_players: List[Dict]) -> float:
+    def _calculate_player_impact(self, missing_players: list[dict[str, Any]]) -> float:
         try:
             if not missing_players:
                 return 0.0
             total_impact = 0
             for player in missing_players:
                 impact = player.get("xg_contribution")
-                if impact is None or not isinstance(impact, (int, float)):
+                if impact is None or not isinstance(impact, int | float):
                     impact = 0.1
                 total_impact += impact
             impact_coefficient = min(0.3, total_impact * 0.1)
@@ -186,7 +184,7 @@ class PredictionModifier:
 class CalibrationLayer:
     """log(lambda') = log(lambda_base) + beta^T * features"""
 
-    def __init__(self, feature_names: Optional[List[str]] = None, alpha: float = 1.0):
+    def __init__(self, feature_names: list[str] | None = None, alpha: float = 1.0):
         self.feature_names = feature_names or []
         self.model_home = Ridge(alpha=alpha)
         self.model_away = Ridge(alpha=alpha)
@@ -198,7 +196,7 @@ class CalibrationLayer:
         y_away: np.ndarray,
         lam_home_base: np.ndarray,
         lam_away_base: np.ndarray,
-        sample_weight: Optional[np.ndarray] = None,
+        sample_weight: np.ndarray | None = None,
     ) -> "CalibrationLayer":
         X = X[self.feature_names] if self.feature_names else X
         t_home = np.log(np.clip(y_home, 1e-6, None)) - np.log(np.clip(lam_home_base, 1e-6, None))
