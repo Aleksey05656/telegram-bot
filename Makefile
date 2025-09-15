@@ -86,6 +86,6 @@ smoke:
 
 pre-commit-offline:
 	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"
-	$(PRECOMMIT) run --all-files -c .pre-commit-config.offline.yaml || true
+	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
 check: lint test smoke

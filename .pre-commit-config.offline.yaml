@@ -6,11 +6,17 @@
 repos:
   - repo: local
     hooks:
-      - id: ruff
-        name: ruff
-        entry: python -m ruff
+      - id: ruff-check
+        name: ruff (check + fix)
+        entry: python -m ruff check
+        args: [--fix, --exit-non-zero-on-fix]
         language: system
         types: [python]
+      # - id: ruff-format
+      #   name: ruff (format)
+      #   entry: python -m ruff format
+      #   language: system
+      #   types: [python]
       - id: black
         name: black
         entry: python -m black
@@ -21,3 +27,13 @@ repos:
         entry: python -m isort
         language: system
         types: [python]
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        entry: scripts/hooks/trailing_ws.py
+        language: system
+        types: [text]
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        entry: scripts/hooks/eof_fixer.py
+        language: system
+        types: [text]
