@@ -1,3 +1,13 @@
+## Задача: Offline numeric stack support
+- **Статус**: Завершена
+- **Описание**: Настроить кеш колёс, расширить офлайн pre-commit ruff и задокументировать CI numeric enforcement.
+- **Шаги выполнения**:
+  - [x] Обновлён pip.conf с find-links и создан каталог wheels
+  - [x] Добавлен ruff в .pre-commit-config.offline.yaml
+  - [x] В README добавлен раздел CI numeric enforcement
+  - [x] Обновлены docs/changelog.md и docs/tasktracker.md
+- **Зависимости**: pip.conf, wheels/README.md, .pre-commit-config.offline.yaml, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Numpy guard and CI fallback
 - **Статус**: Завершена
 - **Описание**: Добавить пропуск numpy/pandas тестов без стека, обновить CI и документацию.

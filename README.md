@@ -63,6 +63,14 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 Если `numpy` и `pandas` недоступны (например, в офлайн окружении),
 тесты, помеченные `@pytest.mark.needs_np`, будут автоматически пропущены.
 
+## CI numeric enforcement
+
+CI завершается с ошибкой, если любой тест с маркером `needs_np` был пропущен.
+Чтобы обеспечить прохождение сборки в офлайн-режиме, заранее
+подготовьте колёса в каталоге `wheels/` или настройте локальное зеркало PyPI
+через `pip.conf`. При отсутствии необходимых пакетов тесты будут SKIP и CI
+прервёт сборку.
+
 ## Tests
 
 - Контрактный тест сверяет `.env.example` с `app.config.Settings`.

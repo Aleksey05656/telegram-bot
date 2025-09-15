@@ -11,6 +11,8 @@ __pycache__/
 .ruff_cache/
 .cache/
 .tmp/
+# local wheel cache
+wheels/*.whl
 # black force-exclude offenders (appended by scripts/black_partition.py)
 /telegram/middlewares.py
 /telegram/models.py

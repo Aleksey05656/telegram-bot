@@ -1,3 +1,14 @@
+## [2025-09-15] - Offline numeric stack support
+### Добавлено
+- Каталог `wheels/` и настройка `pip` для офлайн-установок.
+- Хук `ruff` в `.pre-commit-config.offline.yaml`.
+- Раздел README "CI numeric enforcement".
+### Изменено
+- `pip.conf` использует локальный кэш колёс.
+- `.pre-commit-config.offline.yaml` расширен `ruff`-хуком.
+### Исправлено
+- —
+
 ## [2025-09-15] - Enforce numeric test suite
 ### Добавлено
 - Жёсткая проверка `needs_np` тестов в CI.
