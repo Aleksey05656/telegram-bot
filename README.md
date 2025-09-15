@@ -61,16 +61,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 ## Тесты без NumPy/Pandas (офлайн/прокси)
 
 Если `numpy` и `pandas` недоступны (например, в офлайн окружении),
-тесты, помеченные `@pytest.mark.needs_np` или подпадающие под шаблоны
-`test_ml.py`, `test_services.py`, `test_metrics.py`, `test_prediction`
-будут автоматически пропущены.
-Шаблоны можно переопределить переменной окружения:
-
-```bash
-NEEDS_NP_PATTERNS="test_ml.py|test_services.py" pytest -q
-```
-
-В CI переменная `NEEDS_NP_PATTERNS` уже выставлена автоматически.
+тесты, помеченные `@pytest.mark.needs_np`, будут автоматически пропущены.
 
 ## Tests
 
