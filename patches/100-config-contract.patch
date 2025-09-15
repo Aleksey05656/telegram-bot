@@ -1,0 +1,53 @@
+# Patch 100-config-contract: align Settings with .env.example
+# Apply:    git apply patches/100-config-contract.patch
+# Revert:   git apply -R patches/100-config-contract.patch
+# Summary: adds missing env vars and explicit aliases for Prometheus/RateLimit settings.
+
+diff --git a/.env.example b/.env.example
+--- a/.env.example
++++ b/.env.example
+@@
+-APP_NAME=ml-service
+-DEBUG=false
+-SENTRY_DSN=
+-PROMETHEUS_ENABLED=true
+-PROMETHEUS_ENDPOINT=/metrics
+-RATE_LIMIT_ENABLED=true
+-RATE_LIMIT_REQUESTS=60
+-RATE_LIMIT_PER_SECONDS=60
++APP_NAME=ml-service
++DEBUG=false
++TELEGRAM_BOT_TOKEN=""
++SPORTMONKS_API_KEY=""
++ODDS_API_KEY=""
++DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/sports
++REDIS_HOST=localhost
++REDIS_PORT=6379
++REDIS_DB=0
++SENTRY_DSN=
++PROMETHEUS_ENABLED=true
++PROMETHEUS_ENDPOINT=/metrics
++RATE_LIMIT_ENABLED=true
++RATE_LIMIT_REQUESTS=60
++RATE_LIMIT_PER_SECONDS=60
+@@
+ MODEL_REGISTRY_PATH=artifacts/
+ diff --git a/app/config.py b/app/config.py
+--- a/app/config.py
++++ b/app/config.py
+@@
+-class PrometheusSettings(BaseModel):
+-    enabled: bool = True
+-    endpoint: str = "/metrics"
++class PrometheusSettings(BaseModel):
++    enabled: bool = Field(default=True, alias="PROMETHEUS_ENABLED")
++    endpoint: str = Field(default="/metrics", alias="PROMETHEUS_ENDPOINT")
+@@
+-class RateLimitSettings(BaseModel):
+-    enabled: bool = True
+-    requests: int = 60
+-    per_seconds: int = 60
++class RateLimitSettings(BaseModel):
++    enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
++    requests: int = Field(default=60, alias="RATE_LIMIT_REQUESTS")
++    per_seconds: int = Field(default=60, alias="RATE_LIMIT_PER_SECONDS")
