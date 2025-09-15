@@ -16,6 +16,14 @@ Updated 2025-09-10.
 - SportMonks client (`app/integrations/sportmonks_client.py`) переключает заглушку через `SPORTMONKS_STUB`.
 - Observability: Sentry controlled by `SENTRY_ENABLED`; Prometheus `/metrics` expose labels `service`, `env`, `version`.
 
+## λ_base → modifiers → λ_final
+
+PredictionPipeline сначала вычисляет базовые λ, затем применяет модификаторы
+и получает λ_final. На этом этапе рассчитываются метрики `glm_base_*` и
+`glm_mod_final_*`, результаты сохраняются в `reports/metrics/` и логируются
+с тегами `service/env/version/season/modifiers_applied` для последующего
+наблюдения.
+
 ## ML stack
 
 Core libs: numpy >=1.26,<2.0 and pandas 2.2.2.

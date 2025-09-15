@@ -114,6 +114,9 @@ Rolling/walk-forward CV; LogLoss, Brier, ECE.
 Онлайн-метрики: ECE по декаилям, LogLoss vs baseline, PSI по фичам.
 Алёрты: ECE>0.05 или LogLoss↑>15% от референса; PSI>0.25.
 Мониторинг: Prometheus (pred_total, prob_bins, rolling_ece, rolling_logloss) и Sentry.
+PredictionPipeline дополнительно записывает `glm_base_*` и `glm_mod_final_*`
+с тегами `service/env/version/season/modifiers_applied` и формирует
+markdown-отчёт `reports/metrics/MODIFIERS_<season>.md`.
 Недельные отчёты.
 
 ## 7. Безопасность

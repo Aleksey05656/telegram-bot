@@ -4,6 +4,7 @@
 @dependencies: pandas (optional), numpy (optional), joblib, Preprocessor, ModelRegistry
 @created: 2025-09-12
 """
+import os
 from typing import Any, Protocol
 
 try:  # optional import for constrained environments
@@ -11,7 +12,9 @@ try:  # optional import for constrained environments
 except Exception:  # pragma: no cover
     pd = Any  # type: ignore
 
+from app.config import get_settings
 from logger import logger
+from metrics import ece_poisson, logloss_poisson, record_metrics
 
 
 class Preprocessor(Protocol):
@@ -77,13 +80,44 @@ class PredictionPipeline:
         else:
             pred_home = model_home.predict(X)
             pred_away = model_away.predict(X)
+
+        pred_home_base = pred_home
+        pred_away_base = pred_away
+        modifiers_applied = False
         if self._reg is not None:
             try:
                 mod = self._reg.load("modifiers_model")
                 pred_home, pred_away = mod.transform(pred_home, pred_away, X)
+                modifiers_applied = True
                 logger.info("modifiers_applied=1")
             except Exception:
                 logger.debug("modifiers_applied=0")
+
+        if {
+            "home_goals",
+            "away_goals",
+        }.issubset(getattr(df, "columns", [])):
+            y_true = df["home_goals"].tolist() + df["away_goals"].tolist()
+            base_pred = list(pred_home_base) + list(pred_away_base)
+            final_pred = list(pred_home) + list(pred_away)
+            settings = get_settings()
+            tags = {
+                "service": settings.app_name,
+                "env": settings.env,
+                "version": settings.git_sha,
+                "season": os.getenv("SEASON_ID", "default"),
+                "modifiers_applied": "false",
+            }
+            base_logloss = logloss_poisson(y_true, base_pred)
+            base_ece = ece_poisson(y_true, base_pred)
+            record_metrics("glm_base_logloss", base_logloss, tags)
+            record_metrics("glm_base_ece", base_ece, tags)
+            tags_final = dict(tags)
+            tags_final["modifiers_applied"] = "true" if modifiers_applied else "false"
+            final_logloss = logloss_poisson(y_true, final_pred)
+            final_ece = ece_poisson(y_true, final_pred)
+            record_metrics("glm_mod_final_logloss", final_logloss, tags_final)
+            record_metrics("glm_mod_final_ece", final_ece, tags_final)
         try:
             import numpy as np
 

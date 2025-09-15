@@ -138,3 +138,57 @@ def record_prediction(market: str, league: str, y_prob: float, y_true: int | Non
     rolling_logloss.labels(**labels).set(logloss)
     if ece > 0.05:
         sentry_sdk.capture_message(f"High ECE {ece:.3f} for {market}:{league}", level="warning")
+
+
+def logloss_poisson(y_true: list[int], y_pred: list[float]) -> float:
+    """Negative log-likelihood for Poisson predictions."""
+    import math
+
+    import numpy as np
+
+    losses = [
+        lam - y * math.log(max(lam, 1e-15)) + math.lgamma(y + 1)
+        for y, lam in zip(y_true, y_pred, strict=False)
+    ]
+    return float(np.mean(losses))
+
+
+def ece_poisson(y_true: list[int], y_pred: list[float], n_bins: int = 10) -> float:
+    """Expected calibration error for Poisson predictions."""
+    import math
+
+    def _pmf(y: int, lam: float) -> float:
+        return math.exp(-lam) * lam**y / math.factorial(y)
+
+    probs = [_pmf(y, lam) for y, lam in zip(y_true, y_pred, strict=False)]
+    bin_totals = [0] * n_bins
+    bin_probs = [0.0] * n_bins
+    for p in probs:
+        idx = min(int(p * n_bins), n_bins - 1)
+        bin_totals[idx] += 1
+        bin_probs[idx] += p
+    total = len(probs)
+    ece = 0.0
+    for i in range(n_bins):
+        if bin_totals[i] == 0:
+            continue
+        avg_conf = (i + 0.5) / n_bins
+        acc = bin_probs[i] / bin_totals[i]
+        ece += abs(acc - avg_conf) * bin_totals[i] / total
+    return ece
+
+
+_METRIC_STORE: dict[str, float] = {}
+
+
+def record_metrics(name: str, value: float, tags: dict[str, str]) -> None:
+    """Record arbitrary metric with tags."""
+    from logger import logger
+
+    _METRIC_STORE[name] = value
+    logger.info("metric=%s value=%f tags=%s", name, value, tags)
+
+
+def get_recorded_metrics() -> dict[str, float]:
+    """Return snapshot of recorded metrics (for testing)."""
+    return _METRIC_STORE.copy()
