@@ -1,5 +1,8 @@
 # Run Summary (2025-09-15)
 
+## data_processor extracted
+- pytest --cov=app/data_processor --cov-report=term-missing --cov-fail-under=80 -q — pass (coverage 94.18%).
+
 ## Applied Tasks
 - Очистка конфликтов и обновление зависимостей
 - Базовые λ (Poisson-GLM) с валидацией
