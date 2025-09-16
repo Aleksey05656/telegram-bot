@@ -1,3 +1,12 @@
+## Задача: CLI retrain orchestration
+- **Статус**: Завершена
+- **Описание**: Добавить CLI `scripts/cli.py` с переобучением, расписанием и статусом, обновить документацию и тесты.
+- **Шаги выполнения**:
+  - [x] Реализована команда `retrain run` с обновлением LocalModelRegistry и отчётов.
+  - [x] Добавлены подкоманды `schedule`/`status` и smoke-тест CLI.
+  - [x] Обновлены README, ARCHITECTURE, changelog, RUN_SUMMARY и tasktracker.
+- **Зависимости**: scripts/cli.py, tests/smoke/test_cli_retrain.py, README.md, ARCHITECTURE.md, docs/changelog.md, reports/RUN_SUMMARY.md
+
 ## Задача: Перенос data_processor в пакет
 - **Статус**: Завершена
 - **Описание**: Вынести в пакет app/data_processor валидацию, построение признаков и матрицу признаков с покрытиями ≥80%.

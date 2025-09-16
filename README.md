@@ -165,6 +165,26 @@ curl -s http://127.0.0.1:8000/__smoke__/retrain
 pytest -q -k test_retrain_registration
 ```
 
+## CLI retrain
+
+Командный интерфейс `python scripts/cli.py retrain ...` управляет локальным переобучением.
+
+```bash
+# Обучение базовых GLM и модификаторов с записью отчёта
+python scripts/cli.py retrain run --season-id default --alpha 0.005 --l2 1.0 --with-modifiers
+
+# Регистрация задачи в in-memory планировщике
+python scripts/cli.py retrain schedule --cron "0 4 * * *"
+
+# Диагностика зарегистрированных задач
+python scripts/cli.py retrain status
+```
+
+Артефакты сохраняются в `artifacts/<SEASON_ID>/` через `LocalModelRegistry`: `glm_home.pkl`,
+`glm_away.pkl`, `model_info.json` и (при флаге `--with-modifiers`) `modifiers_model.pkl`.
+Метрики `logloss`/`ece` модификаторов записываются в `reports/metrics/MODIFIERS_<SEASON>.md`,
+а краткий итог добавляется в `reports/RUN_SUMMARY.md`.
+
 ## Smart pre-commit fallback
 
 Если обычный `pre-commit` упирается в прокси/GitHub (например, `CONNECT tunnel failed, response 403`),

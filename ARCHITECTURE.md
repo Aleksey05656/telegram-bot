@@ -43,3 +43,16 @@ Parameters are configurable via `SIM_RHO`, `SIM_N`, `SIM_CHUNK`.
 `storage/persistence.py` provides `SQLitePredictionsStore` writing probabilities
 to table `predictions(match_id, market, selection, prob, ts, season, extra)`
 with SQLite fallback (`PREDICTIONS_DB_URL`).
+
+## CLI retrain
+
+`scripts/cli.py` использует `click` и объединяет подкоманды `retrain`:
+
+- `run` — обучает GLM (через `scripts/train_glm.py`), при флаге `--with-modifiers`
+  тренирует `ml/modifiers_model.py`, сохраняет артефакты в `LocalModelRegistry` и
+  добавляет срез в `reports/RUN_SUMMARY.md`;
+- `schedule` — прокидывает cron в `workers/runtime_scheduler.register` через
+  `workers.retrain_scheduler.schedule_retrain`;
+- `status` — выводит список зарегистрированных задач и счётчик `jobs_registered_total`.
+
+Модели и отчёты CLI живут в `artifacts/<SEASON_ID>/` и `reports/metrics/`.
