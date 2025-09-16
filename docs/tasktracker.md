@@ -1,3 +1,21 @@
+## Задача: Data processor integration
+- **Статус**: Завершена
+- **Описание**: Подключить реализованный `app.data_processor` к обучению и инференсу моделей.
+- **Шаги выполнения**:
+  - [x] Реализованы проверки и признаки в `validate_input`, `build_features`, `to_model_matrix`.
+  - [x] Скрипты `train_glm.py` и `train_modifiers.py` используют новый конвейер подготовки данных.
+  - [x] PredictionPipeline и тесты обновлены под формат `goals_home`/`goals_away` и новые признаки.
+- **Зависимости**: app/data_processor/*, scripts/train_glm.py, scripts/train_modifiers.py, services/prediction_pipeline.py, tests/ml/
+
+## Задача: Data processor scaffolding
+- **Статус**: Завершена
+- **Описание**: Подготовить каркас пакета `app/data_processor` без миграции существующей логики.
+- **Шаги выполнения**:
+  - [x] Созданы модули validate/features/matrix с заглушками и аннотациями.
+  - [x] Обновлён `__init__.py` с версией пакета и экспортами.
+  - [x] Добавлены тесты на отказ при пустом `DataFrame`.
+- **Зависимости**: app/data_processor, tests/data_processor
+
 ## Задача: Монте-Карло и Bi-Poisson
 - **Статус**: Завершена
 - **Описание**: Добавить расчёт энтропии рынков и параметры симуляции.

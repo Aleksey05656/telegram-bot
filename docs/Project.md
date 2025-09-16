@@ -30,12 +30,15 @@ telegram-bot/
 ├─ app/
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
-│  └─ data_processor/           | фасад старого data_processor.py
+│  └─ data_processor/           | валидация и построение признаков матчей
 │     ├─ __init__.py
-│     ├─ validators.py
-│     ├─ feature_engineering.py
-│     ├─ transformers.py
-│     └─ io.py
+│     ├─ validate.py            # Проверка схемы, типов и дубликатов матчей
+│     ├─ features.py            # rest_days и rolling xG по команде и роли
+│     ├─ matrix.py              # Матрицы X/y для home/away GLM
+│     ├─ validators.py          # Legacy-обёртка на `data_processor.py`
+│     ├─ feature_engineering.py # Legacy-обёртка на `data_processor.py`
+│     ├─ transformers.py        # Legacy-обёртка на `data_processor.py`
+│     └─ io.py                  # Legacy-обёртка на `data_processor.py`
 ├─ metrics/                  | ECE/LogLoss метрики
 │  └─ metrics.py
 ├─ database/                 | PostgreSQL+Redis, миграции

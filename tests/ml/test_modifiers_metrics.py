@@ -15,7 +15,7 @@ from services.prediction_pipeline import PredictionPipeline
 def test_modifiers_metrics() -> None:
     class _Pre:
         def transform(self, df: pd.DataFrame) -> pd.DataFrame:  # type: ignore
-            return df[["x"]]
+            return df
 
     class _Model:
         def predict(self, X):  # type: ignore
@@ -35,9 +35,13 @@ def test_modifiers_metrics() -> None:
 
     df = pd.DataFrame(
         {
-            "x": [0, 1],
-            "home_goals": [1, 0],
-            "away_goals": [0, 2],
+            "home_team": ["A", "B"],
+            "away_team": ["B", "A"],
+            "date": pd.to_datetime(["2024-01-01", "2024-01-08"]),
+            "xG_home": [1.0, 0.9],
+            "xG_away": [0.8, 1.1],
+            "goals_home": [1, 0],
+            "goals_away": [0, 2],
         }
     )
     pipe = PredictionPipeline(_Pre(), _Registry())
