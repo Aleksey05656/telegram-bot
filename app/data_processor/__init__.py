@@ -1,13 +1,18 @@
 """
 @file: __init__.py
-@description: Facade for the data_processor package with backward compatibility.
-@dependencies: data_processor legacy module
-@created: 2025-09-10
-"""
-# Фасад: импортируем из старого модуля для обратной совместимости
-import data_processor as legacy
+@description: Public interface for the data processor scaffolding.
+@dependencies: pandas
+@created: 2025-09-16
 
-from .feature_engineering import build_features
-from .io import load_data, save_data
-from .transformers import make_transformers
-from .validators import validate_required_columns
+Top-level package for the upcoming data processor implementation.
+"""
+
+from __future__ import annotations
+
+__version__ = "0.1.0"
+
+from .features import build_features
+from .matrix import to_model_matrix
+from .validate import validate_input
+
+__all__ = ("__version__", "build_features", "to_model_matrix", "validate_input")
