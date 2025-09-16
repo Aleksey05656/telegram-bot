@@ -30,11 +30,6 @@ telegram-bot/
 ├─ app/
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
-│  └─ data_processor/           | новый каркас + фасад старого data_processor.py
-│     ├─ __init__.py
-│     ├─ validate.py            # TODO: полноценная валидация входных данных
-│     ├─ features.py            # TODO: построение фич по rolling-окнам
-│     ├─ matrix.py              # TODO: формирование train/app матриц
 │     ├─ validators.py          # Legacy-обёртка на `data_processor.py`
 │     ├─ feature_engineering.py # Legacy-обёртка на `data_processor.py`
 │     ├─ transformers.py        # Legacy-обёртка на `data_processor.py`

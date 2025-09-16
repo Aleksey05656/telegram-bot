@@ -13,27 +13,31 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from app.data_processor import build_features, to_model_matrix, validate_input
 from app.ml.model_registry import LocalModelRegistry
 from services.prediction_pipeline import PredictionPipeline
 
 
 class _Preprocessor:
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df[["x1"]]
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:  # pragma: no cover - simple passthrough
+        return df
 
 
 @pytest.mark.needs_np
 def test_train_glm_and_pipeline(tmp_path):
-    df = pd.DataFrame(
+    train_df = pd.DataFrame(
         {
-            "age_days": [0, 1, 2, 3],
-            "home_goals": [1, 0, 2, 1],
-            "away_goals": [0, 1, 1, 2],
-            "x1": [0.1, 0.2, 0.3, 0.4],
+            "home_team": ["A", "B", "C", "A"],
+            "away_team": ["B", "C", "A", "C"],
+            "date": pd.date_range("2024-01-01", periods=4, freq="7D"),
+            "xG_home": [1.1, 0.8, 1.3, 0.9],
+            "xG_away": [0.6, 1.0, 0.7, 1.2],
+            "goals_home": [2, 0, 3, 1],
+            "goals_away": [0, 1, 1, 2],
         }
     )
     data_path = tmp_path / "train.csv"
-    df.to_csv(data_path, index=False)
+    train_df.to_csv(data_path, index=False)
     season = 2024
     subprocess.run(
         [
@@ -60,11 +64,14 @@ def test_train_glm_and_pipeline(tmp_path):
     assert info["alpha"] == 0.1
     assert info["l2"] == 0.0
     model_home = joblib.load(art_dir / "glm_home.pkl")
-    lambdas = np.exp(model_home.predict(df[["x1"]]))
-    assert (lambdas > 0).all()
-    assert (lambdas < 10).all()
+    validated = validate_input(train_df)
+    features = build_features(validated)
+    X_home, _, _, _ = to_model_matrix(features)
+    lambdas_home = np.exp(model_home.predict(X_home))
+    assert (lambdas_home > 0).all()
+    assert (lambdas_home < 10).all()
     registry = LocalModelRegistry(base_dir="artifacts")
     pipeline = PredictionPipeline(_Preprocessor(), registry)
-    preds = pipeline.predict_proba(df[["x1"]])
-    assert preds.shape == (len(df), 2)
+    preds = pipeline.predict_proba(train_df)
+    assert preds.shape == (len(train_df), 2)
     assert (preds > 0).all()

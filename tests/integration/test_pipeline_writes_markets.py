@@ -21,7 +21,7 @@ from services.prediction_pipeline import PredictionPipeline
 def test_pipeline_writes_markets(tmp_path, monkeypatch):
     class _Pre:
         def transform(self, df: pd.DataFrame) -> pd.DataFrame:  # noqa: D401
-            return df[[]]
+            return df
 
     monkeypatch.setenv("PREDICTIONS_DB_URL", str(tmp_path / "pred.sqlite"))
     monkeypatch.setenv("SIM_N", "512")
@@ -32,7 +32,13 @@ def test_pipeline_writes_markets(tmp_path, monkeypatch):
             "home": ["H"],
             "away": ["A"],
             "season": ["S"],
+            "home_team": ["H"],
+            "away_team": ["A"],
             "date": [pd.Timestamp("2024-01-01")],
+            "xG_home": [1.2],
+            "xG_away": [0.9],
+            "goals_home": [2],
+            "goals_away": [1],
         }
     )
 

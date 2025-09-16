@@ -7,11 +7,14 @@
 import os
 from typing import Any, Protocol
 
+import numpy as np
+
 try:  # optional import for constrained environments
     import pandas as pd  # type: ignore
 except Exception:  # pragma: no cover
     pd = Any  # type: ignore
 
+from app.data_processor import build_features, to_model_matrix, validate_input
 from app.config import get_settings
 from logger import logger
 from metrics import ece_poisson, logloss_poisson, record_metrics
@@ -49,6 +52,30 @@ class PredictionPipeline:
         self._pre = preprocessor
         self._reg = model_registry
 
+    @staticmethod
+    def _prepare_modifier_features(features: pd.DataFrame) -> pd.DataFrame:
+        feature_cols = ["rest_days"] + sorted(
+            col for col in features.columns if col.startswith("rolling_xg_")
+        )
+        if not feature_cols:
+            return pd.DataFrame({"bias": [1.0]})
+
+        home = (
+            features.loc[features["is_home"] == 1, ["match_id", *feature_cols]]
+            .rename(columns={col: f"{col}_home" for col in feature_cols})
+            .copy()
+        )
+        away = (
+            features.loc[features["is_home"] == 0, ["match_id", *feature_cols]]
+            .rename(columns={col: f"{col}_away" for col in feature_cols})
+            .copy()
+        )
+        combined = home.merge(away, on="match_id", how="inner")
+        combined = combined.sort_values("match_id").reset_index(drop=True)
+        X = combined.drop(columns="match_id")
+        X.insert(0, "bias", 1.0)
+        return X
+
     def _load_models(self):
         if self._reg is None:
             return _DummyModel(), _DummyModel()
@@ -70,34 +97,48 @@ class PredictionPipeline:
                     return _DummyModel(), _DummyModel()
 
     def predict_proba(self, df: pd.DataFrame):
-        X = self._pre.transform(df)
+        validated = validate_input(df)
+        processed = self._pre.transform(validated.copy()) if self._pre is not None else validated
+        features = build_features(processed)
+        X_home, _, X_away, _ = to_model_matrix(features)
+        modifier_features = self._prepare_modifier_features(features)
+
         model_home, model_away = self._load_models()
         if hasattr(model_home, "predict_proba") and hasattr(model_away, "predict_proba"):
-            ph = model_home.predict_proba(X)
-            pa = model_away.predict_proba(X)
+            ph = model_home.predict_proba(X_home)
+            pa = model_away.predict_proba(X_away)
             pred_home = ph[:, 0] if ph.ndim == 2 else ph
             pred_away = pa[:, 1] if pa.ndim == 2 else pa
         else:
-            pred_home = model_home.predict(X)
-            pred_away = model_away.predict(X)
+            pred_home = model_home.predict(X_home)
+            pred_away = model_away.predict(X_away)
 
-        pred_home_base = pred_home
-        pred_away_base = pred_away
+        if hasattr(np, "asarray"):
+            pred_home = np.asarray(pred_home, dtype=float)
+            pred_away = np.asarray(pred_away, dtype=float)
+            pred_home_base = pred_home.copy()
+            pred_away_base = pred_away.copy()
+        else:  # pragma: no cover - numpy unavailable fallback
+            pred_home = list(pred_home)
+            pred_away = list(pred_away)
+            pred_home_base = list(pred_home)
+            pred_away_base = list(pred_away)
+        
         modifiers_applied = False
         if self._reg is not None:
             try:
                 mod = self._reg.load("modifiers_model")
-                pred_home, pred_away = mod.transform(pred_home, pred_away, X)
+                pred_home, pred_away = mod.transform(pred_home, pred_away, modifier_features)
                 modifiers_applied = True
                 logger.info("modifiers_applied=1")
             except Exception:
                 logger.debug("modifiers_applied=0")
 
         if {
-            "home_goals",
-            "away_goals",
+            "goals_home",
+            "goals_away",
         }.issubset(getattr(df, "columns", [])):
-            y_true = df["home_goals"].tolist() + df["away_goals"].tolist()
+            y_true = df["goals_home"].tolist() + df["goals_away"].tolist()
             base_pred = list(pred_home_base) + list(pred_away_base)
             final_pred = list(pred_home) + list(pred_away)
             settings = get_settings()
@@ -182,8 +223,6 @@ class PredictionPipeline:
             record_metrics("sim_entropy_cs", markets["entropy"]["cs"], tags_sim)
 
         try:
-            import numpy as np
-
             return np.column_stack([pred_home, pred_away])
         except Exception:  # pragma: no cover
             return [[h, a] for h, a in zip(pred_home, pred_away, strict=False)]

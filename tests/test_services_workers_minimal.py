@@ -21,7 +21,7 @@ def test_services_prediction_pipeline_stub():
 
     class _Preproc:
         def transform(self, df: "pd.DataFrame") -> "pd.DataFrame":
-            return df.fillna(0)
+            return df
 
     class _Registry:
         class _M:
@@ -33,10 +33,20 @@ def test_services_prediction_pipeline_stub():
         def load(self, name: str, season: int | None = None):
             return self._M()
 
-    df = pd.DataFrame({"x": [1, 2, 3]})
+    df = pd.DataFrame(
+        {
+            "home_team": ["A"],
+            "away_team": ["B"],
+            "date": [pd.Timestamp("2024-01-01")],
+            "xG_home": [1.0],
+            "xG_away": [0.8],
+            "goals_home": [1],
+            "goals_away": [0],
+        }
+    )
     pipe = PredictionPipeline(preprocessor=_Preproc(), model_registry=_Registry())
     out = pipe.predict_proba(df)
-    assert getattr(out, "shape", None) == (3, 2)
+    assert getattr(out, "shape", None) == (1, 2)
 
 
 def test_workers_retrain_scheduler_register_called(monkeypatch):

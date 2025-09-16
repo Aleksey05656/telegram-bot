@@ -9,11 +9,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 
 import joblib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import PoissonRegressor
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.data_processor import build_features, to_model_matrix, validate_input
 
 
 def load_dataframe(path: str) -> pd.DataFrame:
@@ -25,24 +32,38 @@ def load_dataframe(path: str) -> pd.DataFrame:
     raise ValueError(f"unsupported format: {p.suffix}")
 
 
+def _compute_recency_weights(dates: pd.Series, alpha: float) -> np.ndarray:
+    if dates.empty:
+        return np.array([], dtype=float)
+    anchor = dates.max()
+    age_days = (anchor - dates).dt.days.astype(float)
+    return np.exp(-alpha * age_days)
+
+
 def train_models(df: pd.DataFrame, alpha: float, l2: float):
-    feature_cols = [c for c in df.columns if c not in {"age_days", "home_goals", "away_goals"}]
-    X = df[feature_cols]
-    w = np.exp(-alpha * df["age_days"].astype(float))
+    validated = validate_input(df)
+    features = build_features(validated)
+    X_home, y_home, X_away, y_away = to_model_matrix(features)
+
+    home_dates = features.loc[features["is_home"] == 1, "date"].reset_index(drop=True)
+    away_dates = features.loc[features["is_home"] == 0, "date"].reset_index(drop=True)
+    w_home = _compute_recency_weights(home_dates, alpha)
+    w_away = _compute_recency_weights(away_dates, alpha)
+
     home = PoissonRegressor(alpha=l2)
     away = PoissonRegressor(alpha=l2)
-    home.fit(X, df["home_goals"], sample_weight=w)
-    away.fit(X, df["away_goals"], sample_weight=w)
+    home.fit(X_home, y_home, sample_weight=w_home)
+    away.fit(X_away, y_away, sample_weight=w_away)
     info = {
         "versions": {
             "sklearn": PoissonRegressor.__module__.split(".")[0],
             "pandas": pd.__version__,
         },
-        "n_samples": int(len(df)),
+        "n_samples": int(len(validated)),
         "alpha": alpha,
         "l2": l2,
-        "score_home": float(home.score(X, df["home_goals"], sample_weight=w)),
-        "score_away": float(away.score(X, df["away_goals"], sample_weight=w)),
+        "score_home": float(home.score(X_home, y_home, sample_weight=w_home)),
+        "score_away": float(away.score(X_away, y_away, sample_weight=w_away)),
     }
     return home, away, info
 
@@ -55,8 +76,8 @@ def main() -> None:
     parser.add_argument("--input", required=True)
     args = parser.parse_args()
 
-    df = load_dataframe(args.input)
-    model_home, model_away, info = train_models(df, args.alpha, args.l2)
+    raw_df = load_dataframe(args.input)
+    model_home, model_away, info = train_models(raw_df, args.alpha, args.l2)
     out_dir = Path("artifacts") / str(args.season_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(model_home, out_dir / "glm_home.pkl")
