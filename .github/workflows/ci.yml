@@ -29,13 +29,13 @@ jobs:
         run: |
           python -m pip install -U pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Install pre-commit
-        run: pip install pre-commit
-      - name: Lint (online with offline fallback)
-        run: |
-          make pre-commit-smart || {
-            ruff . && isort --check --diff . && black --check .
-          }
+          python -m pip install ruff black isort
+      - name: Ruff check
+        run: python -m ruff check . --exit-non-zero-on-fix
+      - name: Black check
+        run: python -m black --check .
+      - name: Isort check
+        run: python -m isort --check-only .
 
   unit:
     needs: lint
@@ -110,11 +110,14 @@ jobs:
           TOL_ECE: "0.00"
         run: |
           python scripts/validate_modifiers.py --season-id "${SEASON_ID}" --input data/val.csv --alpha 0.005 --l2 1.0 --tol "${TOL_LOSS}" --tol-ece "${TOL_ECE}"
+      - name: Coverage (data_processor)
+        run: pytest --cov=app/data_processor --cov-report=xml --cov-report=html -q
       - name: Upload simulation artifacts
         uses: actions/upload-artifact@v3
         with:
           name: metrics-and-artifacts
           path: |
+            htmlcov/**
             reports/metrics/**/*.md
             reports/metrics/**/*.png
             artifacts/**/*

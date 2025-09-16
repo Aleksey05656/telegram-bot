@@ -1,3 +1,13 @@
+## [2025-09-17] - CI coverage artifacts and lint refinements
+### Добавлено
+- Запуск `pytest --cov=app/data_processor` в numeric job и публикация HTML-отчёта покрытия.
+- Раздел README «Coverage artifacts в CI» с путями к `htmlcov/` и SQLite.
+### Изменено
+- Линтерный job в CI использует `python -m ruff check . --exit-non-zero-on-fix`, `python -m black --check .`, `python -m isort --check-only .`.
+- docs/tasktracker.md отмечает завершение плана Integrator Part 1–3.
+### Исправлено
+- —
+
 ## [2025-09-16] - CLI retrain orchestration
 ### Добавлено
 - CLI `scripts/cli.py` с подкомандами `retrain run/schedule/status` и записью отчётов.
