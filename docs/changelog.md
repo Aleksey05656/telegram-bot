@@ -1,13 +1,3 @@
-## [2025-09-17] - Data processor integration
-### Добавлено
-- Реализация `validate_input`, `build_features`, `to_model_matrix` с расчётом rest_days и rolling xG.
-### Изменено
-- Скрипты `train_glm.py` и `train_modifiers.py` используют конвейер `app.data_processor`.
-- `services/prediction_pipeline.py` готовит признаки через `validate_input`/`build_features` и передаёт их модификаторам.
-- ML-тесты обновлены под новый формат данных и признаков.
-### Исправлено
-- Согласован расчёт метрик с обновлёнными целями `goals_home`/`goals_away`.
-
 ## [2025-09-16] - Data processor scaffolding
 ### Добавлено
 - Заглушечный пакет `app/data_processor` с модулями `validate`, `features`, `matrix` и версией пакета.
