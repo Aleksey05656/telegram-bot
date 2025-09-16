@@ -21,6 +21,11 @@
 - pytest tests/storage/test_predictions_store.py -q – pass
 - pytest tests/smoke/test_run_simulation_cli.py -q – pass
 
+## CLI retrain
+- `scripts/cli.py retrain run` обучает GLM и (опционально) модификаторы, обновляя `LocalModelRegistry` и `reports/RUN_SUMMARY.md`.
+- `retrain schedule` регистрирует cron-задачу через in-memory `runtime_scheduler`.
+- Smoke-тест `tests/smoke/test_cli_retrain.py` проверяет артефакты и рост `jobs_registered_total`.
+
 ## Simulation Integration
 - n_sims: 10000, rho: 0.1
 - λ_final avg: H=1.3, A=1.3
@@ -31,3 +36,39 @@
 
 ## Next Steps
 - —
+
+## CLI retrain
+- Season: default
+- Data source: synthetic
+- GLM artifacts: artifacts/default/glm_home.pkl, artifacts/default/glm_away.pkl
+- Model info: artifacts/default/model_info.json
+- Modifiers: artifacts/default/modifiers_model.pkl
+- Metrics: logloss Δ -0.1756, ece Δ -0.0039
+- Metrics report: reports/metrics/MODIFIERS_default.md
+
+## CLI retrain
+- Season: default
+- Data source: synthetic
+- GLM artifacts: artifacts/default/glm_home.pkl, artifacts/default/glm_away.pkl
+- Model info: artifacts/default/model_info.json
+- Modifiers: artifacts/default/modifiers_model.pkl
+- Metrics: logloss Δ -0.1756, ece Δ -0.0039
+- Metrics report: reports/metrics/MODIFIERS_default.md
+
+## CLI retrain
+- Season: default
+- Data source: synthetic
+- GLM artifacts: artifacts/default/glm_home.pkl, artifacts/default/glm_away.pkl
+- Model info: artifacts/default/model_info.json
+- Modifiers: artifacts/default/modifiers_model.pkl
+- Metrics: logloss Δ -0.1756, ece Δ -0.0039
+- Metrics report: reports/metrics/MODIFIERS_default.md
+
+## CLI retrain
+- Season: default
+- Data source: synthetic
+- GLM artifacts: artifacts/default/glm_home.pkl, artifacts/default/glm_away.pkl
+- Model info: artifacts/default/model_info.json
+- Modifiers: artifacts/default/modifiers_model.pkl
+- Metrics: logloss Δ -0.1756, ece Δ -0.0039
+- Metrics report: reports/metrics/MODIFIERS_default.md

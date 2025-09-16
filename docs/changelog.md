@@ -1,3 +1,13 @@
+## [2025-09-16] - CLI retrain orchestration
+### Добавлено
+- CLI `scripts/cli.py` с подкомандами `retrain run/schedule/status` и записью отчётов.
+- Smoke-тест `tests/smoke/test_cli_retrain.py` для переобучения и планировщика.
+### Изменено
+- README.md, ARCHITECTURE.md, reports/RUN_SUMMARY.md описывают новый CLI и артефакты.
+- docs/tasktracker.md зафиксировал прогресс задачи.
+### Исправлено
+- —
+
 ## [2025-09-16] - extracted data_processor with tests (≥80%)
 ### Добавлено
 - Полноценное формирование признаков матчей с историческими агрегатами и расчётом rest_days.
