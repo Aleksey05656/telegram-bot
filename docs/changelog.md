@@ -1,3 +1,12 @@
+## [2025-09-16] - Data processor scaffolding
+### Добавлено
+- Заглушечный пакет `app/data_processor` с модулями `validate`, `features`, `matrix` и версией пакета.
+- Тесты `tests/data_processor` на проверку ошибок при пустом `DataFrame`.
+### Изменено
+- Обновлён интерфейс `app.data_processor` для экспорта новых заглушек.
+### Исправлено
+- —
+
 ## [2025-09-15] - Release candidate v1.0.0-rc1
 ### Добавлено
 - APP_VERSION field and version labels in metrics and reports.
