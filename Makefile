@@ -81,36 +81,51 @@ fmt:
 test:
 	pytest
 
+test-fast:
+	pytest -q -m "not slow and not e2e"
+
+test-smoke:
+	pytest -q -m bot_smoke
+
+test-all:
+	rm -f coverage.json
+	pytest --cov=./ --cov-report=term-missing --cov-report=json:coverage.json
+	$(PY) -m scripts.enforce_coverage --coverage-json coverage.json --summary-json reports/coverage_summary.json
+
+coverage-html:
+	rm -f coverage.json
+	rm -rf htmlcov
+	pytest --cov=./ --cov-report=html --cov-report=json:coverage.json
+	$(PY) -m scripts.enforce_coverage --coverage-json coverage.json --summary-json reports/coverage_summary.json
+
 pre-commit-smart:
 	@echo "[pre-commit smart] trying online first, with fallback to offline config"
 	@mkdir -p $(PRE_COMMIT_HOME)
 	PRE_COMMIT_HOME=$(PRE_COMMIT_HOME) $(PY) scripts/run_precommit.py run --all-files || true
 
-smoke:
-	@echo "==> Running smoke tests"
-	pytest -vv -k "smoke or test_endpoints"
+smoke: test-smoke
 
 pre-commit-offline:
 	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"
 	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
-check: lint test smoke
+check: lint test-fast test-smoke
 
 deps-lock:
 	$(PY) scripts/deps_lock.py
 
 deps-sync:
-        $(PIP) install --no-index --find-links wheels/ -r requirements.lock
+	$(PIP) install --no-index --find-links wheels/ -r requirements.lock
 
 docker-build:
-        docker build --build-arg APP_VERSION=$(APP_VERSION) --build-arg GIT_SHA=$(GIT_SHA) \
-                -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	docker build --build-arg APP_VERSION=$(APP_VERSION) --build-arg GIT_SHA=$(GIT_SHA) \
+	        -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 docker-run:
-        docker run --rm \
-                -e DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/app \
-                -e REDIS_URL=redis://localhost:6379/0 \
-                -e TELEGRAM_BOT_TOKEN=TEST_TELEGRAM_TOKEN \
-                -e APP_VERSION=$(APP_VERSION) \
-                -e GIT_SHA=$(GIT_SHA) \
-                $(IMAGE_NAME):$(IMAGE_TAG)
+	docker run --rm \
+	        -e DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/app \
+	        -e REDIS_URL=redis://localhost:6379/0 \
+	        -e TELEGRAM_BOT_TOKEN=TEST_TELEGRAM_TOKEN \
+	        -e APP_VERSION=$(APP_VERSION) \
+	        -e GIT_SHA=$(GIT_SHA) \
+	$(IMAGE_NAME):$(IMAGE_TAG)

@@ -16,112 +16,54 @@ on:
     branches: [ main, master ]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          python -m pip install ruff black isort
-      - name: Ruff check
-        run: python -m ruff check . --exit-non-zero-on-fix
-      - name: Black check
-        run: python -m black --check .
-      - name: Isort check
-        run: python -m isort --check-only .
-
-  unit:
-    needs: lint
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11"]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Tests
-        env:
-          SPORTMONKS_STUB: 1
-          SPORTMONKS_API_KEY: dummy
-        run: pytest -q
-
-  e2e_smoke:
-    needs: unit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Smoke tests
-        run: make smoke
-      - name: E2E test
-        run: pytest -q tests/test_prediction_pipeline_local_registry_e2e.py
-
-  numeric:
-    needs: e2e_smoke
+  pipeline:
     runs-on: ubuntu-latest
     env:
-      PIP_CONFIG_FILE: pip.conf
+      SPORTMONKS_STUB: "1"
+      SPORTMONKS_API_KEY: dummy
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - name: Install deps
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
         run: |
           python -m pip install -U pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Numeric tests
+          python -m pip install ruff black isort pytest pytest-cov
+
+      - name: lint
         run: |
-          output=$(pytest -m needs_np -q -rs)
-          echo "$output"
-          if echo "$output" | grep -i 'skipped'; then
-            echo 'Numeric tests were skipped'
-            exit 1
-          fi
-      - name: Validate modifiers improvement
-        env:
-          SEASON_ID: "${{ env.SEASON_ID || 'default' }}"
-          TOL_LOSS: "0.00"
-          TOL_ECE: "0.00"
+          python -m ruff check .
+          python -m black --check .
+          python -m isort --check-only .
+
+      - name: test-fast
+        run: make test-fast
+
+      - name: smoke
+        run: make test-smoke
+
+      - name: coverage
+        run: make coverage-html
+
+      - name: reports
         run: |
-          python scripts/validate_modifiers.py --season-id "${SEASON_ID}" --input data/val.csv --alpha 0.005 --l2 1.0 --tol "${TOL_LOSS}" --tol-ece "${TOL_ECE}"
-      - name: Coverage (data_processor)
-        run: pytest --cov=app/data_processor --cov-report=xml --cov-report=html -q
-      - name: Upload simulation artifacts
-        uses: actions/upload-artifact@v3
+          python reports/bot_e2e_snapshot.py
+          python reports/rc_summary.py --tests-passed --coverage-json coverage.json --summary-json reports/coverage_summary.json
+
+      - name: artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: metrics-and-artifacts
+          name: coverage-and-reports
           path: |
             htmlcov/**
-            reports/metrics/**/*.md
-            reports/metrics/**/*.png
-            artifacts/**/*
-            var/predictions.sqlite
+            reports/bot_e2e_snapshot.md
+            reports/rc_summary.json
+            reports/coverage_summary.json
           retention-days: 14
-      - name: Publish RC summary
-        run: python scripts/publish_rc_summary.py

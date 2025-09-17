@@ -1,3 +1,16 @@
+## [2025-09-22] - E6: Покрытие и отчёты CI
+### Добавлено
+- Скрипты `reports/bot_e2e_snapshot.py` и `reports/rc_summary.py`, сохраняющие snapshot ответов бота и RC-итог с версиями/coverage.
+- Утилиты `scripts/coverage_utils.py` и `scripts/enforce_coverage.py` для подсчёта покрытия и экспорт `reports/coverage_summary.json`.
+- Makefile-профили `test-fast`, `test-smoke`, `test-all`, `coverage-html` с единым запуском pytest.
+
+### Изменено
+- GitHub Actions теперь выполняет последовательность `lint → test-fast → smoke → coverage → reports → artifacts` и публикует артефакт `coverage-and-reports`.
+- README задокументировал новые таргеты, пороги покрытия (≥80% суммарно, ≥90% для workers/database/services/core/services) и артефакты CI.
+
+### Исправлено
+- Контроль покрытия падает при регрессе total/critical пакетов; отчёты маскируют секреты (используется `mask_dsn`).
+
 ## [2025-09-21] - E5: Подготовка Docker-окружения для Amvera
 ### Добавлено
 - Многоступенчатый `Dockerfile`, `.dockerignore` и `scripts/entrypoint.sh` с проверкой обязательных переменных окружения.
