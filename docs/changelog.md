@@ -1,3 +1,12 @@
+## [2025-09-18] - Audit and refactor planning for Amvera
+### Добавлено
+- Добавлен отчёт `audit.md` с перечнем рисков перехода на Amvera.
+- Подготовлен план `refactor_plan.md` с этапами E1–E7.
+### Изменено
+- —
+### Исправлено
+- —
+
 ## [2025-09-17] - Redis cache hardening
 ### Добавлено
 - Тесты `tests/database/test_cache_postgres.py` для проверки TTL, versioned key и лайнап-кэша.
