@@ -65,6 +65,13 @@ python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1
     --n-sims 10000 --calibrate --write-db --report-md reports/metrics/ECE_simulation_default_H_vs_A.md
 ```
 
+## ML-ядро и инварианты
+
+- `RecommendationEngine` получает данные через `DBRouter` и нормализует выходные словари перед возвратом (`1X2`, Totals, BTTS).
+- Прогнозы симулируются детерминированно: `seed` берётся из настроек (`SIM_SEED`) и прокидывается через сервис предсказаний.
+- Перед возвратом фильтруются `NaN`/отрицательные вероятности, `scoreline_topk` сортируется по убыванию.
+- При сбоях воркер фиксирует статусы `queued/start/finished/failed`, что совместимо с `TaskManager` и внешним мониторингом.
+
 ## Storage
 
 Predictions are stored via SQLite fallback (`storage/persistence.py`).

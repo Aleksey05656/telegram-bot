@@ -1,3 +1,13 @@
+## Задача: E4 — Recommendation engine invariants
+- **Статус**: Завершена
+- **Описание**: Нормализовать интерфейсы RecommendationEngine/PredictorService/воркера и гарантировать инварианты вероятностей.
+- **Шаги выполнения**:
+  - [x] Переписан `services/recommendation_engine` и добавлен фасад `core/services/predictor.py`.
+  - [x] Обновлён `workers/prediction_worker.py` на DI с Redis-lock и статусами очереди.
+  - [x] Добавлены тесты `tests/ml/test_prediction_invariants.py` и `tests/workers/test_prediction_worker.py`.
+  - [x] README, Project.md и changelog отражают новые инварианты.
+- **Зависимости**: services/recommendation_engine.py, core/services/predictor.py, workers/prediction_worker.py, tests/ml/test_prediction_invariants.py, tests/workers/test_prediction_worker.py, README.md, docs/Project.md, docs/changelog.md
+
 ## Задача: E3 — Telegram UX и форматирование
 - **Статус**: Завершена
 - **Описание**: Обновить команды Telegram-бота, привести обработчики к DI, добавить форматирование ответов и smoke-тесты.

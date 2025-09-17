@@ -1,338 +1,205 @@
-# workers/prediction_worker.py
-import asyncio
-import signal
-import time
+"""
+@file: workers/prediction_worker.py
+@description: Dependency-injected prediction worker handling queue statuses and locks.
+@dependencies: core.services.predictor, services.recommendation_engine, workers.queue_adapter
+@created: 2025-09-20
+"""
+from __future__ import annotations
 
-from aiogram import Bot
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+import json
+from dataclasses import dataclass
+from typing import Any
 
-from config import settings
-from database.cache_postgres import cache, init_cache
+from config import get_settings
+from core.services import PredictorService
+from core.services.predictor import PredictorServiceError
+from database import DBRouter, get_db_router
 from logger import logger
-from metrics import record_prediction
-from ml.models.poisson_regression_model import poisson_regression_model
-from services.data_processor import DataProcessor
-from services.recommendation_engine import recommendation_engine
-from telegram.utils.formatter import format_prediction_result
-
-# Константы для сообщений
-ERROR_MESSAGE = "❌ Произошла внутренняя ошибка при генерации прогноза. Попробуйте позже."
-WARNING_MODEL_OUTDATED = (
-    "⚠️ <b>Внимание!</b>\n"
-    "Данные для прогнозирования устарели. \n"
-    "Результаты могут быть менее точными. \n"
-    "Администратор уведомлен о необходимости обновления."
+from services.recommendation_engine import (
+    InvalidPredictionRequest,
+    PredictionEngineError,
+    RecommendationEngine,
 )
+from workers.queue_adapter import IQueueAdapter, TaskStatus
+from workers.redis_factory import RedisFactory
+
+
+class PredictionWorkerError(RuntimeError):
+    """Base worker error."""
+
+
+class InvalidJobError(PredictionWorkerError):
+    """Raised when incoming job does not contain the required identifiers."""
+
+
+class LockAcquisitionError(PredictionWorkerError):
+    """Raised when Redis lock could not be acquired in a timely manner."""
+
+
+@dataclass(slots=True)
+class PredictionJob:
+    """Job description passed to :class:`PredictionWorker`."""
+
+    job_id: str
+    fixture_id: str | None = None
+    home: str | None = None
+    away: str | None = None
+    chat_id: int | None = None
+    n_sims: int | None = None
+    seed: int | None = None
+
+
+class _NullQueueAdapter(IQueueAdapter):
+    """Fallback queue adapter used when no persistence is supplied."""
+
+    async def mark_started(self, job_id: str, *, meta: dict[str, Any] | None = None) -> None:
+        logger.debug("queue[%s] started meta=%s", job_id, meta or {})
+
+    async def mark_finished(self, job_id: str, payload: dict[str, Any]) -> None:
+        logger.debug("queue[%s] finished payload=%s", job_id, json.dumps(payload)[:256])
+
+    async def mark_failed(
+        self,
+        job_id: str,
+        reason: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        logger.debug(
+            "queue[%s] failed reason=%s details=%s", job_id, reason, json.dumps(details or {})[:256]
+        )
 
 
 class PredictionWorker:
-    """Воркер для асинхронной обработки задач прогнозирования."""
+    """Handle prediction jobs using injected services."""
 
-    def __init__(self):
-        """Инициализация Prediction Worker."""
-        self.bot: Bot | None = None
-        self.is_running = True
-        self.processed_jobs = 0
-        self.failed_jobs = 0
-        self.start_time: float | None = None
-        logger.info("Инициализация PredictionWorker")
+    def __init__(
+        self,
+        *,
+        predictor: PredictorService,
+        queue: IQueueAdapter,
+        redis_factory: RedisFactory,
+        lock_timeout: float | None = None,
+        lock_blocking_timeout: float | None = None,
+    ) -> None:
+        settings = get_settings()
+        self._predictor = predictor
+        self._queue = queue
+        self._redis_factory = redis_factory
+        self._default_seed = getattr(settings, "SIM_SEED", 7)
+        self._default_sims = getattr(settings, "SIM_N", 10_000)
+        self._lock_timeout = (
+            lock_timeout if lock_timeout is not None else getattr(settings, "PREDICTION_LOCK_TIMEOUT", 60.0)
+        )
+        self._lock_blocking_timeout = (
+            lock_blocking_timeout
+            if lock_blocking_timeout is not None
+            else getattr(settings, "PREDICTION_LOCK_BLOCKING_TIMEOUT", 5.0)
+        )
 
-    async def initialize(self):
-        """Инициализация бота и других компонентов."""
-        try:
-            if not settings.TELEGRAM_BOT_TOKEN:
-                raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
-
-            # Инициализация бота
-            self.bot = Bot(
-                token=settings.TELEGRAM_BOT_TOKEN,
-                default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    async def handle(self, job: PredictionJob) -> dict[str, Any]:
+        if job.fixture_id is None and (job.home is None or job.away is None):
+            await self._queue.mark_failed(
+                job.job_id,
+                "invalid_job",
+                details={"message": "fixture_id or both teams must be provided"},
             )
-            self.start_time = time.time()
+            raise InvalidJobError("Prediction job missing fixture information")
 
-            # Инициализация кэша
-            await init_cache()
+        seed = job.seed if job.seed is not None else self._default_seed
+        n_sims = job.n_sims if job.n_sims is not None else self._default_sims
 
-            # Загружаем рейтинги модели
-            await poisson_regression_model.load_ratings()
-            logger.info("✅ PredictionWorker инициализирован успешно")
-        except Exception as e:
-            logger.error(f"❌ Ошибка инициализации PredictionWorker: {e}")
-            raise
+        await self._queue.mark_started(
+            job.job_id,
+            meta={"status": TaskStatus.STARTED.value, "seed": seed, "n_sims": n_sims},
+        )
 
-    async def process_prediction(
-        self, chat_id: int, home_team: str, away_team: str, job_id: str
-    ) -> bool:
-        """Асинхронная обработка прогнозирования.
-
-        Args:
-            chat_id (int): ID чата для отправки результата
-            home_team (str): Название домашней команды
-            away_team (str): Название гостевой команды
-            job_id (str): ID задачи
-
-        Returns:
-            bool: Успешность обработки
-        """
-        start_time = time.time()
-        logger.info(f"[{job_id}] Начало обработки прогноза для {home_team} vs {away_team}")
         lock = None
-        if cache and cache.redis_client:
-            lock_key = f"prediction_lock:{home_team}:{away_team}"
-            lock = cache.redis_client.lock(lock_key, timeout=60)
-            if not await lock.acquire(blocking=False):
-                logger.warning(
-                    f"[{job_id}] Прогноз уже генерируется для {home_team} vs {away_team}"
+        lock_key = self._lock_key(job)
+        redis = await self._redis_factory.get_client()
+        if redis is not None:
+            try:
+                lock = redis.lock(
+                    lock_key,
+                    timeout=self._lock_timeout,
+                    blocking_timeout=self._lock_blocking_timeout,
                 )
-                await self._send_message(
-                    chat_id,
-                    "⚠️ Прогноз уже генерируется для этого матча. Попробуйте позже.",
+                acquired = await lock.acquire()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                await self._queue.mark_failed(
+                    job.job_id,
+                    "lock_error",
+                    details={"message": str(exc)},
                 )
-                return False
+                raise LockAcquisitionError("Failed to acquire redis lock") from exc
+            if not acquired:
+                await self._queue.mark_failed(
+                    job.job_id,
+                    "lock_timeout",
+                    details={"message": "prediction already in progress"},
+                )
+                raise LockAcquisitionError("Lock acquisition timed out")
 
         try:
-            # Проверка актуальности модели
-            if poisson_regression_model.is_model_outdated():
-                logger.warning(
-                    f"[{job_id}] Модель устарела при запросе прогноза {home_team} vs {away_team}"
-                )
-                await self._send_message(chat_id, WARNING_MODEL_OUTDATED)
-
-            # Отправка уведомления о начале обработки
-            await self._send_message(
-                chat_id,
-                f"⏳ Начинаем генерацию прогноза для <b>{home_team} - {away_team}</b>...",
+            payload = await self._predictor.generate_prediction(
+                job.fixture_id,
+                home=job.home,
+                away=job.away,
+                seed=seed,
+                n_sims=n_sims,
             )
-
-            # Получение расширенных данных
-            processor = DataProcessor()
-            success, data, error = await processor.get_augmented_data(home_team, away_team)
-
-            if not success:
-                error_msg = f"❌ Не удалось получить данные для прогноза: {error}"
-                logger.error(f"[{job_id}] {error_msg}")
-                await self._send_message(chat_id, error_msg)
-                self.failed_jobs += 1
-                return False
-
-            match_data, team_stats, h2h_data = data
-
-            # Генерация комплексного прогноза
-            prediction = await recommendation_engine.generate_comprehensive_prediction(
-                match_data, team_stats
+        except (PredictorServiceError, PredictionEngineError, InvalidPredictionRequest) as exc:
+            await self._queue.mark_failed(
+                job.job_id,
+                "prediction_failed",
+                details={"message": str(exc)},
             )
-
-            # Форматирование результата
-            formatted_result = format_prediction_result(
-                prediction, match_data, team_stats, h2h_data
-            )
-
-            league = match_data.get("league", "unknown")
-            prob_home = float(prediction.get("probabilities", {}).get("probability_home_win", 0.0))
-            record_prediction("1x2", league, prob_home, None)
-
-            # Отправка результата пользователю
-            await self._send_message(chat_id, formatted_result)
-
-            processing_time = time.time() - start_time
-            logger.info(
-                f"[{job_id}] ✅ Прогноз успешно сгенерирован за {processing_time:.2f} секунд"
-            )
-            self.processed_jobs += 1
-            return True
-
-        except Exception as e:
-            logger.error(f"[{job_id}] Критическая ошибка в worker: {e}", exc_info=True)
-            await self._send_error_message(chat_id)
-            self.failed_jobs += 1
-            return False
+            raise PredictionWorkerError(str(exc)) from exc
         finally:
-            if lock and lock.locked():
+            if lock is not None:
                 try:
                     await lock.release()
-                except Exception as e:  # pragma: no cover - non-critical
-                    logger.error(f"[{job_id}] Ошибка освобождения Redis-lock: {e}")
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.debug("redis lock release failed for %s: %s", lock_key, exc)
 
-    async def _send_message(self, chat_id: int, text: str) -> None:
-        """Вспомогательный метод для отправки сообщений."""
-        if self.bot is not None:
-            try:
-                await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
-            except Exception as e:
-                logger.error(f"Ошибка при отправке сообщения: {e}")
-
-    async def _send_error_message(self, chat_id: int) -> None:
-        """Отправка сообщения об ошибке пользователю."""
-        await self._send_message(chat_id, ERROR_MESSAGE)
-
-    async def run_single_job(self, chat_id: int, home_team: str, away_team: str, job_id: str):
-        """Запуск одной задачи прогнозирования."""
-        try:
-            await self.initialize()
-            await self.process_prediction(chat_id, home_team, away_team, job_id)
-        except Exception as e:
-            logger.error(f"[{job_id}] Ошибка при выполнении одиночной задачи: {e}", exc_info=True)
-        finally:
-            # Здесь можно добавить логику очистки ресурсов
-            pass
-
-    async def run_continuous(self):
-        """Непрерывный режим работы воркера."""
-        logger.info("Запуск PredictionWorker в непрерывном режиме")
-        try:
-            await self.initialize()
-
-            # Регистрация обработчиков сигналов
-            loop = asyncio.get_running_loop()
-            for sig in (signal.SIGTERM, signal.SIGINT):
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
-
-            # В непрерывном режиме worker обычно прослушивает очередь задач
-            # Здесь должна быть логика получения задач из очереди RQ
-            while self.is_running:
-                await asyncio.sleep(1)
-
-        except Exception as e:
-            logger.error(f"Фатальная ошибка в непрерывном режиме: {e}")
-        finally:
-            await self.shutdown()
-
-    async def shutdown(self):
-        """Корректное завершение работы воркера."""
-        logger.info("Завершение работы PredictionWorker...")
-        self.is_running = False
-
-        # Закрываем соединение с ботом если оно открыто
-        if self.bot is not None and not self.bot.session.closed:
-            await self.bot.session.close()
-
-        # Логируем статистику
-        uptime = time.time() - self.start_time if self.start_time else 0
-        logger.info(
-            f"PredictionWorker остановлен. "
-            f"Обработано: {self.processed_jobs}, "
-            f"Ошибок: {self.failed_jobs}, "
-            f"Время работы: {uptime:.2f} сек"
+        await self._queue.mark_finished(
+            job.job_id,
+            {
+                "status": TaskStatus.FINISHED.value,
+                "result": payload,
+            },
         )
+        return payload
+
+    @staticmethod
+    def _lock_key(job: PredictionJob) -> str:
+        parts = [
+            "prediction",
+            job.fixture_id or "none",
+            (job.home or "home").lower().replace(" ", "-"),
+            (job.away or "away").lower().replace(" ", "-"),
+        ]
+        return ":".join(parts)
 
 
-# Создание экземпляра воркера
-worker = PredictionWorker()
+def build_prediction_worker(
+    *,
+    queue: IQueueAdapter | None = None,
+    redis_factory: RedisFactory | None = None,
+    db_router: DBRouter | None = None,
+) -> PredictionWorker:
+    router = db_router or get_db_router()
+    engine = RecommendationEngine(router)
+    predictor = PredictorService(engine)
+    queue_adapter = queue or _NullQueueAdapter()
+    redis_factory_instance = redis_factory or RedisFactory()
+    return PredictionWorker(
+        predictor=predictor,
+        queue=queue_adapter,
+        redis_factory=redis_factory_instance,
+    )
 
 
-async def main():
-    """Основная точка входа для воркера."""
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Использование:")
-        print(
-            " Для одной задачи: python prediction_worker.py single <chat_id> <home_team> <away_team> <job_id>"
-        )
-        print(" Непрерывный режим: python prediction_worker.py continuous")
-        sys.exit(1)
-
-    mode = sys.argv[1]
-
-    try:
-        if mode == "single" and len(sys.argv) == 6:
-            # Обработка одной задачи
-            chat_id = int(sys.argv[2])
-            home_team = sys.argv[3]
-            away_team = sys.argv[4]
-            job_id = sys.argv[5]
-            await worker.run_single_job(chat_id, home_team, away_team, job_id)
-        elif mode == "continuous" and len(sys.argv) == 2:
-            # Непрерывный режим работы
-            await worker.run_continuous()
-        else:
-            print("Некорректные аргументы")
-            sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("Получен сигнал завершения (Ctrl+C)")
-    except Exception as e:
-        logger.error(f"Фатальная ошибка: {e}")
-        sys.exit(1)
-
-
-# --- ФУНКЦИЯ ДЛЯ ВЫЗОВА ИЗ RQ ---
-# Эта функция должна быть синхронной, так как вызывается RQ напрямую.
-# Внутри она запускает асинхронную логику.
-
-
-def process_prediction(chat_id: int, home_team: str, away_team: str, job_id: str) -> bool:
-    """
-    Функция для вызова из очереди задач RQ.
-    Эта функция должна быть синхронной, так как вызывается RQ.
-    Внутри она запускает асинхронную логику.
-    """
-    try:
-        logger.info(
-            f"[{job_id}] Начало задачи прогнозирования через RQ для {home_team} vs {away_team}"
-        )
-
-        # Получаем или создаем event loop
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        # Запускаем асинхронную функцию обработки
-        result = loop.run_until_complete(
-            _async_process_prediction(chat_id, home_team, away_team, job_id)
-        )
-        logger.info(f"[{job_id}] ✅ Задача прогнозирования через RQ завершена успешно")
-        return result
-
-    except Exception as e:
-        logger.error(
-            f"[{job_id}] ❌ Критическая ошибка в функции process_prediction (RQ): {e}",
-            exc_info=True,
-        )
-
-        # Отправка сообщения об ошибке пользователю
-        try:
-            try:
-                error_loop = asyncio.get_event_loop()
-            except RuntimeError:
-                error_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(error_loop)
-            error_loop.run_until_complete(_send_error_message_to_user(chat_id))
-        except Exception as send_error:
-            logger.error(
-                f"[{job_id}] Ошибка при отправке сообщения об ошибке пользователю: {send_error}"
-            )
-
-        return False  # Возвращаем False в случае ошибки
-
-
-async def _async_process_prediction(
-    chat_id: int, home_team: str, away_team: str, job_id: str
-) -> bool:
-    """Внутренняя асинхронная функция для выполнения логики прогнозирования."""
-    # Используем глобальный экземпляр воркера
-    await worker.initialize()
-    return await worker.process_prediction(chat_id, home_team, away_team, job_id)
-
-
-async def _send_error_message_to_user(chat_id: int):
-    """Вспомогательная асинхронная функция для отправки сообщения об ошибке."""
-    try:
-        # Создаем временный бот для отправки сообщения
-        bot = Bot(
-            token=settings.TELEGRAM_BOT_TOKEN,
-            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        )
-        await bot.send_message(chat_id=chat_id, text=ERROR_MESSAGE, parse_mode="HTML")
-        await bot.session.close()
-    except Exception as send_error:
-        logger.error(f"Ошибка при отправке сообщения об ошибке пользователю: {send_error}")
-
-
-# --- КОНЕЦ ФУНКЦИИ ДЛЯ ВЫЗОВА ИЗ RQ ---
-
-if __name__ == "__main__":
-    # Запуск основной функции
-    asyncio.run(main())
+async def run_prediction_job(worker: PredictionWorker, job: PredictionJob) -> dict[str, Any]:
+    """Convenience helper for tests and orchestration layers."""
+    return await worker.handle(job)

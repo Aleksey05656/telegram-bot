@@ -89,6 +89,11 @@ class Settings(BaseSettings):
     SIM_RHO: float = 0.1
     SIM_N: int = 10000
     SIM_CHUNK: int = 100000
+    SIM_SEED: int = 20240920
+
+    # --- Worker coordination ---
+    PREDICTION_LOCK_TIMEOUT: float = 60.0
+    PREDICTION_LOCK_BLOCKING_TIMEOUT: float = 5.0
 
     # --- Динамические поля ---
     @computed_field  # Генерируется на основе других полей
