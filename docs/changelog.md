@@ -1,3 +1,15 @@
+## [2025-09-23] - E6.2: Жёсткая конфигурация coverage
+### Добавлено
+- `.coveragerc` с настройками statement coverage и исключениями для миграций, документации, тестов и shell-скриптов.
+- Модуль `tools.coverage_enforce`, читающий `coverage.xml`, проверяющий пороги и обновляющий `reports/coverage_summary.json`.
+
+### Изменено
+- Цели `Makefile` (`test-all`, `coverage-html`) теперь генерируют `coverage.xml`, вызывают новый enforcement и строят HTML через `coverage html`.
+- Workflow CI добавляет шаг `coverage-enforce`, README описывает конфигурацию `.coveragerc` и пороги пакетов.
+
+### Исправлено
+- Сборка падает с кодом 2 при покрытии <80% либо <90% по `workers/`, `database/`, `services/`, `core/services/` на основании `coverage.xml`.
+
 ## [2025-09-23] - E6: Покрытие отрицательных сценариев
 ### Добавлено
 - Юнит-тесты ошибок Telegram-команд (`tests/bot/test_handlers_errors.py`) и виджетов (`tests/telegram/test_widgets_escape.py`).

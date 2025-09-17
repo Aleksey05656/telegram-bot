@@ -193,7 +193,8 @@ GitHub Actions запускает единый job `pipeline` со стадия�
 - `make test-smoke` — только smoke-маршруты бота (`pytest -q -m bot_smoke`);
 - `make coverage-html` — полный pytest с coverage, HTML-отчётом и жёсткими порогами (`≥80%` total, `≥90%` для `workers/`, `database/`, `services/`, `core/services/`).
 
-Coverage валидируется скриптом `python -m scripts.enforce_coverage`, который также пишет срез `reports/coverage_summary.json`.
+Coverage валидируется скриптом `python -m tools.coverage_enforce`, который читает `coverage.xml`, проверяет пороги (≥80% total и ≥90% для `workers/`, `database/`, `services/`, `core/services/`) и обновляет `reports/coverage_summary.json`.
+Конфигурация `.coveragerc` исключает миграции, shell-скрипты, тесты, документацию и `__init__.py` без логики, чтобы в отчёт попадал только исполняемый код.
 На этапе `reports` формируются артефакты `reports/bot_e2e_snapshot.md` (детерминированные ответы `/help`, `/model`, `/today`, `/match`, `/predict`) и `reports/rc_summary.json`
 с полями `app_version`, `git_sha`, `tests_passed`, `coverage_total`, `coverage_critical_packages`, `docker_image_size_mb`, `timestamp_utc`.
 Финальный шаг публикует артефакт **coverage-and-reports** с HTML-покрытием (`htmlcov/index.html`) и новыми отчётами.

@@ -88,15 +88,16 @@ test-smoke:
 	pytest -q -m bot_smoke
 
 test-all:
-	rm -f coverage.json
-	pytest --cov=./ --cov-report=term-missing --cov-report=json:coverage.json
-	$(PY) -m scripts.enforce_coverage --coverage-json coverage.json --summary-json reports/coverage_summary.json
+        rm -f coverage.xml
+        pytest --cov=./ --cov-report=xml --cov-report=term-missing
+        $(PY) -m tools.coverage_enforce --summary-json reports/coverage_summary.json
 
 coverage-html:
-	rm -f coverage.json
-	rm -rf htmlcov
-	pytest --cov=./ --cov-report=html --cov-report=json:coverage.json
-	$(PY) -m scripts.enforce_coverage --coverage-json coverage.json --summary-json reports/coverage_summary.json
+        rm -f coverage.xml
+        rm -rf htmlcov
+        pytest --cov=./ --cov-report=xml --cov-report=term-missing
+        $(PY) -m tools.coverage_enforce --summary-json reports/coverage_summary.json
+        $(PY) -m coverage html
 
 pre-commit-smart:
 	@echo "[pre-commit smart] trying online first, with fallback to offline config"
