@@ -1,3 +1,12 @@
+## Задача: E6 — Error handling coverage hardening
+- **Статус**: Завершена
+- **Описание**: Закрыть ветки ошибок Telegram-бота, очередей, DB router и prestart без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Добавлены тесты `/predict` `/match` `/today` и форматирования виджетов для экранирования и сообщений.
+  - [x] Покрыты очереди: маппинг статусов RQ, TTL/priority политики TaskManager, маскирование логов.
+  - [x] Подготовлены тесты негативных сценариев DB Router, prestart и PredictorService (seed/NaN).
+- **Зависимости**: tests/bot/test_handlers_errors.py, tests/telegram/test_widgets_escape.py, workers/queue_adapter.py, tests/workers/test_queue_adapter_errors.py, tests/workers/test_task_manager_policies.py, tests/database/test_db_router_errors.py, tests/scripts/test_prestart.py, tests/services/test_predictor_determinism.py, tests/security/test_masking.py, reports/coverage_gaps.md, docs/changelog.md
+
 ## Задача: E6 — CI покрытие и отчёты
 - **Статус**: Завершена
 - **Описание**: Включить жёсткие пороги coverage, добавить snapshot/RC отчёты и обновить CI с артефактами без изменения бизнес-логики.
