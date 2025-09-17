@@ -1,3 +1,12 @@
+## Задача: Redis cache hardening
+- **Статус**: Завершена
+- **Описание**: Устранить ошибки Redis-хелперов и покрыть кэш лайнапов тестами.
+- **Шаги выполнения**:
+  - [x] Синхронизирован `versioned_key` с настройками без `await` и добавлен docstring.
+  - [x] Исправлены `set_with_ttl` и `invalidate_lineups` для корректного TTL и сериализации.
+  - [x] Добавлены юнит-тесты `tests/database/test_cache_postgres.py` и прогнан полный `pytest`.
+- **Зависимости**: database/cache_postgres.py, tests/database/test_cache_postgres.py, docs/changelog.md
+
 ## Задача: Integrator roadmap Part 1–3
 - **Статус**: Завершена
 - **Описание**: Закрыть дорожную карту интегратора по трём частям: numeric контроль, отчёты и покрытия.
