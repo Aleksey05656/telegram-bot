@@ -1,3 +1,15 @@
+## [2025-09-23] - E6.2: Coverage configuration hardening
+### Added
+- `.coveragerc` with statement coverage settings omitting migrations, documentation, tests and shell scripts.
+- `tools.coverage_enforce` module parsing `coverage.xml`, enforcing thresholds and exporting `reports/coverage_summary.json`.
+
+### Changed
+- `Makefile` targets `test-all` and `coverage-html` now emit `coverage.xml`, call the new enforcement tool and render HTML via `coverage html`.
+- CI pipeline adds a dedicated `coverage-enforce` step and README documents the new configuration and thresholds.
+
+### Fixed
+- Builds fail with exit code 2 when total coverage <80% or workers/database/services/core/services drop below 90% based on `coverage.xml` data.
+
 ## [2025-09-22] - E6: CI coverage & reports
 ### Added
 - Deterministic generators `reports/bot_e2e_snapshot.py` and `reports/rc_summary.py` with CI-friendly outputs.

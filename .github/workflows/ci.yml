@@ -52,10 +52,13 @@ jobs:
       - name: coverage
         run: make coverage-html
 
+      - name: coverage-enforce
+        run: python -m tools.coverage_enforce --summary-json reports/coverage_summary.json
+
       - name: reports
         run: |
           python reports/bot_e2e_snapshot.py
-          python reports/rc_summary.py --tests-passed --coverage-json coverage.json --summary-json reports/coverage_summary.json
+          python reports/rc_summary.py --tests-passed --summary-json reports/coverage_summary.json
 
       - name: artifacts
         uses: actions/upload-artifact@v4

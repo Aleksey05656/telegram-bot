@@ -1,3 +1,13 @@
+## Задача: E6.2 — Coverage thresholds enforcement
+- **Статус**: Завершена
+- **Описание**: Сконфигурировать coverage.py, исключить не-кодовые файлы и ввести жёсткие пороги по проекту и критическим пакетам без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Создан `.coveragerc` с исключениями миграций, документации, тестов, shell-скриптов и `__init__.py` без логики.
+  - [x] Реализован `tools.coverage_enforce` для разбора `coverage.xml`, проверки порогов и выгрузки `reports/coverage_summary.json`.
+  - [x] Обновлены цели `Makefile` и workflow `ci.yml`, запускающие enforcement до генерации HTML-отчёта.
+  - [x] README, CHANGELOG и docs/changelog зафиксировали конфигурацию и требования.
+- **Зависимости**: .coveragerc, tools/coverage_enforce.py, Makefile, .github/workflows/ci.yml, README.md, CHANGELOG.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: E6 — Error handling coverage hardening
 - **Статус**: Завершена
 - **Описание**: Закрыть ветки ошибок Telegram-бота, очередей, DB router и prestart без изменения бизнес-логики.

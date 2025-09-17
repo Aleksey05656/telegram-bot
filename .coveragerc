@@ -1,0 +1,20 @@
+# @file: .coveragerc
+# @description: Coverage.py configuration for enforcing statement thresholds
+# @created: 2025-09-23
+
+[run]
+source = .
+
+[report]
+show_missing = True
+skip_empty = True
+omit =
+    database/migrations/*
+    alembic/*
+    scripts/entrypoint.sh
+    scripts/*.sh
+    **/__init__.py
+    tests/*
+    docs/*
+    reports/*
+    *.pyi
