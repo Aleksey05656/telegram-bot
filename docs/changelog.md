@@ -1,3 +1,11 @@
+## [2025-09-17] - Redis cache hardening
+### Добавлено
+- Тесты `tests/database/test_cache_postgres.py` для проверки TTL, versioned key и лайнап-кэша.
+### Изменено
+- `database/cache_postgres.py` получил docstring с метаданными и синхронный `versioned_key`.
+### Исправлено
+- Убрано ошибочное `await get_settings()` в Redis-хелперах и восстановлено кэширование лайнапов через `set_with_ttl`.
+
 ## [2025-09-17] - CI coverage artifacts and lint refinements
 ### Добавлено
 - Запуск `pytest --cov=app/data_processor` в numeric job и публикация HTML-отчёта покрытия.

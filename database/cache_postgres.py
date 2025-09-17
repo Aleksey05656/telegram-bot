@@ -1,4 +1,12 @@
-"""Модуль для работы с кэшем Redis."""
+"""
+@file: cache_postgres.py
+@description: Async Redis cache helpers backed by configuration defaults.
+@dependencies: redis.asyncio, config.get_settings
+@created: 2025-09-15
+"""
+
+from __future__ import annotations
+
 import json
 from typing import Any, Optional
 
@@ -15,22 +23,16 @@ pool: asyncpg.Pool | None = None
 cache: Optional["CacheManager"] = None
 
 
-async def versioned_key(prefix: str, *parts) -> str:
-    """
-    Создание версионированного ключа для кэша.
-    Args:
-        prefix (str): Префикс ключа
-        *parts: Части ключа
-    Returns:
-        str: Версионированный ключ
-    """
+def versioned_key(prefix: str, *parts: Any) -> str:
+    """Создать версионированный ключ кэша, используя CACHE_VERSION."""
     try:
-        config = await get_settings()
-        key_parts = [config.CACHE_VERSION, prefix] + [str(part) for part in parts]
+        config = get_settings()
+        key_parts = [config.CACHE_VERSION, prefix, *(str(part) for part in parts)]
         return ":".join(key_parts)
-    except Exception as e:
-        logger.error(f"Ошибка при создании версионированного ключа: {e}")
-        return f"{prefix}:{':'.join(map(str, parts))}"
+    except Exception as exc:  # pragma: no cover - защитный сценарий
+        logger.error("Ошибка при создании версионированного ключа: %s", exc)
+        suffix = ":".join(str(part) for part in parts)
+        return f"{prefix}:{suffix}" if suffix else prefix
 
 
 async def set_with_ttl(
@@ -47,7 +49,7 @@ async def set_with_ttl(
         bool: Успешность операции
     """
     try:
-        config = await get_settings()
+        config = get_settings()
         ttl = config.TTL.get(ttl_name)
         if ttl is None:
             logger.warning(f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд")
@@ -72,7 +74,7 @@ class CacheManager:
     async def connect_to_redis(self):
         """Подключение к Redis."""
         try:
-            config = await get_settings()
+            config = get_settings()
             redis_url = config.REDIS_URL or "redis://localhost:6379/0"
             self.redis_client = from_url(
                 redis_url, encoding="utf-8", decode_responses=True
@@ -140,7 +142,7 @@ class CacheManager:
             bool: Успешность операции
         """
         try:
-            config = await get_settings()
+            config = get_settings()
             ttl = config.TTL.get(ttl_name)
             if ttl is None:
                 logger.warning(
@@ -187,7 +189,7 @@ class CacheManager:
             logger.debug("Redis клиент не инициализирован, пропуск get_lineup_cached")
             return None
         try:
-            key = await versioned_key("lineup", match_id)
+            key = versioned_key("lineup", match_id)
             value = await self.redis_client.get(key)
             if value is not None:
                 return json.loads(value)
@@ -208,7 +210,7 @@ class CacheManager:
             logger.debug("Redis клиент не инициализирован, пропуск invalidate_lineups")
             return False
         try:
-            key = await versioned_key("lineup", match_id)
+            key = versioned_key("lineup", match_id)
             result = await self.redis_client.delete(key)
             success = result > 0
             if success:
