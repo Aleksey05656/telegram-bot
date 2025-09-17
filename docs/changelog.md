@@ -1,3 +1,16 @@
+## [2025-09-23] - E6: Покрытие отрицательных сценариев
+### Добавлено
+- Юнит-тесты ошибок Telegram-команд (`tests/bot/test_handlers_errors.py`) и виджетов (`tests/telegram/test_widgets_escape.py`).
+- Тесты инфраструктуры: `tests/workers/test_queue_adapter_errors.py`, `tests/workers/test_task_manager_policies.py`, `tests/database/test_db_router_errors.py`, `tests/services/test_predictor_determinism.py`, `tests/scripts/test_prestart.py`, `tests/security/test_masking.py`.
+- Раздел «After» в `reports/coverage_gaps.md` с закрытыми провалами и дельтой.
+
+### Изменено
+- `workers/queue_adapter.py` расширен маппингами статусов RQ и безопасным построением сообщений об ошибке.
+
+### Исправлено
+- Маскирование DSN/URL в логах `scripts/prestart` и `workers.redis_factory` подтверждено тестами безопасности.
+- `workers/task_manager` проверен на прокидывание TTL/priority и корректную обработку исключений очереди.
+
 ## [2025-09-22] - E6: Покрытие и отчёты CI
 ### Добавлено
 - Скрипты `reports/bot_e2e_snapshot.py` и `reports/rc_summary.py`, сохраняющие snapshot ответов бота и RC-итог с версиями/coverage.
