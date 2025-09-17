@@ -1,3 +1,12 @@
+## Задача: E3 — Telegram UX и форматирование
+- **Статус**: Завершена
+- **Описание**: Обновить команды Telegram-бота, привести обработчики к DI, добавить форматирование ответов и smoke-тесты.
+- **Шаги выполнения**:
+  - [x] Добавлены DI-зависимости и новый модуль `telegram/widgets.py`.
+  - [x] Переписаны обработчики `/help`, `/model`, `/today`, `/match`, `/predict` и обновлена регистрация роутеров.
+  - [x] Добавлены README раздел, changelog и тесты `tests/bot/*`.
+- **Зависимости**: telegram/dependencies.py, telegram/services.py, telegram/widgets.py, telegram/handlers/*, tests/bot, README.md, docs/changelog.md
+
 ## Задача: E1 — DB Router и Alembic
 - **Статус**: Завершена
 - **Описание**: Реализовать асинхронный роутер баз данных с поддержкой SQLite/Postgres и подготовить Alembic.

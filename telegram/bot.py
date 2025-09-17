@@ -85,15 +85,9 @@ class TelegramBot:
             raise RuntimeError("Диспетчер не инициализирован")
 
         try:
-            # Импортируем и регистрируем роутеры
-            # ВАЖНО: Порядок регистрации важен! Более специфичные роутеры регистрируем первыми
-            from telegram.handlers import help, predict, start, terms
+            from telegram.handlers import register_handlers
 
-            self.dp.include_router(start.router)
-            self.dp.include_router(help.router)
-            self.dp.include_router(terms.router)
-            self.dp.include_router(predict.router)  # Более общий, регистрируем последним
-
+            register_handlers(self.dp)
             logger.info("✅ Роутеры зарегистрированы")
         except Exception as e:
             logger.error(f"❌ Ошибка регистрации роутеров: {e}")
@@ -106,13 +100,13 @@ class TelegramBot:
 
         try:
             commands = [
-                BotCommand(command="start", description="Начало работы с ботом"),
-                BotCommand(command="help", description="Помощь и информация"),
-                BotCommand(command="predict", description="Сделать прогноз на матч"),
-                BotCommand(command="examples", description="Примеры использования"),
-                BotCommand(command="stats", description="Статистика бота"),
+                BotCommand(command="start", description="Начало работы"),
+                BotCommand(command="help", description="Справка и команды"),
+                BotCommand(command="model", description="Версия модели"),
+                BotCommand(command="today", description="Матчи на сегодня"),
+                BotCommand(command="match", description="Прогноз по id"),
+                BotCommand(command="predict", description="Поставить задачу"),
                 BotCommand(command="terms", description="Условия использования"),
-                BotCommand(command="disclaimer", description="Отказ от ответственности"),
             ]
             await self.bot.set_my_commands(commands)
             logger.info("✅ Команды бота установлены")

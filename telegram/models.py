@@ -4,6 +4,8 @@
 @dependencies: pydantic
 @created: 2025-08-24
 """
+import re
+
 from pydantic import BaseModel, Field
 
 
@@ -26,7 +28,8 @@ class PredictCommand(BaseModel):
 
     @classmethod
     def parse(cls, text: str) -> "PredictCommand":
-        parts = [p.strip() for p in text.split("-", 1)]
+        pattern = re.compile(r"\s*[-—–]\s*")
+        parts = [p.strip() for p in pattern.split(text.strip(), maxsplit=1)]
         if len(parts) != 2 or not all(parts):
             raise ValueError("Неверный формат. Используйте: Команда 1 - Команда 2")
         return cls(home_team=parts[0], away_team=parts[1])

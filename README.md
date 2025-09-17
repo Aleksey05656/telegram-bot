@@ -23,6 +23,23 @@ make check
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 
+## Команды бота и примеры
+
+Telegram-бот регистрирует команды для быстрого доступа к ключевым сценариям:
+
+| Команда | Назначение | Пример |
+| --- | --- | --- |
+| `/start` | Приветствие и главное меню | — |
+| `/help` | Справка и список команд | — |
+| `/model` | Текущая версия модели, источники данных и Redis | `/model` |
+| `/today` | Матчи на сегодня (после 20:00 UTC — на завтра) | `/today` |
+| `/match <id>` | Синхронный прогноз по идентификатору | `/match 12345` |
+| `/predict <Команда 1 — Команда 2>` | Постановка задачи в очередь | `/predict Арсенал — Манчестер Сити` |
+| `/terms` | Условия использования | `/terms` |
+
+Команда `/predict` принимает названия команд через дефис (поддерживаются символы `-`, `–`, `—`).
+Ответ содержит идентификатор задачи, по которому воркер отправит итоговый прогноз.
+
 ## Dependency lock (offline)
 
 `requirements.lock` pins the exact versions used in this repository. Regenerate it offline via `make deps-lock` and install packages from local wheels with `make deps-sync`.
