@@ -1,3 +1,13 @@
+## Задача: E6 — CI покрытие и отчёты
+- **Статус**: Завершена
+- **Описание**: Включить жёсткие пороги coverage, добавить snapshot/RC отчёты и обновить CI с артефактами без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Обновлены pytest-конфиги и Makefile (`test-fast`, `test-smoke`, `test-all`, `coverage-html`).
+  - [x] Добавлены скрипты отчётов (`bot_e2e_snapshot.py`, `rc_summary.py`) и утилиты контроля покрытия.
+  - [x] Переписан workflow `.github/workflows/ci.yml` с последовательными стадиями и публикацией артефактов.
+  - [x] README, CHANGELOG, docs/changelog/tasktracker отражают новые процессы и пороги.
+- **Зависимости**: pytest.ini, Makefile, scripts/coverage_utils.py, scripts/enforce_coverage.py, reports/bot_e2e_snapshot.py, reports/rc_summary.py, .github/workflows/ci.yml, README.md, CHANGELOG.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: E5 — Production Docker/Entrypoint for Amvera
 - **Статус**: В процессе
 - **Описание**: Подготовить production Docker-образ с prestart-хуком (alembic + health-check) и обновить документацию под деплой на Amvera.

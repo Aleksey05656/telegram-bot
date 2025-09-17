@@ -1,3 +1,16 @@
+## [2025-09-22] - E6: CI coverage & reports
+### Added
+- Deterministic generators `reports/bot_e2e_snapshot.py` and `reports/rc_summary.py` with CI-friendly outputs.
+- Coverage enforcement utilities `scripts/coverage_utils.py` and `scripts/enforce_coverage.py` with summary JSON export.
+- Makefile targets `test-fast`, `test-smoke`, `test-all`, `coverage-html` for standardized pytest profiles.
+
+### Changed
+- GitHub Actions workflow collapsed into staged job (`lint → test-fast → smoke → coverage → reports → artifacts`) with artifact bundle `coverage-and-reports`.
+- README documents CI/report flow, coverage thresholds (≥80% total, ≥90% critical packages) and new Makefile commands.
+
+### Fixed
+- Coverage now fails build if total or critical package thresholds regress; reports capture version metadata without leaking secrets.
+
 ## [2025-09-21] - E5: Amvera deployment pipeline
 ### Added
 - Production-ready multi-stage `Dockerfile`, `.dockerignore` and entrypoint script for Amvera containers.

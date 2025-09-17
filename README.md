@@ -184,12 +184,19 @@ CI завершается с ошибкой, если любой тест с м�
 через `pip.conf`. При отсутствии необходимых пакетов тесты будут SKIP и CI
 прервёт сборку.
 
-## Coverage artifacts в CI
+## CI и отчёты
 
-Job `numeric` дополнительно запускает `pytest --cov=app/data_processor` с HTML-отчётом.
-После завершения пайплайна скачайте артефакт **metrics-and-artifacts** и откройте
-`htmlcov/index.html` для просмотра детального покрытия. В том же архиве сохраняются
-`reports/metrics/*.md` и база `var/predictions.sqlite`.
+GitHub Actions запускает единый job `pipeline` со стадиями `lint → test-fast → smoke → coverage → reports → artifacts`.
+На каждом шаге используются Makefile-профили:
+
+- `make test-fast` — быстрый прогон `pytest -q -m "not slow and not e2e"`;
+- `make test-smoke` — только smoke-маршруты бота (`pytest -q -m bot_smoke`);
+- `make coverage-html` — полный pytest с coverage, HTML-отчётом и жёсткими порогами (`≥80%` total, `≥90%` для `workers/`, `database/`, `services/`, `core/services/`).
+
+Coverage валидируется скриптом `python -m scripts.enforce_coverage`, который также пишет срез `reports/coverage_summary.json`.
+На этапе `reports` формируются артефакты `reports/bot_e2e_snapshot.md` (детерминированные ответы `/help`, `/model`, `/today`, `/match`, `/predict`) и `reports/rc_summary.json`
+с полями `app_version`, `git_sha`, `tests_passed`, `coverage_total`, `coverage_critical_packages`, `docker_image_size_mb`, `timestamp_utc`.
+Финальный шаг публикует артефакт **coverage-and-reports** с HTML-покрытием (`htmlcov/index.html`) и новыми отчётами.
 
 ## Tests
 
@@ -197,9 +204,20 @@ Job `numeric` дополнительно запускает `pytest --cov=app/da
 - E2E тест проверяет `PredictionPipeline` вместе с `LocalModelRegistry`.
 - Smoke-тест гарантирует, что `TaskManager.cleanup` не падает без Redis.
 
-Быстрая проверка:
+Удобные профили:
+
 ```bash
-pytest -q -k test_services_workers_minimal
+# быстрый прогон без slow/e2e
+make test-fast
+
+# smoke-команды Telegram-бота
+make test-smoke
+
+# полный pytest с отчётом покрытия в терминале
+make test-all
+
+# генерация HTML-покрытия в htmlcov/
+make coverage-html
 ```
 
 > Тесты помечены `@pytest.mark.needs_np`: при недоступном численном стеке будут SKIP.
