@@ -42,11 +42,14 @@
     ├── config.py                 # Конфигурация (.env, MODEL_VERSION, API keys)
     ├── logger.py                 # Логирование (Loguru, JSON sink, Sentry)
     ├── observability.py          # Sentry (SENTRY_ENABLED) и Prometheus /metrics c метками service/env/version
-    ├── database/                 # PostgreSQL + Redis
+    ├── database/                 # PostgreSQL + SQLite (dev), Redis, миграции
     │   ├── cache.py
+    │   ├── cache_postgres.py
     │   ├── db_logging.py
+    │   ├── db_router.py
     │   └── migrations/
-    │       └── 001_create_predictions.sql
+    │       ├── env.py
+    │       └── versions/
     ├── ml/
     │   ├── base_poisson_glm.py         # Шаг 1: расчёт базовых λ
     │   ├── modifiers_model.py          # Шаг 2: динамические корректировки λ

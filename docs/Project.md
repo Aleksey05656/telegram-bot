@@ -36,10 +36,14 @@ telegram-bot/
 │     └─ io.py                  # Legacy-обёртка на `data_processor.py`
 ├─ metrics/                  | ECE/LogLoss метрики
 │  └─ metrics.py
-├─ database/                 | PostgreSQL+Redis, миграции
+├─ database/                 | PostgreSQL/SQLite router, Redis, миграции
 │  ├─ cache.py
+│  ├─ cache_postgres.py
 │  ├─ db_logging.py
-│  └─ migrations/001_create_predictions.sql
+│  ├─ db_router.py           # Async SQLAlchemy router (read/write, replicas)
+│  └─ migrations/
+│     ├─ env.py              # Alembic async environment
+│     └─ versions/           # Ревизии схемы (predictions и далее)
 ├─ ml/
 │  ├─ base_poisson_glm.py         # Шаг 1: базовые λ
 │  ├─ modifiers_model.py          # Шаг 2: динамические модификаторы
@@ -93,6 +97,8 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 - Исторический горизонт: 5 сезонов (с 2018/19).
 
 **PostgreSQL / predictions:**
+- Управление пулами и маршрутами чтения/записи реализовано в `database/db_router.py` (автодетект SQLite/Postgres, statement_timeout, health-check).
+- Миграции ведутся через Alembic (`database/migrations`, async env + versions).
 - fixture_id BIGINT, model_version TEXT, UNIQUE(fixture_id, model_version)
 - lambda_base_home/away, lambda_final_home/away NUMERIC(8,4)
 - expected_total NUMERIC(8,4) = λ_final_home + λ_final_away (инвариант приложением)
