@@ -10,6 +10,11 @@ PRECOMMIT ?= pre-commit
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
+IMAGE_NAME ?= telegram-bot
+APP_VERSION ?= 0.0.0
+GIT_SHA ?= $(shell git rev-parse --short HEAD)
+IMAGE_TAG ?= $(APP_VERSION)-$(GIT_SHA)
+
 
 BLACK_EXCLUDE = (^(legacy|experiments|notebooks|scripts/migrations)/|$(BLACK_EXTRA))
 -include .env.blackexclude
@@ -95,4 +100,17 @@ deps-lock:
 	$(PY) scripts/deps_lock.py
 
 deps-sync:
-	$(PIP) install --no-index --find-links wheels/ -r requirements.lock
+        $(PIP) install --no-index --find-links wheels/ -r requirements.lock
+
+docker-build:
+        docker build --build-arg APP_VERSION=$(APP_VERSION) --build-arg GIT_SHA=$(GIT_SHA) \
+                -t $(IMAGE_NAME):$(IMAGE_TAG) .
+
+docker-run:
+        docker run --rm \
+                -e DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/app \
+                -e REDIS_URL=redis://localhost:6379/0 \
+                -e TELEGRAM_BOT_TOKEN=TEST_TELEGRAM_TOKEN \
+                -e APP_VERSION=$(APP_VERSION) \
+                -e GIT_SHA=$(GIT_SHA) \
+                $(IMAGE_NAME):$(IMAGE_TAG)

@@ -67,6 +67,30 @@ class RedisFactory:
         client = await self.get_client()
         yield client
 
+    async def health_check(self) -> None:
+        """Ensure Redis is reachable and responsive."""
+
+        if from_url is None:
+            raise RuntimeError("redis.asyncio module is unavailable")
+        url = self._url()
+        masked_url = _mask(url)
+        logger.bind(event="redis.health_check", url=masked_url).info(
+            "Verifying Redis connectivity"
+        )
+        client = await self.get_client()
+        if client is None:
+            raise RuntimeError("Redis client could not be initialised")
+        try:
+            await client.ping()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.bind(
+                event="redis.health_check", url=masked_url, error=str(exc)
+            ).error("Redis ping failed")
+            raise RuntimeError("Redis ping failed") from exc
+        logger.bind(event="redis.health_check", url=masked_url).info(
+            "Redis connection healthy"
+        )
+
     async def close(self) -> None:
         if self._client is None:
             return
