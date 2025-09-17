@@ -23,6 +23,35 @@ make check
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 
+## Деплой на Amvera
+
+### Git-поток
+
+```bash
+git clone git@github.com:your-org/telegram-bot.git
+cd telegram-bot
+git remote add amvera ssh://git@amvera.example.com/telegram-bot.git
+git push amvera main
+```
+
+### Обязательные переменные окружения
+
+- `DATABASE_URL` — асинхронный DSN записи (PostgreSQL, `postgresql+asyncpg://`).
+- `DATABASE_URL_RO` — необязательный DSN чтения (RO endpoint, если доступен).
+- `DATABASE_URL_R` — необязательный DSN реплики (fallback для чтения).
+- `REDIS_URL` — строка подключения к управляемому Redis на Amvera.
+- `TELEGRAM_BOT_TOKEN` — токен бота из BotFather.
+- `APP_VERSION` — версия релиза для меток образа и логов.
+- `GIT_SHA` — commit SHA для трассировки (отдаётся в метриках и логах).
+
+### Prestart и health-check
+
+Entrypoint `scripts/entrypoint.sh` проверяет обязательные переменные, запускает `alembic upgrade head` в асинхронном окружении и маскирует DSN через `mask_dsn()`. После миграций выполняются health-check'и: `DBRouter` опрашивает writer/reader (если заданы `DATABASE_URL_RO`/`DATABASE_URL_R`), а `RedisFactory.health_check()` выполняет `PING` и валидирует доступность Redis. Любой сбой приводит к завершению с кодом `>0`.
+
+### Старт процесса
+
+При успешном prestart скрипт логирует структурные сообщения и выполняет `python -m main`, что запускает Telegram-бота. Повторный старт контейнера произойдёт автоматически, если миграции или health-check не прошли (код выхода ненулевой).
+
 ## Команды бота и примеры
 
 Telegram-бот регистрирует команды для быстрого доступа к ключевым сценариям:

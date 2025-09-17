@@ -1,0 +1,49 @@
+# @file: .dockerignore
+# @description: Build context exclusions for Docker image
+# @created: 2025-09-21
+
+.git
+.gitignore
+.github/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.egg-info/
+.eggs/
+.dist-info/
+.build/
+build/
+dist/
+htmlcov/
+.coverage*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.DS_Store
+.vscode/
+.env
+.env.*
+*.log
+*.tmp
+*.sqlite
+*.db
+
+# Development and documentation assets
+reports/
+docs/
+tests/
+wheels/
+patches/
+tickets/
+notebooks/
+experiments/
+
+# Local virtual environments
+.venv/
+venv/
+ENV/
+env/

@@ -1,3 +1,13 @@
+## Задача: E5 — Production Docker/Entrypoint for Amvera
+- **Статус**: В процессе
+- **Описание**: Подготовить production Docker-образ с prestart-хуком (alembic + health-check) и обновить документацию под деплой на Amvera.
+- **Шаги выполнения**:
+  - [x] Добавить многоступенчатый Dockerfile и `.dockerignore`.
+  - [x] Реализовать `scripts/entrypoint.sh` и `scripts/prestart.py` с проверками БД/Redis.
+  - [x] Обновить Makefile/README/CHANGELOG/tasktracker под новый процесс деплоя.
+  - [ ] Прогнать `docker build`/`docker run` в окружении Amvera.
+- **Зависимости**: Dockerfile, .dockerignore, scripts/entrypoint.sh, scripts/prestart.py, Makefile, README.md, CHANGELOG.md, docs/changelog.md, docs/tasktracker.md, database/db_router.py, workers/redis_factory.py
+
 ## Задача: E4 — Recommendation engine invariants
 - **Статус**: Завершена
 - **Описание**: Нормализовать интерфейсы RecommendationEngine/PredictorService/воркера и гарантировать инварианты вероятностей.

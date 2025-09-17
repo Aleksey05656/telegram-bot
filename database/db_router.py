@@ -73,6 +73,12 @@ def _mask_dsn(dsn: str) -> str:
     return str(url)
 
 
+def mask_dsn(dsn: str) -> str:
+    """Public helper to safely mask database connection strings."""
+
+    return _mask_dsn(dsn)
+
+
 class DBRouter:
     """Manage async engines and sessions for primary and replica databases."""
 
@@ -303,4 +309,5 @@ __all__ = [
     "DatabaseStartupError",
     "EngineOptions",
     "get_db_router",
+    "mask_dsn",
 ]

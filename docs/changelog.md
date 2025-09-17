@@ -1,3 +1,15 @@
+## [2025-09-21] - E5: Подготовка Docker-окружения для Amvera
+### Добавлено
+- Многоступенчатый `Dockerfile`, `.dockerignore` и `scripts/entrypoint.sh` с проверкой обязательных переменных окружения.
+- `scripts/prestart.py`, выполняющий `alembic upgrade head` и health-check PostgreSQL/Redis с маскировкой DSN.
+
+### Изменено
+- `Makefile` получил цели `docker-build`/`docker-run`, использующие теги из `APP_VERSION` и `GIT_SHA`.
+- `README.md` дополнен разделом про деплой на Amvera и описанием prestart-процедуры.
+
+### Исправлено
+- Экспортирован `mask_dsn()` из `database.db_router` и добавлен `RedisFactory.health_check()` для корректной диагностики старта.
+
 ## [2025-09-20] - E4: Recommendation engine invariants
 ### Добавлено
 - Унифицированный `RecommendationEngine.generate_prediction` с нормализацией 1X2/Totals/BTTS и top-k счётов.
