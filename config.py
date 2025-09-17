@@ -24,6 +24,15 @@ class Settings(BaseSettings):
 
     # Асинхронный URL для базы данных (используется в приложении)
     DATABASE_URL: str = "postgresql+asyncpg://user:pass@postgres:5432/sports"
+    DATABASE_URL_RO: str | None = None
+    DATABASE_URL_R: str | None = None
+    DATABASE_POOL_SIZE: int = 10
+    DATABASE_MAX_OVERFLOW: int = 10
+    DATABASE_POOL_TIMEOUT: float = 30.0
+    DATABASE_CONNECT_TIMEOUT: float = 10.0
+    DATABASE_STATEMENT_TIMEOUT_MS: int = 60_000
+    DATABASE_SQLITE_TIMEOUT: float = 30.0
+    DATABASE_ECHO: bool = False
 
     # --- ML Models ---
     XGBOOST_MODEL_PATH: str = "ml/models/xgboost_model.pkl"

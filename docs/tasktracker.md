@@ -1,3 +1,12 @@
+## Задача: E1 — DB Router и Alembic
+- **Статус**: Завершена
+- **Описание**: Реализовать асинхронный роутер баз данных с поддержкой SQLite/Postgres и подготовить Alembic.
+- **Шаги выполнения**:
+  - [x] Добавлен `database/db_router.py` с раздельными сессиями чтения/записи и health-check.
+  - [x] Сконфигурировано async-окружение Alembic и ревизия `predictions`.
+  - [x] Созданы тесты `tests/database/test_db_router.py` и обновлена конфигурация `Settings`.
+- **Зависимости**: database/db_router.py, database/migrations, tests/database/test_db_router.py, config.py, docs/Project.md
+
 ## Задача: Amvera audit and planning
 - **Статус**: Завершена
 - **Описание**: Провести аудит состояния бота и подготовить план перехода на Amvera (PostgreSQL+Redis).
