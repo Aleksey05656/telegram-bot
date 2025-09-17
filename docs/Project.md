@@ -27,6 +27,8 @@ telegram-bot/
 ├─ config.py                 | настройки, MODEL_VERSION, env
 ├─ logger.py                 | логирование (Loguru JSON + Sentry)
 ├─ observability.py          | инициализация Sentry и Prometheus
+├─ core/
+│  └─ services/predictor.py      # фасад RecommendationEngine с унифицированным payload
 ├─ app/
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
@@ -90,6 +92,8 @@ telegram-bot/
 Калибровка: Platt/Isotonic; online-контроль ECE/LogLoss.
 Рынки: 1X2, Totals (2.5 + расширение), BTTS, точные счёта (топ-N).
 Value: `fair_odds = 1/p`; сравнение с внешними котировками (если подключено).
+`RecommendationEngine` нормализует словари 1X2/Totals/BTTS, отбрасывает «грязные» вероятности и сортирует top-k; генерация
+детерминирована seed-ом из настроек (`SIM_SEED`).
 
 ## 5. Данные и хранилища
 **Охват данных:**

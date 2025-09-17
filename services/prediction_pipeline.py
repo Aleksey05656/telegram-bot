@@ -14,8 +14,8 @@ try:  # optional import for constrained environments
 except Exception:  # pragma: no cover
     pd = Any  # type: ignore
 
-from app.data_processor import build_features, to_model_matrix, validate_input
 from app.config import get_settings
+from app.data_processor import build_features, to_model_matrix, validate_input
 from logger import logger
 from metrics import ece_poisson, logloss_poisson, record_metrics
 

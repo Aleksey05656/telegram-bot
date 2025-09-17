@@ -1,3 +1,13 @@
+## [2025-09-20] - E4: Recommendation engine invariants
+### Добавлено
+- Унифицированный `RecommendationEngine.generate_prediction` с нормализацией 1X2/Totals/BTTS и top-k счётов.
+- Сервис `core/services/predictor.py` и DI-воркер с поддержкой статусов и Redis-lock.
+- Тесты `tests/ml/test_prediction_invariants.py` и `tests/workers/test_prediction_worker.py` для проверки инвариантов и очереди.
+### Изменено
+- README получил раздел «ML-ядро и инварианты», Project.md описывает новый фасад и детерминированный seed.
+### Исправлено
+- Исключены `await` синхронных методов и глобальные клиенты в worker; ошибки audit.md по несуществующим API устранены.
+
 ## [2025-09-19] - E3: Telegram UX overhaul
 ### Добавлено
 - Ди-инжектируемые обработчики `/help`, `/model`, `/today`, `/match`, `/predict` с новым модулем форматирования `telegram/widgets.py`.
