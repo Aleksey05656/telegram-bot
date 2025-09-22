@@ -3,15 +3,25 @@
 # @created: 2025-09-23
 
 [run]
-source = .
+relative_files = True
+source =
+    telegram
+    workers
+    services
+    core
+    database
+    scripts
 
 [report]
 show_missing = True
 skip_empty = True
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
 omit =
     database/migrations/*
     alembic/*
-    scripts/entrypoint.sh
     scripts/*.sh
     **/__init__.py
     tests/*

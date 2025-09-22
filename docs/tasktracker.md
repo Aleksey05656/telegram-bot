@@ -1,3 +1,74 @@
+## Задача: E6.10 — Актуализация exclude_lines coverage
+- **Статус**: Завершена
+- **Описание**: Привести правило `exclude_lines` в `.coveragerc` к унифицированному шаблону блока запуска.
+- **Шаги выполнения**:
+  - [x] Обновлено условие `if __name__ == .__main__.:` в списке исключений отчёта покрытия.
+  - [x] Задокументированы изменения в changelog с привязкой к задаче.
+- **Зависимости**: .coveragerc, docs/changelog.md
+
+## Задача: E6.8 — Coverage omit refresh
+- **Статус**: Завершена
+- **Описание**: Согласовать список исключений coverage, удалив точечное правило `scripts/entrypoint.sh` в пользу шаблона.
+- **Шаги выполнения**:
+  - [x] Пересмотрен блок `omit` в `.coveragerc` и устранено дублирование записей скриптов.
+  - [x] Зафиксированы обновления в `docs/changelog.md` и `docs/tasktracker.md`.
+  - [x] Проверено отсутствие дополнительных требований к конфигурации покрытия.
+- **Зависимости**: .coveragerc, docs/changelog.md, docs/tasktracker.md
+
+## Задача: DB router fallback coverage
+- **Статус**: Завершена
+- **Описание**: Покрыть fallback чтения и негативные сценарии DBRouter отдельными тестами.
+- **Шаги выполнения**:
+  - [x] Смоделирован пустой `DATABASE_URL_RO`, подтверждён fallback чтения на основной движок и корректные флаги readonly.
+  - [x] Проверен выброс `DatabaseConfigurationError` при некорректной схеме DSN реплики.
+  - [x] Воспроизведён таймаут health-check для движка с контролируемым `DatabaseStartupError`.
+- **Зависимости**: tests/database/test_db_router_fallbacks.py, docs/changelog.md
+
+## Задача: Prediction worker error guards
+- **Статус**: Завершена
+- **Описание**: Зафиксировать негативные сценарии воркера предсказаний: ошибки ядра, таймауты Redis-lock и валидацию payload.
+- **Шаги выполнения**:
+  - [x] Смоделированы исключения ядра и проверена маскировка чувствительных данных в QueueError.
+  - [x] Воспроизведён таймаут Redis-lock, подтверждена единичность постановки job и статус `lock_timeout`.
+  - [x] Проверена обработка «грязного» payload (отрицательный `n_sims`) с предсказуемым исключением.
+- **Зависимости**: tests/workers/test_prediction_worker_errors.py, docs/changelog.md
+
+## Задача: Makefile coverage цели
+- **Статус**: Завершена
+- **Описание**: Синхронизировать автоматизацию покрытия: обновить цели Makefile и регенерацию отчётов.
+- **Шаги выполнения**:
+  - [x] Перенастроены `test-all` и `coverage-html` на общий запуск pytest и жёсткие пороги coverage enforcement.
+  - [x] Зафиксирован экспорт `reports/coverage_summary.json` и топ-20 файлов через `--print-top`.
+  - [x] Добавлена цель `reports-gaps` для вызова `python -m tools.coverage_gaps`.
+- **Зависимости**: Makefile, tools/coverage_enforce.py, tools/coverage_gaps.py, docs/changelog.md
+
+## Задача: Coverage gaps отчёт
+- **Статус**: Завершена
+- **Описание**: Автоматизировать построение Markdown-отчёта по пропущенным строкам покрытия с группировкой по ключевым пакетам.
+- **Шаги выполнения**:
+  - [x] Реализован парсер `coverage.xml` и определение пакетов workers/database/services/core/services.
+  - [x] Сформирован Markdown-отчёт `reports/coverage_gaps.md` с ТОП-20 файлами и диапазонами пропущенных строк.
+  - [x] Обновлены записи changelog/tasktracker для фиксации нового процесса.
+- **Зависимости**: tools/coverage_gaps.py, reports/coverage_gaps.md, docs/changelog.md, docs/tasktracker.md
+
+## Задача: Контроль покрытия CLI
+- **Статус**: Завершена
+- **Описание**: Добавить пороги CLI, экспорт JSON и вывод проблемных файлов в coverage_enforce.py.
+- **Шаги выполнения**:
+  - [x] Реализованы параметры `--total-min`, `--pkg-min` и `--print-top`.
+  - [x] Добавлен экспорт summary в формате JSON с пакетами и файлами.
+  - [x] Настроена проверка порогов с сообщением об ошибке и выходом с кодом 2.
+- **Зависимости**: tools/coverage_enforce.py, docs/changelog.md
+
+## Задача: E6.3 — Актуализация конфигурации coverage
+- **Статус**: Завершена
+- **Описание**: Уточнить анализируемые каталоги и исключаемые строки в `.coveragerc` для стабильных отчётов покрытия.
+- **Шаги выполнения**:
+  - [x] Добавлена опция `relative_files = True` и перечислены каталоги `telegram`, `workers`, `services`, `core`, `database`, `scripts`.
+  - [x] Настроены правила `exclude_lines` и список `omit` для исключения служебных файлов.
+  - [x] Обновлены записи в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: .coveragerc, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: E6.2 — Coverage thresholds enforcement
 - **Статус**: Завершена
 - **Описание**: Сконфигурировать coverage.py, исключить не-кодовые файлы и ввести жёсткие пороги по проекту и критическим пакетам без изменения бизнес-логики.
