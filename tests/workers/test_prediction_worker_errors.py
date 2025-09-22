@@ -9,8 +9,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -121,9 +122,16 @@ class StaticRedisFactory:
 
 
 class SpyPredictor:
-    def __init__(self, *, result: dict[str, Any] | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        result: dict[str, Any] | None = None,
+        error: Exception | None = None,
+        validator: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self._result = result or {"result": "ok"}
         self._error = error
+        self._validator = validator
         self.calls: list[dict[str, Any]] = []
 
     async def generate_prediction(
@@ -136,7 +144,7 @@ class SpyPredictor:
         n_sims: int,
     ) -> dict[str, Any]:
         self.calls.append(
-            {
+            context := {
                 "fixture_id": fixture_id,
                 "home": home,
                 "away": away,
@@ -144,6 +152,8 @@ class SpyPredictor:
                 "n_sims": n_sims,
             }
         )
+        if self._validator is not None:
+            self._validator(context)
         if self._error is not None:
             raise self._error
         return self._result
@@ -236,9 +246,24 @@ async def test_worker_handles_lock_timeout_without_duplicates() -> None:
 
 
 @pytest.mark.asyncio
-async def test_worker_rejects_dirty_payload() -> None:
+@pytest.mark.parametrize(
+    ("invalid_value", "expected_message"),
+    [
+        (-5, "n_sims must be positive"),
+        (float("nan"), "n_sims must be a finite integer"),
+    ],
+)
+async def test_worker_rejects_dirty_payload(invalid_value: float, expected_message: str) -> None:
     queue = RecordingQueue()
-    predictor = SpyPredictor(error=InvalidPredictionRequest("n_sims must be positive"))
+
+    def _validator(params: dict[str, Any]) -> None:
+        value = params["n_sims"]
+        if math.isnan(value) if isinstance(value, float) else False:
+            raise InvalidPredictionRequest("n_sims must be a finite integer")
+        if isinstance(value, (int, float)) and value <= 0:
+            raise InvalidPredictionRequest("n_sims must be positive")
+
+    predictor = SpyPredictor(validator=_validator)
     worker = PredictionWorker(
         predictor=predictor,
         queue=queue,
@@ -250,15 +275,17 @@ async def test_worker_rejects_dirty_payload() -> None:
         fixture_id="99",
         home="Alpha",
         away="Beta",
-        n_sims=-5,
+        n_sims=invalid_value,
     )
-    with pytest.raises(PredictionWorkerError):
+    with pytest.raises(PredictionWorkerError) as excinfo:
         await worker.handle(job)
 
     failure = queue.failed["job-dirty"]
     assert failure["reason"] == "prediction_failed"
-    assert failure["details"]["message"] == "n_sims must be positive"
+    assert failure["details"]["message"] == expected_message
     assert queue.finished == {}
+
+    assert expected_message in str(excinfo.value)
 
     with pytest.raises(InvalidJobError):
         await worker.handle(PredictionJob(job_id="invalid"))
