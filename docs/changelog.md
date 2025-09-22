@@ -1,3 +1,13 @@
+## [2025-09-29] - E6.15: Queue adapter edge coverage
+### Добавлено
+- Тесты `tests/workers/test_queue_adapter_edges.py`, покрывающие редкие статусы RQ и маскирование ошибок очереди.
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-09-28] - E6.14: Makefile coverage pipeline cleanup
 ### Добавлено
 - —
