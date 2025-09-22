@@ -2,8 +2,8 @@
 /**
  * @file: tests/workers/test_queue_adapter_edges.py
  * @description: Edge-case coverage for queue adapter status mapping and error sanitisation.
- * @dependencies: pytest, workers.queue_adapter
- * @created: 2025-09-24
+ * @dependencies: pytest, unittest.mock, workers.queue_adapter
+ * @created: 2025-09-29
  */
 """
 
@@ -16,53 +16,80 @@ import pytest
 from workers.queue_adapter import QueueError, TaskStatus, map_rq_status, safe_queue_error
 
 
+class FakeRedisConnectionError(RuntimeError):
+    """Stub exception modelling redis.exceptions.ConnectionError."""
+
+
+class FakeRQNoSuchJobError(RuntimeError):
+    """Stub exception modelling rq.exceptions.NoSuchJobError."""
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        (" SCHEDULED ", TaskStatus.QUEUED),
-        ("DEFERRED", TaskStatus.QUEUED),
-        ("running", TaskStatus.STARTED),
-        (" COMPLETED", TaskStatus.FINISHED),
-        ("STOPPED ", TaskStatus.FAILED),
+        (" queued ", TaskStatus.QUEUED),
+        ("SCHEDULED", TaskStatus.QUEUED),
+        (" deferred ", TaskStatus.QUEUED),
+        ("RUNNING", TaskStatus.STARTED),
+        (" completed ", TaskStatus.FINISHED),
+        ("STOPPED", TaskStatus.FAILED),
         ("Canceled", TaskStatus.FAILED),
         (None, TaskStatus.QUEUED),
     ],
 )
-def test_map_rq_status_handles_case_and_whitespace(raw: str | None, expected: TaskStatus) -> None:
-    """Ensure RQ edge-case statuses converge to internal literals."""
+def test_map_rq_status_normalises_sparse_variants(raw: str | None, expected: TaskStatus) -> None:
+    """Ensure we align unusual RQ status variants with our literals/default."""
 
     assert map_rq_status(raw) is expected
 
 
 @pytest.mark.parametrize(
-    "action",
-    ["enqueue", "status", "cancel"],
+    ("action", "exc_cls", "message"),
+    [
+        (
+            "enqueue",
+            FakeRedisConnectionError,
+            "Redis connection lost\nTraceback (most recent call last)",
+        ),
+        (
+            "status",
+            FakeRQNoSuchJobError,
+            "Job 42 does not exist\nTraceback (most recent call last)",
+        ),
+        (
+            "cancel",
+            FakeRedisConnectionError,
+            "Connection timed out\nTraceback details",
+        ),
+    ],
 )
-def test_safe_queue_error_masks_tracebacks(action: str) -> None:
-    """Simulate RQ failures and ensure sanitised QueueError output."""
+def test_safe_queue_error_wraps_rq_and_redis_exceptions(
+    action: str, exc_cls: type[Exception], message: str
+) -> None:
+    """Convert RQ/Redis exceptions into sanitised QueueError messages without touching the network."""
 
-    queue = Mock()
-    setattr(queue, action, Mock(side_effect=RuntimeError("redis://user:pass@host/0\nTraceback")))
+    queue_mock = Mock()
+    setattr(queue_mock, action, Mock(side_effect=exc_cls(message)))
 
     with pytest.raises(QueueError) as excinfo:
         try:
-            getattr(queue, action)()
-        except Exception as exc:  # pragma: no cover - defensive test harness
+            getattr(queue_mock, action)()
+        except Exception as exc:  # pragma: no cover - defensive harness
             raise safe_queue_error(action, "job-42", exc)
 
-    message = str(excinfo.value)
-    assert action in message
-    assert "job-42" in message
-    assert "\n" not in message
-    assert "Traceback" not in message
+    payload = str(excinfo.value)
+    assert action in payload
+    assert "job-42" in payload
+    assert "\n" not in payload
+    assert "Traceback" not in payload
 
 
-def test_safe_queue_error_handles_empty_exception_message() -> None:
-    """When upstream raises without message we keep the generic context only."""
+def test_safe_queue_error_handles_missing_exception_message() -> None:
+    """Gracefully handle exceptions that provide an empty string message."""
 
     with pytest.raises(QueueError) as excinfo:
         raise safe_queue_error("status", "job-0", ValueError())
 
-    message = str(excinfo.value)
-    assert message.endswith("job 'job-0'")
-    assert ":" not in message.split("job 'job-0'")[0]
+    rendered = str(excinfo.value)
+    assert rendered.endswith("job 'job-0'")
+    assert ":" not in rendered.split("job 'job-0'")[0]
