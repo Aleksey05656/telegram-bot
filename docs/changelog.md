@@ -1,3 +1,14 @@
+## [2025-10-02] - E6.18: Prediction worker dirty payload coverage
+### Добавлено
+- Параметризованные тесты `tests/workers/test_prediction_worker_errors.py` проверяют ошибки ядра,
+  таймаут Redis-lock и обработку «грязного» payload (NaN/negative).
+
+### Изменено
+- Тестовый двойник `SpyPredictor` принимает валидатор для эмуляции проверок входных данных и маскировки секретов в логах.
+
+### Исправлено
+- Исключены регрессии при обработке NaN/отрицательных `n_sims` — воркер возвращает предсказуемую ошибку без дублирования job.
+
 ## [2025-10-01] - E6.17: Redis factory retry coverage
 ### Добавлено
 - Юнит-тесты `tests/database/test_redis_factory_backoff.py` моделируют backoff с jitter и успешное переподключение RedisFactory.

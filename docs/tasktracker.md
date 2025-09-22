@@ -1,3 +1,12 @@
+## Задача: E6.18 — Prediction worker dirty payload coverage
+- **Статус**: Завершена
+- **Описание**: Расширить негативные тесты воркера предсказаний: маскирование ошибок ядра, таймаут Redis-lock и валидацию «грязного» payload (NaN/negative).
+- **Шаги выполнения**:
+  - [x] Обновлён тестовый double `SpyPredictor` валидатором, имитирующим проверку входных данных без утечки секретов.
+  - [x] Подтверждён контролируемый статус job при таймауте Redis-lock и отсутствие повторного запуска.
+  - [x] Параметризованы сценарии «грязного» payload (NaN/negative) и обновлена документация.
+- **Зависимости**: tests/workers/test_prediction_worker_errors.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: E6.17 — Redis factory retry coverage
 - **Статус**: Завершена
 - **Описание**: Зафиксировать повторные попытки RedisFactory с экспоненциальным backoff, jitter и маскировкой DSN.
