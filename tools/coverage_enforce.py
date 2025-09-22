@@ -9,13 +9,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 from xml.etree import ElementTree as ET
 
-TOTAL_MIN = 80.0
-CRITICAL_PKGS: dict[str, float] = {
+DEFAULT_TOTAL_MIN = 80.0
+DEFAULT_PACKAGE_MIN: dict[str, float] = {
     "workers": 90.0,
     "database": 90.0,
     "services": 90.0,
@@ -42,36 +43,20 @@ class FileCoverage:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Validate coverage.xml against project thresholds",
-    )
-    parser.add_argument(
-        "--coverage-xml",
-        default="coverage.xml",
-        help="Path to Cobertura XML produced by pytest-cov",
-    )
-    parser.add_argument(
-        "--summary-json",
-        default=None,
-        help="Optional path to write computed coverage summary",
-    )
+    parser = argparse.ArgumentParser(description="Validate coverage.xml against project thresholds")
+    parser.add_argument("--coverage-xml", default="coverage.xml", help="Path to Cobertura XML produced by pytest-cov")
+    parser.add_argument("--total-min", type=float, default=None, help="Minimum total coverage percent required to pass")
+    parser.add_argument("--pkg-min", action="append", default=[], metavar="name=value", help="Per-package minimum coverage (repeatable)")
+    parser.add_argument("--print-top", type=int, default=0, help="Print top N files with the most missed statements")
+    parser.add_argument("--summary-json", default=None, help="Optional path to write computed coverage summary")
     return parser.parse_args()
-
-
-def _normalize_path(value: str | None) -> str | None:
-    if not value:
-        return None
-    return value.replace("\\", "/")
-
-
 def _collect_file_coverages(root: ET.Element) -> dict[str, FileCoverage]:
-    files: dict[str, FileCoverage] = {}
+    totals: defaultdict[str, list[int]] = defaultdict(lambda: [0, 0])
     for class_node in root.findall(".//class"):
-        filename = _normalize_path(class_node.get("filename"))
+        filename = class_node.get("filename")
         if not filename:
             continue
-        covered = 0
-        statements = 0
+        filename = filename.replace("\\", "/")
         for line in class_node.findall(".//line"):
             hits = line.get("hits")
             if hits is None:
@@ -80,15 +65,13 @@ def _collect_file_coverages(root: ET.Element) -> dict[str, FileCoverage]:
                 hit_count = int(float(hits))
             except ValueError:
                 hit_count = 0
-            statements += 1
+            totals[filename][1] += 1
             if hit_count > 0:
-                covered += 1
-        if filename in files:
-            prev = files[filename]
-            files[filename] = FileCoverage(prev.covered + covered, prev.statements + statements)
-        else:
-            files[filename] = FileCoverage(covered, statements)
-    return files
+                totals[filename][0] += 1
+    return {
+        name: FileCoverage(covered, statements)
+        for name, (covered, statements) in totals.items()
+    }
 
 
 def _aggregate_for_prefixes(files: dict[str, FileCoverage], prefixes: Iterable[str]) -> FileCoverage:
@@ -121,14 +104,77 @@ def _compute_total_from_root(root: ET.Element, files: dict[str, FileCoverage]) -
     )
 
 
-def _write_summary(path: str | Path, total: float, packages: dict[str, float]) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "coverage_total": total,
-        "coverage_critical_packages": packages,
+def _parse_package_thresholds(raw: Sequence[str]) -> dict[str, float]:
+    thresholds = dict(DEFAULT_PACKAGE_MIN)
+    for item in raw:
+        if "=" not in item:
+            raise ValueError(f"Invalid package threshold '{item}', expected name=value")
+        name, value = item.split("=", 1)
+        name = name.strip()
+        if not name:
+            raise ValueError(f"Invalid package threshold '{item}', package name is empty")
+        try:
+            thresholds[name] = float(value)
+        except ValueError as exc:
+            raise ValueError(f"Invalid threshold for '{name}': {value}") from exc
+    return thresholds
+
+
+def _build_summary_payload(
+    total: FileCoverage,
+    packages: dict[str, FileCoverage],
+    top: Sequence[tuple[str, FileCoverage]],
+) -> dict[str, object]:
+    def serialize(metrics: FileCoverage) -> dict[str, float]:
+        missed = metrics.statements - metrics.covered
+        return {
+            "percent": metrics.percent,
+            "covered": metrics.covered,
+            "missed": missed,
+        }
+
+    return {
+        "totals": serialize(total),
+        "packages": {name: serialize(data) for name, data in packages.items()},
+        "top_offenders": [
+            {
+                "path": path,
+                "missed": metrics.statements - metrics.covered,
+                "percent": metrics.percent,
+            }
+            for path, metrics in top
+        ],
     }
-    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _compute_top_offenders(
+    files: dict[str, FileCoverage],
+    limit: int,
+) -> list[tuple[str, FileCoverage]]:
+    if limit <= 0:
+        return []
+    ranked = sorted(
+        (
+            (path, metrics)
+            for path, metrics in files.items()
+            if metrics.statements > 0
+        ),
+        key=lambda item: (
+            -(item[1].statements - item[1].covered),
+            item[1].percent,
+            item[0],
+        ),
+    )
+    return ranked[:limit]
+
+
+def _print_top_offenders(entries: Sequence[tuple[str, FileCoverage]]) -> None:
+    if not entries:
+        return
+    print("Top missed files:")
+    for path, metrics in entries:
+        missed = metrics.statements - metrics.covered
+        print(f"  {path}: missed {missed} statements ({metrics.percent:.2f}% covered)")
 
 
 def main() -> None:
@@ -143,40 +189,59 @@ def main() -> None:
         print(f"Failed to parse coverage XML: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    try:
+        package_thresholds = _parse_package_thresholds(args.pkg_min)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
     files = _collect_file_coverages(root)
     total_metrics = _compute_total_from_root(root, files)
-    package_metrics: dict[str, float] = {}
-    for package, threshold in CRITICAL_PKGS.items():
+    package_metrics: dict[str, FileCoverage] = {}
+    package_names = sorted(set(PACKAGE_PREFIXES) | set(package_thresholds))
+    for package in package_names:
         prefixes = PACKAGE_PREFIXES.get(package, (f"{package}/",))
-        metrics = _aggregate_for_prefixes(files, prefixes)
-        package_metrics[package] = metrics.percent
+        package_metrics[package] = _aggregate_for_prefixes(files, prefixes)
 
-    total_percent = total_metrics.percent
-
-    if args.summary_json:
-        _write_summary(args.summary_json, total_percent, package_metrics)
-
-    print("Coverage summary (statements):")
-    print(f"  total: {total_percent:.2f}% (required {TOTAL_MIN:.2f}%)")
-    for package, threshold in CRITICAL_PKGS.items():
-        value = package_metrics.get(package, 0.0)
-        print(f"  {package}: {value:.2f}% (required {threshold:.2f}%)")
-
+    total_threshold = args.total_min if args.total_min is not None else DEFAULT_TOTAL_MIN
     failures: list[str] = []
-    if total_percent < TOTAL_MIN:
+    if total_metrics.percent < total_threshold:
         failures.append(
-            f"Total coverage {total_percent:.2f}% is below required {TOTAL_MIN:.2f}%"
+            f"total {total_metrics.percent:.2f}% < {total_threshold:.2f}%"
         )
-    for package, threshold in CRITICAL_PKGS.items():
-        value = package_metrics.get(package, 0.0)
-        if value < threshold:
+    for package, metrics in package_metrics.items():
+        threshold = package_thresholds.get(package)
+        if threshold is None:
+            continue
+        if metrics.percent < threshold:
             failures.append(
-                f"Package '{package}' coverage {value:.2f}% is below required {threshold:.2f}%"
+                f"{package} {metrics.percent:.2f}% < {threshold:.2f}%"
             )
 
+    top_entries = _compute_top_offenders(files, args.print_top)
+
+    print("Coverage summary (statements):")
+    print(
+        f"  total: {total_metrics.percent:.2f}% (required {total_threshold:.2f}%)"
+    )
+    for package, metrics in package_metrics.items():
+        threshold = package_thresholds.get(package)
+        suffix = f" (required {threshold:.2f}%)" if threshold is not None else ""
+        print(f"  {package}: {metrics.percent:.2f}%{suffix}")
+
+    _print_top_offenders(top_entries)
+
+    if args.summary_json:
+        payload = _build_summary_payload(total_metrics, package_metrics, top_entries)
+        target = Path(args.summary_json)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
     if failures:
-        for message in failures:
-            print(message, file=sys.stderr)
+        print("coverage enforcement failed: " + "; ".join(failures), file=sys.stderr)
         sys.exit(2)
 
 
