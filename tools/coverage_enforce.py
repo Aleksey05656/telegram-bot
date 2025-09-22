@@ -57,7 +57,7 @@ def _collect_file_coverages(root: ET.Element) -> dict[str, FileCoverage]:
         if not filename:
             continue
         filename = filename.replace("\\", "/")
-        for line in class_node.findall(".//line"):
+        for line in class_node.findall("./lines/line"):
             hits = line.get("hits")
             if hits is None:
                 continue
@@ -241,7 +241,7 @@ def main() -> None:
         )
 
     if failures:
-        print("coverage enforcement failed: " + "; ".join(failures), file=sys.stderr)
+        print("coverage check failed: " + "; ".join(failures), file=sys.stderr)
         sys.exit(2)
 
 
