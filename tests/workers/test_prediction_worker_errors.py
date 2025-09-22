@@ -22,6 +22,7 @@ from workers.prediction_worker import (
     PredictionJob,
     PredictionWorker,
     PredictionWorkerError,
+    _NullQueueAdapter,
 )
 from workers.queue_adapter import IQueueAdapter
 
@@ -46,6 +47,31 @@ class RecordingQueue(IQueueAdapter):
         details: dict[str, Any] | None = None,
     ) -> None:
         self.failed[job_id] = {"reason": reason, "details": details or {}}
+
+
+class LoggingRecordingQueue(_NullQueueAdapter):
+    def __init__(self) -> None:
+        self.started: list[dict[str, Any]] = []
+        self.finished: dict[str, dict[str, Any]] = {}
+        self.failed: dict[str, dict[str, Any]] = {}
+
+    async def mark_started(self, job_id: str, *, meta: dict[str, Any] | None = None) -> None:
+        self.started.append({"job_id": job_id, "meta": meta or {}})
+        await super().mark_started(job_id, meta=meta)
+
+    async def mark_finished(self, job_id: str, payload: dict[str, Any]) -> None:
+        self.finished[job_id] = payload
+        await super().mark_finished(job_id, payload)
+
+    async def mark_failed(
+        self,
+        job_id: str,
+        reason: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        self.failed[job_id] = {"reason": reason, "details": details or {}}
+        await super().mark_failed(job_id, reason, details=details)
 
 
 class NullRedisFactory:
@@ -133,9 +159,31 @@ class SecretBearingError(PredictorServiceError):
         return self._public_message
 
 
+class SpyLogger:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def _record(self, level: str, message: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+        self.calls.append({"level": level, "message": message, "args": args, "kwargs": kwargs})
+
+    def debug(self, message: str, *args: Any, **kwargs: Any) -> None:
+        self._record("debug", message, args, kwargs)
+
+    def info(self, message: str, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - delegated
+        self._record("info", message, args, kwargs)
+
+    def warning(self, message: str, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - delegated
+        self._record("warning", message, args, kwargs)
+
+    def error(self, message: str, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - delegated
+        self._record("error", message, args, kwargs)
+
+
 @pytest.mark.asyncio
-async def test_worker_masks_core_error_details() -> None:
-    queue = RecordingQueue()
+async def test_worker_masks_core_error_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    queue = LoggingRecordingQueue()
+    spy_logger = SpyLogger()
+    monkeypatch.setattr("workers.prediction_worker.logger", spy_logger)
     predictor = SpyPredictor(
         error=SecretBearingError("core failure", secret="token-123")
     )
@@ -156,6 +204,10 @@ async def test_worker_masks_core_error_details() -> None:
     assert "token-123" not in str(excinfo.value)
     assert "job-core" in queue.started[0]["job_id"]
     assert "job-core" not in queue.finished
+    assert spy_logger.calls, "Expected worker logger to receive debug entries"
+    for entry in spy_logger.calls:
+        assert "token-123" not in entry["message"]
+        assert all("token-123" not in str(arg) for arg in entry["args"])
 
 
 @pytest.mark.asyncio
