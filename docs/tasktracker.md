@@ -1,3 +1,12 @@
+## Задача: E6.17 — Redis factory retry coverage
+- **Статус**: Завершена
+- **Описание**: Зафиксировать повторные попытки RedisFactory с экспоненциальным backoff, jitter и маскировкой DSN.
+- **Шаги выполнения**:
+  - [x] Добавлены тесты backoff и jitter `tests/database/test_redis_factory_backoff.py` с контролем задержек и логов.
+  - [x] Расширен `workers/redis_factory.RedisFactory` параметрами повторных попыток и безопасным логированием.
+  - [x] Обновлены записи changelog/tasktracker для задачи E6.17.
+- **Зависимости**: workers/redis_factory.py, tests/database/test_redis_factory_backoff.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: E6.16 — Prediction worker log hardening
 - **Статус**: Завершена
 - **Описание**: Уточнить негативные тесты воркера предсказаний, зафиксировать маскирование логов и контроль таймаутов

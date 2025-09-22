@@ -1,3 +1,14 @@
+## [2025-10-01] - E6.17: Redis factory retry coverage
+### Добавлено
+- Юнит-тесты `tests/database/test_redis_factory_backoff.py` моделируют backoff с jitter и успешное переподключение RedisFactory.
+- `workers/redis_factory.RedisFactory` поддерживает экспоненциальный backoff, jitter и маскирование DSN при повторных попытках.
+
+### Изменено
+- Логика переподключения RedisFactory использует биндинг logger для маскировки DSN и повторные попытки с контролируемыми задержками.
+
+### Исправлено
+- Исключение при исчерпании повторных попыток RedisFactory содержит понятное сообщение без утечки секретов.
+
 ## [2025-09-30] - E6.16: Prediction worker log hardening
 ### Добавлено
 - Расширены регресс-тесты `tests/workers/test_prediction_worker_errors.py` для проверки маскировки логов,
