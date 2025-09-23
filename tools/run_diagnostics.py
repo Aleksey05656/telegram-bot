@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
+import importlib.util
 
 import numpy as np
 import pandas as pd
@@ -48,6 +49,21 @@ from sklearn.calibration import calibration_curve
 from sklearn.linear_model import Ridge
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
+
+from app.data_quality import run_quality_suite
+from app.diagnostics import (
+    bipoisson_swap_check,
+    expected_calibration_error,
+    monte_carlo_coverage,
+    reliability_table,
+    scoreline_symmetry,
+)
+
+from metrics.metrics import record_diagnostics_summary
+
+from tools import bench as bench_module
+from tools import drift_report as drift_module
+from tools import golden_regression as golden_module
 
 # Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
 
@@ -99,6 +115,16 @@ def _parse_args() -> argparse.Namespace:
         "--skip-smoke",
         action="store_true",
         help="Skip smoke run (useful when running inside constrained CI job)",
+    )
+    parser.add_argument(
+        "--data-quality",
+        action="store_true",
+        help="Run only data quality checks and exit",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Force running the entire diagnostics suite even when --data-quality is set",
     )
     return parser.parse_args()
 
@@ -338,6 +364,32 @@ def _simulate_dataset(n_rows: int = 180, seed: int = 20240920) -> pd.DataFrame:
     return df
 
 
+def _to_quality_frame(df: pd.DataFrame) -> pd.DataFrame:
+    seasons = df["date"].dt.year
+    frame = pd.DataFrame(
+        {
+            "match_id": np.arange(1, len(df) + 1),
+            "home_team": df["home_team_id"].apply(lambda x: f"Team {int(x)}"),
+            "away_team": df["away_team_id"].apply(lambda x: f"Team {int(x)}"),
+            "home_team_code": df["home_team_id"].astype(str),
+            "away_team_code": df["away_team_id"].astype(str),
+            "league": df["league_id"],
+            "league_code": df["league_id"],
+            "season": seasons.astype(str) + "/" + (seasons + 1).astype(str),
+            "season_start": seasons.astype(int),
+            "season_end": (seasons + 1).astype(int),
+            "kickoff_utc": df["date"].dt.tz_localize("UTC"),
+            "home_xg": df["home_xg"],
+            "away_xg": df["away_xg"],
+            "home_xga": df["home_xga"],
+            "away_xga": df["away_xga"],
+            "home_timezone": "Europe/London",
+            "away_timezone": "Europe/London",
+        }
+    )
+    return frame
+
+
 def _poisson_1x2_prob(lambda_home: np.ndarray, lambda_away: np.ndarray) -> np.ndarray:
     max_goals = 10
     probs = np.zeros((lambda_home.size, 3))
@@ -366,6 +418,254 @@ def _poisson_1x2_prob(lambda_home: np.ndarray, lambda_away: np.ndarray) -> np.nd
             # Нормализация на случай обрезания хвостов
             probs[idx] = probs[idx] / max(total_prob, 1e-9)
     return probs
+
+
+def _run_data_quality(dataset: pd.DataFrame, diag_dir: Path) -> dict[str, Any]:
+    quality_dir = diag_dir / "data_quality"
+    quality_df = _to_quality_frame(dataset)
+    report = run_quality_suite(quality_df, output_dir=quality_dir)
+    return {
+        "status": report.overall_status,
+        "note": f"summary={report.summary_path.name}",
+        "summary_path": str(report.summary_path),
+        "csv_artifacts": {name: str(path) for name, path in report.csv_artifacts.items()},
+        "issue_counts": report.issue_counts,
+        "issue_total": int(sum(report.issue_counts.values())),
+    }
+
+
+def _run_golden(reports_root: Path) -> dict[str, Any]:
+    baseline_path = reports_root / "golden" / "baseline.json"
+    snapshot = golden_module.build_snapshot()
+    existing = golden_module.load_snapshot(baseline_path)
+    if existing is None:
+        golden_module.write_snapshot(baseline_path, snapshot)
+        return {
+            "status": "⚠️",
+            "note": "baseline created",
+            "baseline_path": str(baseline_path),
+        }
+    diff = golden_module.compare_snapshots(snapshot, existing)
+    status = diff.get("status", "⚠️")
+    golden_module.write_snapshot(baseline_path, snapshot)
+    return {
+        "status": status,
+        "note": f"max_coef_delta={diff['checks']['coefficients_home']['max_delta']:.4f}",
+        "baseline_path": str(baseline_path),
+        "diff": diff,
+    }
+
+
+def _run_drift(diag_dir: Path) -> dict[str, Any]:
+    drift_dir = diag_dir / "drift"
+    psi_warn = float(os.getenv("DRIFT_PSI_WARN", "0.1"))
+    psi_fail = float(os.getenv("DRIFT_PSI_FAIL", "0.25"))
+    report = drift_module.generate_report(
+        current_path=None,
+        reference_path=None,
+        ref_days=int(os.getenv("DRIFT_REF_DAYS", "90")),
+        reports_dir=drift_dir,
+        psi_warn=psi_warn,
+        psi_fail=psi_fail,
+    )
+    worst = "✅"
+    for bucket in (report.features, report.outcome, report.predictions):
+        for stat in bucket:
+            if stat.status == "❌":
+                worst = "❌"
+                break
+            if stat.status == "⚠️" and worst != "❌":
+                worst = "⚠️"
+        if worst == "❌":
+            break
+    max_feature_psi = max((stat.psi for stat in report.features), default=0.0)
+    max_outcome_psi = max((stat.psi for stat in report.outcome), default=0.0)
+    max_prediction_psi = max((stat.psi for stat in report.predictions), default=0.0)
+    return {
+        "status": worst,
+        "note": f"summary={report.summary_path.name}",
+        "summary_path": str(report.summary_path),
+        "json_path": str(report.json_path),
+        "psi_max": {
+            "feature": max_feature_psi,
+            "outcome": max_outcome_psi,
+            "prediction": max_prediction_psi,
+        },
+    }
+
+
+def _run_calibration_section(dataset: pd.DataFrame, diag_dir: Path) -> dict[str, Any]:
+    calib_dir = diag_dir / "calibration"
+    calib_dir.mkdir(parents=True, exist_ok=True)
+    probs = _poisson_1x2_prob(dataset["lambda_home_true"].to_numpy(), dataset["lambda_away_true"].to_numpy())
+    outcomes_idx = np.where(
+        dataset["home_goals"] > dataset["away_goals"],
+        0,
+        np.where(dataset["home_goals"] == dataset["away_goals"], 1, 2),
+    )
+    calibration_payload: dict[str, Any] = {}
+    for label, column in {"home": 0, "draw": 1, "away": 2}.items():
+        target = (outcomes_idx == column).astype(int)
+        result = reliability_table(probs[:, column], target, bins=10)
+        plot_path = calib_dir / f"reliability_{label}.png"
+        try:
+            from app.diagnostics.calibration import plot_reliability
+
+            plot_reliability(result, plot_path)
+        except Exception:  # pragma: no cover - plotting is optional
+            plot_path = Path("")
+        calibration_payload[label] = {
+            "ece": result.ece,
+            "bins": [bin.__dict__ for bin in result.bins],
+            "plot": str(plot_path) if plot_path else "",
+        }
+
+    totals_lambda = dataset["lambda_home_true"].to_numpy() + dataset["lambda_away_true"].to_numpy()
+    totals_outcomes = (dataset["home_goals"] + dataset["away_goals"] > 2).astype(int)
+    prob_over25 = 1 - np.exp(-totals_lambda) * (1 + totals_lambda + (totals_lambda**2) / 2)
+    over_result = reliability_table(prob_over25, totals_outcomes, bins=10)
+    calibration_payload["over25"] = {"ece": over_result.ece}
+
+    btts_outcomes = ((dataset["home_goals"] > 0) & (dataset["away_goals"] > 0)).astype(int)
+    prob_btts = 1 - np.exp(-dataset["lambda_home_true"]) - np.exp(-dataset["lambda_away_true"]) + np.exp(
+        -(dataset["lambda_home_true"] + dataset["lambda_away_true"])
+    )
+    btts_result = reliability_table(prob_btts, btts_outcomes, bins=10)
+    calibration_payload["btts"] = {"ece": btts_result.ece}
+
+    rng = np.random.default_rng(20240921)
+    samples = (dataset["home_goals"] + dataset["away_goals"]).to_numpy()
+    lower_80: list[float] = []
+    upper_80: list[float] = []
+    lower_90: list[float] = []
+    upper_90: list[float] = []
+    for lam in totals_lambda:
+        draws = rng.poisson(lam, size=500)
+        lower_80.append(float(np.quantile(draws, 0.1)))
+        upper_80.append(float(np.quantile(draws, 0.9)))
+        lower_90.append(float(np.quantile(draws, 0.05)))
+        upper_90.append(float(np.quantile(draws, 0.95)))
+    coverage_80 = monte_carlo_coverage(samples, lower_80, upper_80, target=0.8, tolerance=0.02)
+    coverage_90 = monte_carlo_coverage(samples, lower_90, upper_90, target=0.9, tolerance=0.02)
+
+    return {
+        "status": "✅" if coverage_80.status == "✅" and coverage_90.status == "✅" else "⚠️",
+        "note": f"ece_home={calibration_payload['home']['ece']:.3f}",
+        "calibration": calibration_payload,
+        "coverage": {
+            "c80": coverage_80.__dict__,
+            "c90": coverage_90.__dict__,
+        },
+    }
+
+
+def _run_invariance_checks(dataset: pd.DataFrame) -> dict[str, Any]:
+    lam_home = float(dataset["lambda_home_true"].mean())
+    lam_away = float(dataset["lambda_away_true"].mean())
+    swap = bipoisson_swap_check(lam_home, lam_away)
+    score = scoreline_symmetry(lam_home, lam_away)
+    status = "✅" if swap.status == "✅" and score.status == "✅" else "⚠️"
+    return {
+        "status": status,
+        "note": f"swap_delta={swap.max_delta:.2e}",
+        "swap": swap.__dict__,
+        "score": score.__dict__,
+    }
+
+
+def _run_benchmarks(diag_dir: Path) -> dict[str, Any]:
+    bench_dir = diag_dir / "bench"
+    bench_dir.mkdir(parents=True, exist_ok=True)
+    iterations = int(os.getenv("BENCH_ITER", "30"))
+    budget_ms = float(os.getenv("BENCH_P95_BUDGET_MS", "800"))
+    results = bench_module.run_benchmarks(iterations=iterations)
+    json_path = bench_dir / "bench.json"
+    payload = {
+        "budget_ms": budget_ms,
+        "cases": {
+            name: {
+                "p50_ms": result.p50_ms,
+                "p95_ms": result.p95_ms,
+                "peak_memory_kb": result.peak_memory_kb,
+                "iterations": result.iterations,
+            }
+            for name, result in results.items()
+        },
+    }
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    summary_lines = ["# Benchmarks", "", "| Case | p95 (ms) | Peak memory (KB) |", "| --- | --- | --- |"]
+    worst_status = "✅"
+    for name, result in results.items():
+        summary_lines.append(f"| {name} | {result.p95_ms:.1f} | {result.peak_memory_kb:.1f} |")
+        if result.p95_ms > budget_ms:
+            worst_status = "⚠️"
+    summary_path = bench_dir / "summary.md"
+    summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    return {
+        "status": worst_status,
+        "note": f"budget={budget_ms}ms",
+        "summary_path": str(summary_path),
+        "json_path": str(json_path),
+    }
+
+
+def _run_static_analysis(diag_dir: Path) -> dict[str, Any]:
+    analysis_dir = diag_dir / "static"
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    checks = {
+        "mypy": ("mypy", [sys.executable, "-m", "mypy", "--config-file", "mypy.ini", "app", "app/bot"]),
+        "bandit": ("bandit", [sys.executable, "-m", "bandit", "-r", "app", "-lll"]),
+        "pip-audit": ("pip_audit", [sys.executable, "-m", "pip_audit", "-r", "requirements.txt"]),
+    }
+    results: dict[str, Any] = {}
+    overall = "✅"
+    for name, (module_name, cmd) in checks.items():
+        if importlib.util.find_spec(module_name) is None:
+            results[name] = {
+                "status": "⚠️",
+                "returncode": None,
+                "log": "",
+                "note": f"module {module_name} not installed",
+            }
+            if overall != "❌":
+                overall = "⚠️"
+            continue
+        log_path = analysis_dir / f"{name}.log"
+        code, stdout, stderr = _run_subprocess(cmd, log_path=log_path)
+        if code == 0:
+            status = "✅"
+        elif name == "mypy":
+            status = "❌"
+            overall = "❌"
+        else:
+            status = "⚠️"
+            if overall != "❌":
+                overall = "⚠️"
+        results[name] = {
+            "status": status,
+            "returncode": code,
+            "log": str(log_path),
+        }
+
+    secret_pattern = re.compile(r"(TOKEN|KEY|PASSWORD)=([^\s]+)", re.IGNORECASE)
+    leaks: list[str] = []
+    for log_file in analysis_dir.glob("*.log"):
+        try:
+            content = log_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in secret_pattern.finditer(content):
+            value = match.group(2)
+            if value and value.lower() not in {"stub-token", "stub-odds", "dummy"}:
+                leaks.append(f"{log_file.name}:{match.group(0)}")
+    if leaks:
+        overall = "❌"
+    return {
+        "status": overall,
+        "note": "; ".join(leaks) if leaks else "static analysis completed",
+        "results": results,
+        "secrets": leaks,
+    }
 
 
 def _safe_log_loss(outcomes: np.ndarray, probs: np.ndarray) -> float:
@@ -979,6 +1279,33 @@ def main() -> None:
         }
     )
 
+    dataset = _simulate_dataset()
+    dataset_hash = hashlib.sha256(pd.util.hash_pandas_object(dataset, index=True).values).hexdigest()
+    dq_result = _run_data_quality(dataset, diag_dir)
+    statuses["Data Quality"] = {"status": dq_result["status"], "note": dq_result["note"]}
+    metrics["data_quality"] = dq_result
+    metrics["dataset_hash"] = dataset_hash
+
+    run_only_data_quality = args.data_quality and not args.all
+    reports_root = Path(settings.REPORTS_DIR)
+
+    if run_only_data_quality:
+        context = {
+            "entry": entry,
+            "reports_dir": str(diag_dir),
+            "settings_snapshot": {
+                "DB_PATH": settings.DB_PATH,
+                "REPORTS_DIR": settings.REPORTS_DIR,
+                "MODEL_REGISTRY_PATH": settings.MODEL_REGISTRY_PATH,
+            },
+        }
+        diag_md = _write_diagnostics_md(diag_dir, statuses, context, metrics)
+        diag_json = _write_diagnostics_json(diag_dir, context, metrics, statuses)
+        print("Diagnostics complete (data-quality only)")
+        print(f"Markdown report: {diag_md}")
+        print(f"JSON report: {diag_json}")
+        return
+
     if args.pytest:
         pytest_result = _run_pytest(diag_dir, base_env)
         statuses["Tests"] = {
@@ -1003,8 +1330,14 @@ def main() -> None:
         }
         metrics["smoke"] = smoke
 
-    dataset = _simulate_dataset()
-    dataset_hash = hashlib.sha256(pd.util.hash_pandas_object(dataset, index=True).values).hexdigest()
+    golden = _run_golden(reports_root)
+    statuses["Golden Baseline"] = {"status": golden["status"], "note": golden["note"]}
+    metrics["golden"] = golden
+
+    drift = _run_drift(diag_dir)
+    statuses["Drift"] = {"status": drift["status"], "note": drift["note"]}
+    metrics["drift"] = drift
+
     level_a = _train_level_a(dataset, diag_dir)
     statuses["Model Level A"] = {
         "status": "✅",
@@ -1019,6 +1352,14 @@ def main() -> None:
 
     level_c = _simulate_level_c(dataset, diag_dir)
     statuses["Model Level C"] = {"status": "✅", "note": f"home_win={level_c.markets['home_win']:.3f}"}
+
+    calibration = _run_calibration_section(dataset, diag_dir)
+    statuses["Calibration"] = {"status": calibration["status"], "note": calibration["note"]}
+    metrics["calibration"] = calibration
+
+    invariance = _run_invariance_checks(dataset)
+    statuses["Bi-Poisson"] = {"status": invariance["status"], "note": invariance["note"]}
+    metrics["bipoisson"] = invariance
 
     backtest = _backtest_metrics(dataset, diag_dir)
     statuses["Backtest"] = {
@@ -1037,6 +1378,14 @@ def main() -> None:
         "status": "✅",
         "note": f"health={ops_diag.get('health_response')} ready={ops_diag.get('ready_response')}",
     }
+
+    static_diag = _run_static_analysis(diag_dir)
+    statuses["Static Analysis"] = {"status": static_diag["status"], "note": static_diag["note"]}
+    metrics["static_analysis"] = static_diag
+
+    bench_result = _run_benchmarks(diag_dir)
+    statuses["Benchmarks"] = {"status": bench_result["status"], "note": bench_result["note"]}
+    metrics["bench"] = bench_result
 
     level_a_dict = dataclasses.asdict(level_a)
     level_a_dict["artifact"] = str(level_a.artifact)
@@ -1059,6 +1408,12 @@ def main() -> None:
             "bot": bot_diag,
             "ops": ops_diag,
         }
+    )
+
+    record_diagnostics_summary(
+        statuses,
+        data_quality_total=dq_result.get("issue_total", 0),
+        drift_max=drift.get("psi_max", {}),
     )
 
     context = {

@@ -1,3 +1,13 @@
+## Задача: Diagnostics drift_report import hotfix
+- **Статус**: Завершена
+- **Описание**: Исправить падение `tools/drift_report.py` при запуске напрямую из корня репозитория из-за отсутствия пути проекта в `sys.path`.
+- **Шаги выполнения**:
+  - [x] Воспроизведён `ModuleNotFoundError` на `tools.golden_regression` при запуске `python tools/drift_report.py`.
+  - [x] Добавлено подключение корня репозитория к `sys.path` внутри `tools/drift_report.py` перед импортами.
+  - [x] Прогнан `python tools/drift_report.py --reports-dir reports/diagnostics/drift --ref-days 90` и подтверждена генерация отчётов.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: tools/drift_report.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Diagnostics automation & ops sanity
 - **Статус**: Завершена
 - **Описание**: Автоматизировать сбор сквозной диагностики (ENV/модели/бот/Ops) и устранить блокирующие синтаксические ошибки.
@@ -853,3 +863,13 @@
   - [x] Обновлён CI и шаг публикации RC summary
   - [x] Сформированы release notes
 - **Зависимости**: app/config.py, metrics/metrics.py, scripts/run_simulation.py, requirements.lock, .github/workflows/ci.yml, reports/RELEASE_NOTES_RC.md
+
+## Задача: Diagnostics v2 quality gates
+- **Статус**: Завершена
+- **Описание**: Расширить диагностику (data quality, drift, golden, calibration, bench) и включить CI-гейты.
+- **Шаги выполнения**:
+  - [x] Реализован пакет `app/data_quality` и интеграция в `tools/run_diagnostics.py`.
+  - [x] Добавлены скрипты `tools/golden_regression.py`, `tools/drift_report.py`, `tools/bench.py` и пакет `app/diagnostics`.
+  - [x] Обновлены отчёты, документация (`docs/quality_gates.md`, `docs/diagnostics.md`) и README-бейдж.
+  - [x] Расширены тесты (`tests/diagnostics/*`), обновлён CI workflow и .env.example.
+- **Зависимости**: tools/run_diagnostics.py, app/data_quality, app/diagnostics, tools/golden_regression.py, tools/drift_report.py, tools/bench.py, docs/quality_gates.md, docs/diagnostics.md, .github/workflows/ci.yml, README.md, .env.example, tests/diagnostics
