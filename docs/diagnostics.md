@@ -39,6 +39,17 @@ python -m diagtools.bench --iterations ${BENCH_ITER}
 - **Chaos / Ops** — smoke CLI, health endpoints, runtime lock exercise and backup inventory.
 - **Static Analysis & Security** — strict mypy for `app/` и `app/bot/`, `bandit`, `pip-audit` и проверка утечек секретов в логах.
 
+## Continuous monitoring & Chat-Ops
+
+- Планировщик (`diagtools.scheduler`) регистрируется через `workers.runtime_scheduler.register` и по умолчанию срабатывает ежедневно в `06:00` (`DIAG_SCHEDULE_CRON=0 6 * * *`).
+- `DIAG_ON_START=1` запускает диагностику при старте приложения (в отдельном потоке, чтобы не блокировать бот).
+- `DIAG_MAX_RUNTIME_MIN` ограничивает бюджет времени для батча команд (`diag-run`, `diag-drift`, `golden_regression --check`, `bench`).
+- Итоги фиксируются в `reports/diagnostics/site/index.html` и истории `reports/diagnostics/history/*` (JSONL + CSV, ротация `DIAG_HISTORY_KEEP`).
+- Алерты включаются флагом `ALERTS_ENABLED=1`; `ALERTS_CHAT_ID` — телеграм-чат админов, `ALERTS_MIN_LEVEL=WARN|FAIL` определяет порог уведомлений. Секреты автоматически маскируются по шаблону `*_TOKEN|*_KEY|PASSWORD`.
+- Chat-Ops: `/diag` (ручной прогон), `/diag last` (последняя запись истории), `/diag drift` (только drift), `/diag link` (текущий HTML-дэшборд). Все команды доступны только администраторам (`ADMIN_IDS`).
+
+HTML-дэшборд содержит статусные чипы, список секций и ссылки на `DIAGNOSTICS.md`/`diagnostics_report.json`. SVG-график по статусам хранится рядом и попадает в CI-артефакты, но не в Git. При необходимости формат можно переключить через `REPORTS_IMG_FORMAT=svg|png`.
+
 ## Drift v2.1
 
 `diag-drift` реализует стратифицированный PSI/KS и CI-гейт для скоупов `global`, `league`, `season`.
@@ -79,8 +90,10 @@ reports/
 └── diagnostics/
     ├── data_quality/        # summary.md + per-check CSVs
     ├── drift/               # drift_summary.md/json, *.csv, plots/, reference/
+    ├── history/             # history.jsonl + history.csv (runtime artefacts)
     ├── calibration/         # reliability_*.png + coverage info
     ├── bench/               # bench.json + summary.md
+    ├── site/                # index.html + status.svg (dashboard)
     ├── DIAGNOSTICS.md       # aggregated Markdown report
     └── diagnostics_report.json
 ```
@@ -104,5 +117,7 @@ reports/
 4. `diag-drift --ref-days ${DRIFT_REF_DAYS} --ref-rolling-days ${DRIFT_ROLLING_DAYS}`
 5. `python -m diagtools.bench --iterations ${BENCH_ITER}`
 6. Дополнительный job `diagnostics-drift` в CI повторно запускает `diag-drift` и публикует `reports/diagnostics/drift` как артефакт.
+7. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
+8. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
 
 Failures in any gate (golden deltas, drift PSI fail, benchmark p95 above budget, ❌ data quality) break the build.

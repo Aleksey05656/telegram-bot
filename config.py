@@ -125,6 +125,17 @@ class Settings(BaseSettings):
     PREDICTION_LOCK_TIMEOUT: float = 60.0
     PREDICTION_LOCK_BLOCKING_TIMEOUT: float = 5.0
 
+    # --- Diagnostics orchestration ---
+    DIAG_SCHEDULE_CRON: str = "0 6 * * *"
+    DIAG_ON_START: bool = True
+    DIAG_MAX_RUNTIME_MIN: int = 25
+    REPORTS_IMG_FORMAT: str = "svg"
+    DIAG_HISTORY_KEEP: int = 60
+    ALERTS_ENABLED: bool = True
+    ALERTS_CHAT_ID: str | None = None
+    ALERTS_MIN_LEVEL: str = "WARN"
+    AUTO_REF_UPDATE: str = "off"
+
     # --- Динамические поля ---
     @computed_field  # Генерируется на основе других полей
     @property
@@ -161,6 +172,37 @@ class Settings(BaseSettings):
     def validate_metrics_port(cls, v: int) -> int:
         if v <= 0 or v > 65535:
             raise ValueError("METRICS_PORT must be between 1 and 65535")
+        return v
+
+    @field_validator("REPORTS_IMG_FORMAT")
+    @classmethod
+    def validate_reports_img_format(cls, v: str) -> str:
+        allowed = {"svg", "png"}
+        if v not in allowed:
+            raise ValueError(f"REPORTS_IMG_FORMAT must be one of {sorted(allowed)}")
+        return v
+
+    @field_validator("DIAG_HISTORY_KEEP", "DIAG_MAX_RUNTIME_MIN")
+    @classmethod
+    def validate_positive_ints(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Value must be positive")
+        return v
+
+    @field_validator("ALERTS_MIN_LEVEL")
+    @classmethod
+    def validate_alerts_level(cls, v: str) -> str:
+        allowed = {"WARN", "FAIL"}
+        if v not in allowed:
+            raise ValueError("ALERTS_MIN_LEVEL must be WARN or FAIL")
+        return v
+
+    @field_validator("AUTO_REF_UPDATE")
+    @classmethod
+    def validate_auto_ref_update(cls, v: str) -> str:
+        allowed = {"off", "approved"}
+        if v not in allowed:
+            raise ValueError("AUTO_REF_UPDATE must be 'off' or 'approved'")
         return v
 
     @field_validator("RETRY_ATTEMPTS")

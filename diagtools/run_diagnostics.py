@@ -23,6 +23,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from datetime import UTC, datetime
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -61,6 +62,7 @@ from metrics.metrics import record_diagnostics_summary
 from diagtools import bench as bench_module
 from diagtools import drift as drift_module
 from diagtools import golden_regression as golden_module
+from diagtools import reports_html
 
 # Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
 
@@ -1251,6 +1253,7 @@ def main() -> None:
     with _temp_env({"PYTHONUNBUFFERED": "1", "SPORTMONKS_STUB": "1", "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", "stub-token"), "ODDS_API_KEY": os.getenv("ODDS_API_KEY", "stub-odds")}):
         settings = _load_settings()
     diag_dir = _resolve_reports_dir(settings, args.reports_dir)
+    started_at = datetime.now(UTC)
 
     statuses: dict[str, dict[str, Any]] = {}
     metrics: dict[str, Any] = {}
@@ -1421,9 +1424,37 @@ def main() -> None:
             "MODEL_REGISTRY_PATH": settings.MODEL_REGISTRY_PATH,
         },
     }
+    trigger = os.getenv("DIAG_TRIGGER", "manual")
+    context["trigger"] = trigger
 
     diag_md = _write_diagnostics_md(diag_dir, statuses, context, metrics)
     diag_json = _write_diagnostics_json(diag_dir, context, metrics, statuses)
+    finished_at = datetime.now(UTC)
+    try:
+        html_index = reports_html.build_dashboard(
+            diag_dir=diag_dir,
+            statuses=statuses,
+            metrics=metrics,
+            context=context,
+            trigger=trigger,
+            started_at=started_at,
+            finished_at=finished_at,
+            report_path=diag_md,
+        )
+        history_entry = reports_html.append_history(
+            diag_dir=diag_dir,
+            statuses=statuses,
+            trigger=trigger,
+            keep=getattr(settings, "DIAG_HISTORY_KEEP", 60),
+            started_at=started_at,
+            finished_at=finished_at,
+            html_path=html_index,
+        )
+        metrics["history_entry"] = dataclasses.asdict(history_entry)
+        metrics["html_index"] = str(html_index)
+    except Exception as exc:  # pragma: no cover - dashboard failures should not stop diagnostics
+        print(f"Failed to build diagnostics dashboard: {exc}")
+
     print("Diagnostics complete")
     print(f"Markdown report: {diag_md}")
     print(f"JSON report: {diag_json}")
