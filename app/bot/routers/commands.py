@@ -9,17 +9,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from pathlib import Path
 from time import monotonic
 from typing import Any, Sequence
 from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message
+from aiogram.types import FSInputFile, Message
 
 from config import settings
 from logger import logger
@@ -38,6 +40,7 @@ from ..keyboards import match_details_keyboard, noop_keyboard, today_keyboard
 from ..services import Prediction
 from ..state import FACADE, LIST_CACHE, MATCH_CACHE, PAGINATION_CACHE
 from ..storage import get_user_preferences, list_subscriptions, upsert_subscription
+from diagtools import scheduler as diag_scheduler
 
 commands_router = Router()
 _ADMIN_IDS = {
@@ -405,6 +408,82 @@ async def handle_about(message: Message, command: CommandObject) -> None:
     }
     record_command("about")
     await message.answer(format_about(metadata))
+
+
+@commands_router.message(Command("diag"))
+async def handle_diag_admin(message: Message, command: CommandObject) -> None:
+    user_id = message.from_user.id if message.from_user else 0
+    if _ADMIN_IDS and user_id not in _ADMIN_IDS:
+        await message.answer("Недостаточно прав")
+        return
+    record_command("diag")
+    args = (command.args or "").strip().split()
+    subcommand = args[0] if args else ""
+    loop = asyncio.get_running_loop()
+
+    if subcommand == "last":
+        history = diag_scheduler.load_history(limit=1)
+        if not history:
+            await message.answer("История диагностики пуста")
+            return
+        entry = history[0]
+        warn = ", ".join(entry.warn_sections) or "—"
+        fail = ", ".join(entry.fail_sections) or "—"
+        await message.answer(
+            "\n".join(
+                [
+                    f"Последний запуск: {entry.timestamp}",
+                    f"Статус: {entry.status}",
+                    f"Длительность: {entry.duration_sec:.1f}с",
+                    f"WARN: {warn}",
+                    f"FAIL: {fail}",
+                    f"HTML: {entry.html_path or '—'}",
+                ]
+            )
+        )
+        return
+
+    if subcommand == "drift":
+        await message.answer("Запускаю drift-чек…")
+        try:
+            result = await loop.run_in_executor(None, lambda: diag_scheduler.run_drift(trigger="manual"))
+        except Exception as exc:  # pragma: no cover - executor errors
+            await message.answer(f"Ошибка drift-чека: {exc}")
+            return
+        await message.answer(
+            f"drift завершён: rc={result.returncode} за {result.duration_sec:.1f}с"
+        )
+        return
+
+    if subcommand == "link":
+        html_path = Path(settings.REPORTS_DIR) / "diagnostics" / "site" / "index.html"
+        if not html_path.exists():
+            await message.answer("HTML-дэшборд ещё не сформирован")
+            return
+        await message.answer_document(FSInputFile(html_path), caption="Diagnostics dashboard")
+        return
+
+    await message.answer("Диагностика запущена, это может занять пару минут…")
+    try:
+        result = await loop.run_in_executor(None, lambda: diag_scheduler.run_suite(trigger="manual"))
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        await message.answer(f"Ошибка запуска диагностики: {exc}")
+        return
+    statuses = result.statuses
+    warn_sections = [name for name, payload in statuses.items() if payload.get("status") == "⚠️"]
+    fail_sections = [name for name, payload in statuses.items() if payload.get("status") == "❌"]
+    duration = (result.finished_at - result.started_at).total_seconds()
+    lines = [
+        f"Готово за {duration:.1f}с",
+        f"WARN: {', '.join(warn_sections) if warn_sections else '—'}",
+        f"FAIL: {', '.join(fail_sections) if fail_sections else '—'}",
+        f"Лог: {result.log_path}",
+    ]
+    if result.html_path:
+        lines.append(f"HTML: {result.html_path}")
+    if result.alerts_sent:
+        lines.append("Алерт отправлен в админ-чат")
+    await message.answer("\n".join(lines))
 
 
 @commands_router.message(Command("admin"))

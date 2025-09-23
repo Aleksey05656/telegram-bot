@@ -16,6 +16,15 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics are exposed when `ENABLE_METRICS=1` (default port `METRICS_PORT=8000`) and include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
+### Diagnostics automation
+
+- `diagtools.scheduler` выполняет ежедневный прогон диагностики (`DIAG_SCHEDULE_CRON`, `DIAG_ON_START`, `DIAG_MAX_RUNTIME_MIN`).
+- После прогона генерируется HTML-дэшборд (`reports/diagnostics/site/index.html`) и обновляется история запусков (`reports/diagnostics/history/`).
+- Новые метрики: `diag_runs_total{trigger=…}` и `diag_last_status{section=…}` — помогают в Grafana/Prometheus отслеживать стабильность секций.
+- Админ-команды бота: `/diag`, `/diag last`, `/diag drift`, `/diag link` (результаты уходят только в чаты из `ADMIN_IDS`).
+- Политика «no-binaries-in-git»: отчёты (`reports/**`), данные (`data/**`) и любые `*.png/*.parquet/*.zip/*.sqlite` не коммитятся. CI job `assert-no-binaries` падает при попытке добавить такие файлы.
+- CI job `diagnostics-scheduled` публикует артефакты HTML/истории; за ревью drift-референсов отвечает `diagtools.drift_ref_update` (с флагом `AUTO_REF_UPDATE`).
+
 ## Reliability snapshot
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).
@@ -94,6 +103,7 @@ Telegram-бот регистрирует команды для быстрого 
 | `/match <id>` | Синхронный прогноз по идентификатору | `/match 12345` |
 | `/predict <Команда 1 — Команда 2>` | Постановка задачи в очередь | `/predict Арсенал — Манчестер Сити` |
 | `/terms` | Условия использования | `/terms` |
+| `/diag [last|drift|link]` | Chat-Ops для диагностики (только админы) | `/diag last` |
 
 Команда `/predict` принимает названия команд через дефис (поддерживаются символы `-`, `–`, `—`).
 Ответ содержит идентификатор задачи, по которому воркер отправит итоговый прогноз.

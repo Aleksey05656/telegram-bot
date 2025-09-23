@@ -1,3 +1,15 @@
+## Задача: Diagnostics v2.2 — Continuous monitoring & Chat-Ops
+- **Статус**: Завершена
+- **Описание**: Включить автоматический запуск диагностики, HTML-дэшборд, Chat-Ops и защиту от бинарников в PR.
+- **Шаги выполнения**:
+  - [x] Добавлен планировщик `diagtools/scheduler.py` с поддержкой CRON/ручных запусков, алертов и метрик.
+  - [x] Реализован `diagtools/reports_html.py` (HTML + история) и интеграция в `diagtools.run_diagnostics`.
+  - [x] Добавлен CLI `diagtools.drift_ref_update.py` и обновлены ENV (`DIAG_*`, `ALERTS_*`, `AUTO_REF_UPDATE`).
+  - [x] Расширен бот (команды `/diag`, история, drift-only, выдача HTML) и тесты для Chat-Ops/diagtools.
+  - [x] Обновлены `.env.example`, `config.py`, `README.md`, `docs/diagnostics.md`, `docs/quality_gates.md`, `.gitignore`.
+  - [x] Обновлена CI (`diagnostics-scheduled`, `assert-no-binaries`, публикация HTML/истории) и документация (changelog/tasktracker).
+- **Зависимости**: diagtools/scheduler.py, diagtools/reports_html.py, diagtools/drift_ref_update.py, diagtools/run_diagnostics.py, app/bot/routers/commands.py, metrics/metrics.py, .env.example, config.py, README.md, docs/diagnostics.md, docs/quality_gates.md, docs/changelog.md, docs/tasktracker.md, .gitignore, .github/workflows/ci.yml, tools/ci_assert_no_binaries.sh, tests/diagtools/*, tests/bot/test_chatops_diag.py
+
 ## Задача: Diagnostics v2.1 — Drift packaging & CI gate
 - **Статус**: Завершена
 - **Описание**: Перевести инструменты диагностики в пакет `diagtools`, усилить дрифт-отчёты (стратификация, окна, пороги) и включить CI-гейт с артефактами.

@@ -992,3 +992,19 @@
 
 ### Исправлено
 - —
+## [2025-10-12] - Diagnostics automation v2.2
+### Добавлено
+- Планировщик `diagtools.scheduler` с запуском `diag-run`/`diag-drift`/`golden_regression`/`bench`, историей и алертами.
+- HTML-дэшборд (`diagtools.reports_html`) и хранение истории (`reports/diagnostics/history/`).
+- CLI `diagtools.drift_ref_update` для подготовки drift-референсов и changelog-вставок.
+- Тесты для планировщика, отчётов, истории, Chat-Ops и auto-ref-update.
+
+### Изменено
+- `diagtools.run_diagnostics` теперь генерирует HTML и обновляет историю, поддерживает `DIAG_TRIGGER`.
+- Расширен README/документация (`docs/diagnostics.md`, `docs/quality_gates.md`) новыми переменными и политикой no-binaries.
+- Обновлена CI-конвейер `.github/workflows/ci.yml`: job `diagnostics-scheduled`, гард `assert-no-binaries`.
+- `app/bot` получил команды `/diag` (`last|drift|link`) и метрики `diag_runs_total`, `diag_last_status`.
+
+### Исправлено
+- Синхронизация `.env.example` и `config.Settings` новыми флагами диагностики/алертов.
+- `.gitignore` покрывает runtime-артефакты (`reports/`, `data/`, бинарные форматы).

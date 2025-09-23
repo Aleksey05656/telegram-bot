@@ -38,3 +38,10 @@
 - **Drift** — Investigate feature pipelines / new data feeds; PSI ≥ fail threshold blocks deploy.
 - **Benchmarks** — Optimise hot paths or raise cache TTLs; CI fails if p95 exceeds the configured budget.
 - **Data Quality** — Blockers are immediate fixers (duplicates, schema violations, NaN critical fields).
+
+## Drift reference updates & automation guardrails
+
+- Для подготовки нового эталона используйте `python -m diagtools.drift_ref_update --reports-dir <dir> --tag <YYYYMMDD>`.
+- Скрипт копирует `reports/diagnostics/drift/reference/*` в таймстампнутую подпапку и генерирует `changelog_<tag>.md` со сводкой окон/количеств.
+- Защита от случайного запуска включена переменной `AUTO_REF_UPDATE` (`off` по умолчанию). Авто-режим возможен только при `AUTO_REF_UPDATE=approved` или передаче `--force`.
+- В Git не попадают бинарные эталоны (Parquet/PNG) — они публикуются как артефакты CI и доступны через job `diagnostics-scheduled`.

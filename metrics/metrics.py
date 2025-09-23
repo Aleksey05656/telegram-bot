@@ -7,6 +7,7 @@
 
 import time
 from collections import deque
+from typing import Any
 
 from app.config import get_settings
 
@@ -110,6 +111,16 @@ drift_failures_total = Counter(
     "drift_failures_total",
     "Number of drift scope failures",
     ["reference", "scope", "service", "env", "version"],
+)
+diag_runs_total = Counter(
+    "diag_runs_total",
+    "Total diagnostics orchestrations",
+    ["trigger", "service", "env", "version"],
+)
+diag_last_status = Gauge(
+    "diag_last_status",
+    "Last diagnostics status score by section (1=ok,0=warn,-1=fail)",
+    ["section", "service", "env", "version"],
 )
 
 _windows: dict[tuple[str, str], deque[tuple[float, int]]] = {}
@@ -236,9 +247,13 @@ def record_diagnostics_summary(
     """Push diagnostics outcome metrics to Prometheus."""
 
     diag_last_run_timestamp.labels(**_LABELS).set(time.time())
+    status_map = {"✅": 1.0, "⚠️": 0.0, "❌": -1.0}
     for section, payload in statuses.items():
         if payload.get("status") == "❌":
             diag_failures_total.labels(section=section, **_LABELS).inc()
+        diag_last_status.labels(section=section, **_LABELS).set(
+            status_map.get(payload.get("status", "⚠️"), 0.0)
+        )
     data_quality_issues_total.labels(**_LABELS).set(float(data_quality_total))
     for bucket, value in drift_max.items():
         drift_psi_max.labels(bucket=bucket, **_LABELS).set(float(value))
@@ -251,3 +266,14 @@ def record_diagnostics_summary(
                     continue
                 if status == "FAIL":
                     drift_failures_total.labels(reference=reference, scope=scope, **_LABELS).inc()
+
+
+def record_diag_run_event(trigger: str, statuses: dict[str, dict[str, Any]]) -> None:
+    """Record diagnostics run counter and refresh last status gauges."""
+
+    diag_runs_total.labels(trigger=trigger, **_LABELS).inc()
+    status_map = {"✅": 1.0, "⚠️": 0.0, "❌": -1.0}
+    for section, payload in statuses.items():
+        diag_last_status.labels(section=section, **_LABELS).set(
+            status_map.get(payload.get("status", "⚠️"), 0.0)
+        )

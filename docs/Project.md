@@ -77,6 +77,12 @@ telegram-bot/
 │  ├─ train_base_glm.py
 │  ├─ train_modifiers.py
 │  └─ run_training_pipeline.py
+├─ diagtools/
+│  ├─ run_diagnostics.py       # агрегированный прогон диагностики
+│  ├─ scheduler.py             # CRON/ручной запуск, алерты, логи, метрики
+│  ├─ reports_html.py          # генерация HTML-дэшборда и история запусков
+│  ├─ drift_ref_update.py      # подготовка drift reference + changelog
+│  └─ bench.py / drift/ / golden_regression.py
 └─ requirements.txt
 ```
 

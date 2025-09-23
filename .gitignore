@@ -26,3 +26,16 @@ wheels/*.whl
 /app/data_processor/feature_engineering.py
 /app/data_processor/__init__.py
 /app/data_processor/io.py
+# Runtime reports & data (not committed)
+reports/
+data/
+*.parquet
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
