@@ -12,8 +12,8 @@ from loguru import logger
 from config import settings
 
 # Создаем директорию для логов если её нет
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
+log_dir = Path(settings.LOG_DIR)
+log_dir.mkdir(parents=True, exist_ok=True)
 
 # Глобальная переменная для отслеживания деградации модели
 _model_degradation_threshold = 0.1  # Порог деградации 10%

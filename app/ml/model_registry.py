@@ -18,7 +18,12 @@ class LocalModelRegistry:
     """Persist and load models from the filesystem."""
 
     def __init__(self, base_dir: str | Path | None = None) -> None:
-        self.base_dir = Path(base_dir or os.getenv("MODEL_REGISTRY_PATH", "artifacts"))
+        data_root = Path(os.getenv("DATA_ROOT", "/data"))
+        default_dir = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
+        base_path = Path(base_dir) if base_dir else default_dir
+        if not base_path.is_absolute():
+            base_path = data_root / base_path
+        self.base_dir = base_path
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _model_path(self, name: str, season: int | str | None = None) -> Path:

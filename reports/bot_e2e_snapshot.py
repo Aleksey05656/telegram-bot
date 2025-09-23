@@ -31,7 +31,9 @@ from telegram.handlers import predict as predict_handler  # noqa: E402
 from telegram.handlers import today as today_handler  # noqa: E402
 
 SNAPSHOT_SEED = 20240922
-SNAPSHOT_PATH = Path("reports/bot_e2e_snapshot.md")
+_DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
+_REPORTS_ROOT = Path(os.getenv("REPORTS_DIR", str(_DATA_ROOT / "reports")))
+SNAPSHOT_PATH = _REPORTS_ROOT / "bot_e2e_snapshot.md"
 
 
 class SnapshotQueue:

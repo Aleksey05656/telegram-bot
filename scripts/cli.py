@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -71,7 +72,9 @@ def _load_training_frame(season_id: str) -> tuple[pd.DataFrame, str]:
 
 
 def _ensure_artifact_dir(season_id: str) -> Path:
-    path = Path("artifacts") / season_id
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    registry_root = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
+    path = registry_root / season_id
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -145,7 +148,9 @@ def _train_modifiers_and_metrics(
         f"| ece | {base_ece:.4f} | {final_ece:.4f} | {delta_ece:.4f} |\n"
     )
 
-    report_dir = Path("reports/metrics")
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
+    report_dir = reports_root / "metrics"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"MODIFIERS_{season_id}.md"
     report_path.write_text(table, encoding="utf-8")
@@ -166,7 +171,9 @@ def _train_modifiers_and_metrics(
 
 
 def _update_run_summary(payload: dict[str, Any]) -> None:
-    summary_path = Path("reports/RUN_SUMMARY.md")
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
+    summary_path = reports_root / "RUN_SUMMARY.md"
     lines = [
         "",
         "## CLI retrain",

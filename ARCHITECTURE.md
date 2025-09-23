@@ -11,7 +11,7 @@ Updated 2025-09-10.
 
 - **app/** – FastAPI application with configuration, middlewares and observability.
 - **services/** – business logic and data processing utilities.
-- **ml/** – machine learning models и `LocalModelRegistry` (артефакты в каталоге `artifacts/` или `MODEL_REGISTRY_PATH`) и prediction pipeline.
+- **ml/** – machine learning models и `LocalModelRegistry` (артефакты по умолчанию в `/data/artifacts` или `MODEL_REGISTRY_PATH`) и prediction pipeline.
 - **tests/** – unit, contract, smoke and end-to-end tests.
 - SportMonks client (`app/integrations/sportmonks_client.py`) переключает заглушку через `SPORTMONKS_STUB`.
 - Observability: Sentry controlled by `SENTRY_ENABLED`; Prometheus `/metrics` expose labels `service`, `env`, `version` (from `GIT_SHA` or `APP_VERSION`). Simulation reports include version info in their headers.
@@ -20,7 +20,7 @@ Updated 2025-09-10.
 
 PredictionPipeline сначала вычисляет базовые λ, затем применяет модификаторы
 и получает λ_final. На этом этапе рассчитываются метрики `glm_base_*` и
-`glm_mod_final_*`, результаты сохраняются в `reports/metrics/` и логируются
+`glm_mod_final_*`, результаты сохраняются в `$REPORTS_DIR/metrics/` и логируются
 с тегами `service/env/version/season/modifiers_applied` для последующего
 наблюдения.
 
@@ -42,7 +42,7 @@ Parameters are configurable via `SIM_RHO`, `SIM_N`, `SIM_CHUNK`.
 
 `storage/persistence.py` provides `SQLitePredictionsStore` writing probabilities
 to table `predictions(match_id, market, selection, prob, ts, season, extra)`
-with SQLite fallback (`PREDICTIONS_DB_URL`).
+with SQLite fallback (`DB_PATH`, default `/data/bot.sqlite3`).
 
 ## CLI retrain
 
@@ -55,4 +55,4 @@ with SQLite fallback (`PREDICTIONS_DB_URL`).
   `workers.retrain_scheduler.schedule_retrain`;
 - `status` — выводит список зарегистрированных задач и счётчик `jobs_registered_total`.
 
-Модели и отчёты CLI живут в `artifacts/<SEASON_ID>/` и `reports/metrics/`.
+Модели и отчёты CLI живут в `/data/artifacts/<SEASON_ID>/` и `$REPORTS_DIR/metrics/`.

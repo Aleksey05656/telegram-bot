@@ -5,6 +5,7 @@
 @created: 2025-09-12
 """
 import os
+from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
@@ -165,7 +166,6 @@ class PredictionPipeline:
             logger.info("sim_skipped=true")
         else:
             from datetime import datetime
-            from pathlib import Path
 
             from services.simulator import render_markdown, simulate_markets
             from storage.persistence import SQLitePredictionsStore
@@ -186,9 +186,10 @@ class PredictionPipeline:
             match_id = f"{season}:{home_team}_vs_{away_team}:{date_iso}"
             ts_iso = datetime.utcnow().isoformat()
 
-            store = SQLitePredictionsStore(
-                os.getenv("PREDICTIONS_DB_URL", "var/predictions.sqlite")
-            )
+            data_root = Path(os.getenv("DATA_ROOT", "/data"))
+            db_path = os.getenv("DB_PATH") or os.getenv("PREDICTIONS_DB_URL")
+            resolved_db = db_path if db_path else str(data_root / "bot.sqlite3")
+            store = SQLitePredictionsStore(resolved_db)
             records = []
             for sel, prob in markets.get("1x2", {}).items():
                 records.append((match_id, "1x2", sel, prob, {"ts": ts_iso, "season": season}))
@@ -203,8 +204,10 @@ class PredictionPipeline:
                 records.append((match_id, "cs", score, prob, {"ts": ts_iso, "season": season}))
             store.bulk_write(records)
 
-            report_path = Path("reports/metrics") / f"SIM_{season}_{home_team}_vs_{away_team}.md"
-            report_path.parent.mkdir(parents=True, exist_ok=True)
+            reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
+            metrics_dir = reports_root / "metrics"
+            metrics_dir.mkdir(parents=True, exist_ok=True)
+            report_path = metrics_dir / f"SIM_{season}_{home_team}_vs_{away_team}.md"
             report_path.write_text(
                 render_markdown(markets, settings.sim_n, settings.sim_rho), encoding="utf-8"
             )

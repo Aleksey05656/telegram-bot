@@ -124,7 +124,7 @@ Rolling/walk-forward CV; LogLoss, Brier, ECE.
 Мониторинг: Prometheus (pred_total, prob_bins, rolling_ece, rolling_logloss) и Sentry.
 PredictionPipeline дополнительно записывает `glm_base_*` и `glm_mod_final_*`
 с тегами `service/env/version/season/modifiers_applied` и формирует
-markdown-отчёт `reports/metrics/MODIFIERS_<season>.md`.
+markdown-отчёт `$REPORTS_DIR/metrics/MODIFIERS_<season>.md` (по умолчанию `/data/reports/metrics/...`).
 Недельные отчёты.
 
 ## 7. Безопасность

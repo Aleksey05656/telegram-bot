@@ -5,17 +5,21 @@
 @created: 2025-09-15
 """
 
+import os
 from pathlib import Path
 
 
 def main() -> None:
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
+    registry_root = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
     changelog = Path("docs/changelog.md").read_text(encoding="utf-8")
-    run_summary = Path("reports/RUN_SUMMARY.md").read_text(encoding="utf-8")
+    run_summary = (reports_root / "RUN_SUMMARY.md").read_text(encoding="utf-8")
     artifacts = (
-        "reports/metrics/**/*.md\n"
-        "reports/metrics/**/*.png\n"
-        "artifacts/**/*\n"
-        "var/predictions.sqlite\n"
+        f"{reports_root}/metrics/**/*.md\n"
+        f"{reports_root}/metrics/**/*.png\n"
+        f"{registry_root}/**/*\n"
+        f"{os.getenv('DB_PATH', str(data_root / 'bot.sqlite3'))}\n"
     )
     content = (
         "# Release Notes RC\n\n"
@@ -23,8 +27,8 @@ def main() -> None:
         "## Run Summary\n" + run_summary + "\n"
         "## Artifacts\n" + artifacts + "\n"
     )
-    Path("reports").mkdir(exist_ok=True)
-    Path("reports/RELEASE_NOTES_RC.md").write_text(content, encoding="utf-8")
+    reports_root.mkdir(parents=True, exist_ok=True)
+    (reports_root / "RELEASE_NOTES_RC.md").write_text(content, encoding="utf-8")
 
 
 if __name__ == "__main__":

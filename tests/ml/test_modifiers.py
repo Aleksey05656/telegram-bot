@@ -31,7 +31,7 @@ class Const:
 
 
 class SeasonRegistry(LocalModelRegistry):
-    def __init__(self, season: int, base_dir: str = "artifacts"):
+    def __init__(self, season: int, base_dir: str | Path):
         super().__init__(base_dir)
         self.season = season
 
@@ -62,6 +62,8 @@ def test_modifiers_training_and_application(tmp_path):
     data_path = tmp_path / "mods.csv"
     df.to_csv(data_path, index=False)
     season = 2025
+    registry_root = tmp_path / "artifacts"
+    env = {**os.environ, "MODEL_REGISTRY_PATH": str(registry_root), "PYTHONPATH": str(Path.cwd())}
     subprocess.run(
         [
             "python",
@@ -75,9 +77,9 @@ def test_modifiers_training_and_application(tmp_path):
         ],
         check=True,
         cwd=Path.cwd(),
-        env={**os.environ, "PYTHONPATH": str(Path.cwd())},
+        env=env,
     )
-    art_dir = Path("artifacts") / str(season)
+    art_dir = registry_root / str(season)
     model = ModifiersModel.load(art_dir / "modifiers_model.pkl")
     validated = validate_input(df)
     features = build_features(validated)
@@ -86,7 +88,7 @@ def test_modifiers_training_and_application(tmp_path):
     lam_h, lam_a = model.transform(base, base, X_mod.iloc[[0]])
     assert 0.7 <= lam_h[0] <= 1.4
     assert 0.7 <= lam_a[0] <= 1.4
-    registry = SeasonRegistry(season)
+    registry = SeasonRegistry(season, base_dir=registry_root)
     registry.save(Const(), "glm_home")
     registry.save(Const(), "glm_away")
     pipeline = PredictionPipeline(_Pre(), registry)

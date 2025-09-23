@@ -1,3 +1,13 @@
+## Задача: Amvera — подготовка к деплою
+- **Статус**: В процессе
+- **Описание**: Перевести бот на требования Amvera: хранить данные в `/data`, добавить `amvera.yaml`, smoke-проверку и документацию.
+- **Шаги выполнения**:
+  - [x] Обновлены настройки и код для чтения путей из `DB_PATH`/`REPORTS_DIR`/`MODEL_REGISTRY_PATH`/`LOG_DIR` с дефолтом `/data`.
+  - [x] Добавлен `--dry-run` и задержка `BOT_STARTUP_DELAY` перед запуском polling.
+  - [x] Добавлены `amvera.yaml`, документация и GitHub Actions job `amvera-smoke`.
+  - [ ] Выполнить деплой на Amvera и smoke-проверку в боевом окружении.
+- **Зависимости**: amvera.yaml, README.md, docs/deploy-amvera.md, main.py, telegram/bot.py, storage/persistence.py, .github/workflows/ci.yml
+
 ## Задача: E6.18 — Prediction worker dirty payload coverage
 - **Статус**: Завершена
 - **Описание**: Расширить негативные тесты воркера предсказаний: маскирование ошибок ядра, таймаут Redis-lock и валидацию «грязного» payload (NaN/negative).

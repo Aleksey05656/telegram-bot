@@ -5,6 +5,7 @@
 @created: 2025-09-15
 """
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -39,6 +40,8 @@ def test_train_glm_and_pipeline(tmp_path):
     data_path = tmp_path / "train.csv"
     train_df.to_csv(data_path, index=False)
     season = 2024
+    registry_root = tmp_path / "artifacts"
+    env = {**os.environ, "MODEL_REGISTRY_PATH": str(registry_root)}
     subprocess.run(
         [
             "python",
@@ -53,8 +56,9 @@ def test_train_glm_and_pipeline(tmp_path):
             str(data_path),
         ],
         check=True,
+        env=env,
     )
-    art_dir = Path("artifacts") / str(season)
+    art_dir = registry_root / str(season)
     assert (art_dir / "glm_home.pkl").exists()
     assert (art_dir / "glm_away.pkl").exists()
     info = json.loads((art_dir / "model_info.json").read_text())
@@ -70,7 +74,7 @@ def test_train_glm_and_pipeline(tmp_path):
     lambdas_home = np.exp(model_home.predict(X_home))
     assert (lambdas_home > 0).all()
     assert (lambdas_home < 10).all()
-    registry = LocalModelRegistry(base_dir="artifacts")
+    registry = LocalModelRegistry(base_dir=registry_root)
     pipeline = PredictionPipeline(_Preprocessor(), registry)
     preds = pipeline.predict_proba(train_df)
     assert preds.shape == (len(train_df), 2)

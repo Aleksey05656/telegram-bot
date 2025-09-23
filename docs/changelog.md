@@ -1,3 +1,17 @@
+## [2025-10-03] - Amvera deployment support
+### Добавлено
+- Конфигурация `amvera.yaml` для окружения Python/pip 3.11 с точкой входа `main.py` и монтированием `/data`.
+- Документ [docs/deploy-amvera.md](deploy-amvera.md) с инструкциями по перемещению SQLite, smoke-проверкам и сценариям доставки.
+- Джоб GitHub Actions `amvera-smoke`, запускающий `python -m main --dry-run` с временными путями `/data`.
+
+### Изменено
+- Путь всех изменяемых данных (SQLite, отчёты, артефакты, логи) переведён на конфигурируемые переменные (`DB_PATH`, `REPORTS_DIR`, `MODEL_REGISTRY_PATH`, `LOG_DIR`) с дефолтом `/data/...`.
+- `main.py` и `telegram/bot.py` поддерживают флаг `--dry-run` и задержку `BOT_STARTUP_DELAY` перед long polling.
+- README и `.env.example` актуализированы под требования Amvera (PYTHONUNBUFFERED, новые ENV, использование `/data`).
+
+### Исправлено
+- Исключены записи в репозиторий при генерации отчётов/логов: все пути создаются в `/data`, что устраняет ошибки `sqlite is readonly`.
+
 ## [2025-10-02] - E6.18: Prediction worker dirty payload coverage
 ### Добавлено
 - Параметризованные тесты `tests/workers/test_prediction_worker_errors.py` проверяют ошибки ядра,

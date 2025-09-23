@@ -11,7 +11,11 @@ import os
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
+
+
+DEFAULT_DB_PATH = os.getenv("DB_PATH", "/data/bot.sqlite3")
 
 
 class PredictionsStore(Protocol):
@@ -26,10 +30,15 @@ class PredictionsStore(Protocol):
 
 @dataclass
 class SQLitePredictionsStore:
-    db_path: str = "var/predictions.sqlite"
+    db_path: str = DEFAULT_DB_PATH
 
     def __post_init__(self) -> None:
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        path = Path(self.db_path)
+        if not path.is_absolute():
+            base_root = Path(os.getenv("DATA_ROOT", "/data"))
+            path = base_root / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = str(path)
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:

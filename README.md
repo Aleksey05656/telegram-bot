@@ -25,6 +25,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and `docs/Project.md` for more details.
 
 ## Деплой на Amvera
 
+Полная процедура и чек-листы описаны в [docs/deploy-amvera.md](docs/deploy-amvera.md).
+
 ### Git-поток
 
 ```bash
@@ -34,23 +36,34 @@ git remote add amvera ssh://git@amvera.example.com/telegram-bot.git
 git push amvera main
 ```
 
-### Обязательные переменные окружения
+### Переменные окружения
 
-- `DATABASE_URL` — асинхронный DSN записи (PostgreSQL, `postgresql+asyncpg://`).
-- `DATABASE_URL_RO` — необязательный DSN чтения (RO endpoint, если доступен).
-- `DATABASE_URL_R` — необязательный DSN реплики (fallback для чтения).
-- `REDIS_URL` — строка подключения к управляемому Redis на Amvera.
-- `TELEGRAM_BOT_TOKEN` — токен бота из BotFather.
-- `APP_VERSION` — версия релиза для меток образа и логов.
-- `GIT_SHA` — commit SHA для трассировки (отдаётся в метриках и логах).
+Переменные задаются в разделе «Переменные» Amvera (на сборке недоступны):
 
-### Prestart и health-check
+- `TELEGRAM_BOT_TOKEN` — токен из BotFather (обязательный).
+- `DATABASE_URL` / `DATABASE_URL_RO` / `DATABASE_URL_R` — Postgres DSN для записи и чтения.
+- `REDIS_URL` — URL управляемого Redis (опционально).
+- `DB_PATH` — путь к SQLite-фолбэку (по умолчанию `/data/bot.sqlite3`).
+- `MODEL_REGISTRY_PATH` — каталог артефактов моделей (по умолчанию `/data/artifacts`).
+- `REPORTS_DIR` — каталог отчётов и Markdown-снимков (по умолчанию `/data/reports`).
+- `LOG_DIR` — каталог JSON-логов (по умолчанию `/data/logs`).
+- `BOT_STARTUP_DELAY` — задержка перед запуском long polling (секунды, защита от «double getUpdates»).
+- `PYTHONUNBUFFERED=1` — отключает буферизацию stdout/stderr.
+- `APP_VERSION` и `GIT_SHA` — метки релиза и коммита для логов/метрик.
 
-Entrypoint `scripts/entrypoint.sh` проверяет обязательные переменные, запускает `alembic upgrade head` в асинхронном окружении и маскирует DSN через `mask_dsn()`. После миграций выполняются health-check'и: `DBRouter` опрашивает writer/reader (если заданы `DATABASE_URL_RO`/`DATABASE_URL_R`), а `RedisFactory.health_check()` выполняет `PING` и валидирует доступность Redis. Любой сбой приводит к завершению с кодом `>0`.
+### Хранилище
 
-### Старт процесса
+Amvera монтирует постоянный том в `/data`. Все изменяемые файлы (SQLite, отчёты, артефакты моделей, логи) сохраняются в этом каталоге, код и артефакты сборки остаются неизменными.
 
-При успешном prestart скрипт логирует структурные сообщения и выполняет `python -m main`, что запускает Telegram-бота. Повторный старт контейнера произойдёт автоматически, если миграции или health-check не прошли (код выхода ненулевой).
+### Запуск и smoke
+
+`amvera.yaml` запускает `python main.py`. Скрипт поддерживает `--dry-run` для дымового теста:
+
+```bash
+python -m main --dry-run
+```
+
+Команда выполняет инициализацию зависимостей (кэш, загрузка рейтингов) и завершает процесс без запуска long polling — используется в CI и при проверке конфигурации. Основной режим запускает Aiogram-поллинг после задержки `BOT_STARTUP_DELAY`.
 
 ## Команды бота и примеры
 
@@ -91,7 +104,8 @@ CLI example:
 
 ```bash
 python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1 \
-    --n-sims 10000 --calibrate --write-db --report-md reports/metrics/ECE_simulation_default_H_vs_A.md
+    --n-sims 10000 --calibrate --write-db \
+    --report-md "$REPORTS_DIR/metrics/ECE_simulation_default_H_vs_A.md"
 ```
 
 ## ML-ядро и инварианты
@@ -105,9 +119,9 @@ python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1
 
 Predictions are stored via SQLite fallback (`storage/persistence.py`).
 Table `predictions(match_id, market, selection, prob, ts, season, extra)`.
-DB path is taken from `PREDICTIONS_DB_URL` (defaults to `var/predictions.sqlite`).
+DB path is taken from `DB_PATH` (defaults to `/data/bot.sqlite3`).
 Each pipeline run also writes a Markdown report
-`reports/metrics/SIM_{SEASON}_{home}_vs_{away}.md` with entropy stats.
+`$REPORTS_DIR/metrics/SIM_{SEASON}_{home}_vs_{away}.md` (defaults to `/data/reports/metrics/...`) with entropy stats.
 Control parameters via environment variables:
 
 - `SIM_RHO` – correlation coefficient (default `0.1`)
@@ -131,7 +145,7 @@ Control parameters via environment variables:
 ## Local model registry
 
 `app/ml/model_registry.py` сохраняет модели на файловой системе. По умолчанию используется каталог
-`artifacts/`, который можно переопределить переменной окружения `MODEL_REGISTRY_PATH`.
+`/data/artifacts`, который можно переопределить переменной окружения `MODEL_REGISTRY_PATH`.
 
 ## SportMonks stub mode
 
@@ -143,7 +157,12 @@ Control parameters via environment variables:
 - `TELEGRAM_BOT_TOKEN` — токен Telegram-бота.
 - `SPORTMONKS_API_KEY` — ключ API SportMonks.
 - `SPORTMONKS_STUB` — `1` включает заглушечные ответы SportMonks.
-- `MODEL_REGISTRY_PATH` — каталог LocalModelRegistry (по умолчанию `artifacts/`).
+- `MODEL_REGISTRY_PATH` — каталог LocalModelRegistry (по умолчанию `/data/artifacts`).
+- `REPORTS_DIR` — каталог для Markdown отчётов и снимков CI (по умолчанию `/data/reports`).
+- `LOG_DIR` — каталог JSON-логов приложения (по умолчанию `/data/logs`).
+- `DB_PATH` — путь к SQLite-фолбэку для симуляций (по умолчанию `/data/bot.sqlite3`).
+- `BOT_STARTUP_DELAY` — задержка перед запуском long polling (секунды, по умолчанию `2.5`).
+- `PYTHONUNBUFFERED` — установите `1`, чтобы логи писались без буферизации в контейнере.
 - `RETRAIN_CRON` — crontab для планировщика (пусто/`off` выключает).
 - `SEASON_ID` — сезон для скрипта обучения (по умолчанию `23855`).
 - `SIM_RHO`, `SIM_N`, `SIM_CHUNK` — параметры симуляции (корреляция, число прогонов и размер чанка).
@@ -161,7 +180,7 @@ python scripts/validate_modifiers.py --season-id 23855 --input data/val.csv --al
 - `logloss` — средний отрицательный логарифм правдоподобия Пуассона;
 - `ece` — калибровка по вероятности события (0–1).
 
-Отчёт сохраняется в `reports/metrics/MODIFIERS_<SEASON>.md`.
+Отчёт сохраняется в `$REPORTS_DIR/metrics/MODIFIERS_<SEASON>.md` (по умолчанию `/data/reports/metrics/...`).
 Порог `--tol` (для logloss) и `--tol-ece` задаёт допустимое ухудшение.
 
 ## CI numeric enforcement (modifiers)
@@ -193,9 +212,9 @@ GitHub Actions запускает единый job `pipeline` со стадия�
 - `make test-smoke` — только smoke-маршруты бота (`pytest -q -m bot_smoke`);
 - `make coverage-html` — полный pytest с coverage, HTML-отчётом и жёсткими порогами (`≥80%` total, `≥90%` для `workers/`, `database/`, `services/`, `core/services/`).
 
-Coverage валидируется скриптом `python -m tools.coverage_enforce`, который читает `coverage.xml`, проверяет пороги (≥80% total и ≥90% для `workers/`, `database/`, `services/`, `core/services/`) и обновляет `reports/coverage_summary.json`.
+Coverage валидируется скриптом `python -m tools.coverage_enforce`, который читает `coverage.xml`, проверяет пороги (≥80% total и ≥90% для `workers/`, `database/`, `services/`, `core/services/`) и обновляет `$REPORTS_DIR/coverage_summary.json`.
 Конфигурация `.coveragerc` исключает миграции, shell-скрипты, тесты, документацию и `__init__.py` без логики, чтобы в отчёт попадал только исполняемый код.
-На этапе `reports` формируются артефакты `reports/bot_e2e_snapshot.md` (детерминированные ответы `/help`, `/model`, `/today`, `/match`, `/predict`) и `reports/rc_summary.json`
+На этапе `reports` формируются артефакты `$REPORTS_DIR/bot_e2e_snapshot.md` (детерминированные ответы `/help`, `/model`, `/today`, `/match`, `/predict`) и `$REPORTS_DIR/rc_summary.json`
 с полями `app_version`, `git_sha`, `tests_passed`, `coverage_total`, `coverage_critical_packages`, `docker_image_size_mb`, `timestamp_utc`.
 Финальный шаг публикует артефакт **coverage-and-reports** с HTML-покрытием (`htmlcov/index.html`) и новыми отчётами.
 
@@ -259,10 +278,10 @@ python scripts/cli.py retrain schedule --cron "0 4 * * *"
 python scripts/cli.py retrain status
 ```
 
-Артефакты сохраняются в `artifacts/<SEASON_ID>/` через `LocalModelRegistry`: `glm_home.pkl`,
+Артефакты сохраняются в `/data/artifacts/<SEASON_ID>/` через `LocalModelRegistry`: `glm_home.pkl`,
 `glm_away.pkl`, `model_info.json` и (при флаге `--with-modifiers`) `modifiers_model.pkl`.
-Метрики `logloss`/`ece` модификаторов записываются в `reports/metrics/MODIFIERS_<SEASON>.md`,
-а краткий итог добавляется в `reports/RUN_SUMMARY.md`.
+Метрики `logloss`/`ece` модификаторов записываются в `$REPORTS_DIR/metrics/MODIFIERS_<SEASON>.md`,
+а краткий итог добавляется в `$REPORTS_DIR/RUN_SUMMARY.md`.
 
 ## Smart pre-commit fallback
 

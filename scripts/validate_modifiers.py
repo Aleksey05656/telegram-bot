@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -68,7 +69,9 @@ def main() -> int:
         f"| ece | {base_ece:.4f} | {final_ece:.4f} | {delta_ece:.4f} |\n"
     )
     print(table)
-    report_dir = Path("reports/metrics")
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
+    report_dir = reports_root / "metrics"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"MODIFIERS_{args.season_id}.md"
     report_path.write_text(table)

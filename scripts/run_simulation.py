@@ -43,6 +43,8 @@ def main() -> None:
     lam_away = guess_lambda(args.away)
 
     sim = Simulator()
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    reports_root = Path(os.getenv("REPORTS_DIR", str(data_root / "reports")))
     if args.calibrate:
         result, home_arr, away_arr = sim.run(
             lam_home, lam_away, args.rho, args.n_sims, return_samples=True
@@ -95,12 +97,13 @@ def main() -> None:
 
         report = calibration_report(prob_dict, label_dict)
 
+        metrics_dir = reports_root / "metrics"
+        metrics_dir.mkdir(parents=True, exist_ok=True)
         report_path = (
             Path(args.report_md)
             if args.report_md
-            else Path(
-                f"reports/metrics/ECE_simulation_{args.season_id}_{args.home}_vs_{args.away}.md"
-            )
+            else metrics_dir
+            / f"ECE_simulation_{args.season_id}_{args.home}_vs_{args.away}.md"
         )
         report_path.parent.mkdir(parents=True, exist_ok=True)
         header = (
@@ -121,8 +124,9 @@ def main() -> None:
         result = sim.run(lam_home, lam_away, args.rho, args.n_sims)
 
     if args.write_db:
-        db_path = os.getenv("PREDICTIONS_DB_URL", "var/predictions.sqlite")
-        store = SQLitePredictionsStore(db_path)
+        db_path = os.getenv("DB_PATH") or os.getenv("PREDICTIONS_DB_URL")
+        resolved_db = db_path if db_path else str(data_root / "bot.sqlite3")
+        store = SQLitePredictionsStore(resolved_db)
         match_id = f"{args.season_id}:{args.home} vs {args.away}:{date.today().isoformat()}"
         ts = datetime.utcnow().isoformat()
         records = []
@@ -160,7 +164,8 @@ def main() -> None:
                     )
         store.bulk_write(records)
 
-    out_dir = Path("reports/sims")
+    sims_dir = reports_root / "sims"
+    out_dir = sims_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{args.season_id}_{args.home}_{args.away}.json"
     sim.save(result, out_path)

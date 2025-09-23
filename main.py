@@ -1,4 +1,5 @@
 # main.py
+import argparse
 import asyncio
 import signal
 import sys
@@ -17,7 +18,7 @@ shutdown_event = asyncio.Event()
 
 
 @asynccontextmanager
-async def app_lifespan():
+async def app_lifespan(dry_run: bool = False):
     """Контекстный менеджер для инициализации и завершения приложения."""
     logger.info("Приложение запускается...")
     setup_signal_handlers()
@@ -31,6 +32,14 @@ async def app_lifespan():
     logger.info("Загрузка рейтингов команд из data/team_ratings.json")
     # load_ratings — синхронный метод, await не нужен
     poisson_regression_model.load_ratings()
+
+    if dry_run:
+        logger.info("Dry-run: пропуск запуска polling из main")
+        try:
+            yield
+        finally:
+            logger.info("Dry-run: завершение приложения")
+        return
 
     # Запуск бота
     bot_task = asyncio.create_task(bot_main())
@@ -69,16 +78,30 @@ def setup_signal_handlers():
         signal.signal(signal.SIGBREAK, signal_handler)
 
 
-async def main():
+async def main(dry_run: bool = False):
     """Главная асинхронная точка входа приложения."""
-    async with app_lifespan():
+    async with app_lifespan(dry_run=dry_run):
+        if dry_run:
+            await bot_main(dry_run=True)
+            return
         # Ожидаем сигнал завершения
         await shutdown_event.wait()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Telegram bot runner")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Инициализировать зависимости и завершиться без запуска polling",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        args = parse_args()
+        asyncio.run(main(dry_run=args.dry_run))
     except KeyboardInterrupt:
         logger.info("Получен KeyboardInterrupt. Завершение работы.")
     except Exception as e:

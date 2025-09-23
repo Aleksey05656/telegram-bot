@@ -23,7 +23,9 @@ def test_pipeline_writes_markets(tmp_path, monkeypatch):
         def transform(self, df: pd.DataFrame) -> pd.DataFrame:  # noqa: D401
             return df
 
-    monkeypatch.setenv("PREDICTIONS_DB_URL", str(tmp_path / "pred.sqlite"))
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "pred.sqlite"))
+    reports_dir = tmp_path / "reports"
+    monkeypatch.setenv("REPORTS_DIR", str(reports_dir))
     monkeypatch.setenv("SIM_N", "512")
     reset_settings_cache()
 
@@ -67,7 +69,7 @@ def test_pipeline_writes_markets(tmp_path, monkeypatch):
     sum_cs = sum(prob for m, _, prob in rows if m == "cs")
     assert pytest.approx(1.0, rel=1e-2) == sum_cs
 
-    report = Path("reports/metrics/SIM_S_H_vs_A.md")
+    report = reports_dir / "metrics" / "SIM_S_H_vs_A.md"
     assert report.exists()
     content = report.read_text(encoding="utf-8")
     assert "### Entropy" in content

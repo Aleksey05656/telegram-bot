@@ -1,0 +1,15 @@
+# @file: amvera.yaml
+# @description: Deployment configuration for Amvera platform
+# @dependencies: requirements.txt, main.py
+# @created: 2025-10-03
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: 3.11
+build:
+  requirementsPath: requirements.txt
+run:
+  scriptName: main.py
+  persistenceMount: /data
+  containerPort: 80
