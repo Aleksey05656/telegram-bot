@@ -1,3 +1,13 @@
+# [2025-10-08] - Drift diagnostics import fix
+### Добавлено
+- —
+
+### Изменено
+- —
+
+### Исправлено
+- В `tools/drift_report.py` добавлено подключение корня проекта в `sys.path`, благодаря чему скрипт корректно импортирует `tools.golden_regression` при запуске из CLI.
+
 # [2025-10-07] - Diagnostics automation & bot fixes
 ### Добавлено
 - Скрипт `tools/run_diagnostics.py` для сквозной диагностики ENV/моделей/бота/ops с генерацией `reports/diagnostics/*`.
@@ -951,6 +961,21 @@
 
 ### Изменено
 - —
+
+### Исправлено
+- —
+
+## [2025-10-07] - Diagnostics v2 quality gates
+### Добавлено
+- Модуль `app/data_quality` с контрактами, проверками и репортингом.
+- Скрипты `tools/golden_regression.py`, `tools/drift_report.py`, `tools/bench.py` и пакет `app/diagnostics`.
+- Документация: `docs/quality_gates.md`, `docs/diagnostics.md`, бейдж в README.
+- Тесты в `tests/diagnostics/` (data quality, golden, drift, calibration, invariance, bench).
+
+### Изменено
+- `tools/run_diagnostics.py` агрегирует новые секции (data quality, golden, drift, calibration, bench, invariance).
+- `.env.example` дополнен переменными `GOLDEN_*`, `DRIFT_*`, `BENCH_*`; CI запускает диагностики v2.
+- Расширены отчёты diagnostics (новые артефакты, записи в JSON/Markdown).
 
 ### Исправлено
 - —

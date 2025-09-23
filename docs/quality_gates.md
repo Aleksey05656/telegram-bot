@@ -1,0 +1,40 @@
+<!--
+@file: docs/quality_gates.md
+@description: Overview of Diagnostics v2 quality gates and thresholds for CI enforcement.
+@created: 2025-10-07
+-->
+
+# Diagnostics v2 Quality Gates
+
+| Section | Check | Threshold / Condition | Notes |
+| --- | --- | --- | --- |
+| Data Quality | Schema, duplicates, missing values, outliers | ❌ if any blocker (schema / duplicates / NaN) | CSV artefacts under `reports/diagnostics/data_quality/`. |
+| Golden Baseline | GLM coefficients / λ / market probabilities | `GOLDEN_COEF_EPS` (default 0.005), `GOLDEN_LAMBDA_MAPE` (0.015), `GOLDEN_PROB_EPS` (0.005) | Recomputed via `tools/golden_regression.py --check`. |
+| Drift | Feature / outcome / prediction PSI | Warning ≥ `DRIFT_PSI_WARN` (0.1), Fail ≥ `DRIFT_PSI_FAIL` (0.25) | KS statistic reported alongside PSI. |
+| Calibration | Expected Calibration Error / coverage | ECE reported; coverage must stay within ±2 п.п. from targets (80%/90%) | Reliability PNGs stored in `reports/diagnostics/calibration/`. |
+| Bi-Poisson Invariance | Market swap / scoreline symmetry | Max delta ≤ 1e-6 | Runs on mean λ from synthetic dataset. |
+| Benchmarks | `/today`, `/match`, `/explain` p95 latency | P95 ≤ `BENCH_P95_BUDGET_MS` (default 800 ms) | Peak memory reported per case. |
+| Smoke / Ops | CLI smoke & health checks | Exit code 0 | Uses stub mode (no external IO). |
+| Static Analysis | `mypy`, `bandit`, `pip-audit`, secrets scan | ❌ on any failure/leak | Logs stored under `reports/diagnostics/static/`. |
+
+## Updating the golden baseline
+
+1. Run `python tools/golden_regression.py --update --reports-dir <reports>` locally.
+2. Commit the updated `reports/golden/baseline.json` (do not change tolerances without a review).
+3. Verify CI with `python tools/golden_regression.py --check` to ensure tolerances still hold.
+
+## Where to inspect artefacts
+
+| Artefact | Location |
+| --- | --- |
+| Data quality summary | `reports/diagnostics/data_quality/summary.md` |
+| Drift summary | `reports/diagnostics/drift/summary.md` |
+| Calibration plots | `reports/diagnostics/calibration/*.png` |
+| Bench metrics | `reports/diagnostics/bench/bench.json` + `summary.md` |
+
+## Interpreting FAIL gates
+
+- **Golden** — Adjust model pipeline or re-baseline only when modelling changes are intentional.
+- **Drift** — Investigate feature pipelines / new data feeds; PSI ≥ fail threshold blocks deploy.
+- **Benchmarks** — Optimise hot paths or raise cache TTLs; CI fails if p95 exceeds the configured budget.
+- **Data Quality** — Blockers are immediate fixers (duplicates, schema violations, NaN critical fields).

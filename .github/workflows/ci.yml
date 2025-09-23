@@ -103,6 +103,57 @@ jobs:
           mkdir -p "$REPORTS_DIR" "$LOG_DIR" "$MODEL_REGISTRY_PATH"
           python -m main --dry-run
 
+  diagnostics-v2:
+    name: diagnostics-v2
+    runs-on: ubuntu-latest
+    needs: pipeline
+    env:
+      SPORTMONKS_STUB: "1"
+      SPORTMONKS_API_KEY: dummy
+      DRIFT_REF_DAYS: "90"
+      DRIFT_PSI_WARN: "0.1"
+      DRIFT_PSI_FAIL: "0.25"
+      GOLDEN_COEF_EPS: "0.005"
+      GOLDEN_LAMBDA_MAPE: "0.015"
+      GOLDEN_PROB_EPS: "0.005"
+      BENCH_P95_BUDGET_MS: "800"
+      BENCH_ITER: "30"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+
+      - name: Run diagnostics suite
+        env:
+          REPORTS_DIR: ${{ runner.temp }}/diag/reports
+          LOG_DIR: ${{ runner.temp }}/diag/logs
+          MODEL_REGISTRY_PATH: ${{ runner.temp }}/diag/artifacts
+          RUNTIME_LOCK_PATH: ${{ runner.temp }}/diag/runtime.lock
+        run: |
+          mkdir -p "$REPORTS_DIR" "$LOG_DIR" "$MODEL_REGISTRY_PATH"
+          pytest -q
+          python tools/run_diagnostics.py --all --reports-dir "$REPORTS_DIR"
+          python tools/golden_regression.py --check --reports-dir "$REPORTS_DIR"
+          python tools/drift_report.py --ref-days ${DRIFT_REF_DAYS} --reports-dir "$REPORTS_DIR/diagnostics/drift"
+          python tools/bench.py --iterations ${BENCH_ITER} --reports-dir "$REPORTS_DIR/diagnostics/bench"
+
+      - name: Upload diagnostics artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-v2
+          path: ${{ runner.temp }}/diag/reports/diagnostics/**
+          retention-days: 7
+
   amvera-ops-v2-smoke:
     name: amvera-ops-v2-smoke
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@
 @created: 2025-08-24
 """
 
+import time
 from collections import deque
 
 from app.config import get_settings
@@ -79,6 +80,26 @@ rolling_logloss = Gauge(
     "rolling_logloss",
     "Rolling LogLoss",
     ["market", "league", "service", "env", "version"],
+)
+diag_last_run_timestamp = Gauge(
+    "diag_last_run_timestamp",
+    "Timestamp of the last diagnostics run",
+    ["service", "env", "version"],
+)
+diag_failures_total = Counter(
+    "diag_failures_total",
+    "Total number of diagnostics sections that failed",
+    ["section", "service", "env", "version"],
+)
+data_quality_issues_total = Gauge(
+    "data_quality_issues_total",
+    "Number of rows flagged by data quality checks",
+    ["service", "env", "version"],
+)
+drift_psi_max = Gauge(
+    "drift_psi_max",
+    "Maximum PSI observed during drift detection",
+    ["bucket", "service", "env", "version"],
 )
 
 _windows: dict[tuple[str, str], deque[tuple[float, int]]] = {}
@@ -193,3 +214,20 @@ def record_metrics(name: str, value: float, tags: dict[str, str]) -> None:
 def get_recorded_metrics() -> dict[str, float]:
     """Return snapshot of recorded metrics (for testing)."""
     return _METRIC_STORE.copy()
+
+
+def record_diagnostics_summary(
+    statuses: dict[str, dict[str, str]],
+    *,
+    data_quality_total: int,
+    drift_max: dict[str, float],
+) -> None:
+    """Push diagnostics outcome metrics to Prometheus."""
+
+    diag_last_run_timestamp.labels(**_LABELS).set(time.time())
+    for section, payload in statuses.items():
+        if payload.get("status") == "❌":
+            diag_failures_total.labels(section=section, **_LABELS).inc()
+    data_quality_issues_total.labels(**_LABELS).set(float(data_quality_total))
+    for bucket, value in drift_max.items():
+        drift_psi_max.labels(bucket=bucket, **_LABELS).set(float(value))

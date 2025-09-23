@@ -7,6 +7,8 @@
 
 # Telegram Bot
 
+![Diagnostics v2 ✓ / CI gated](https://img.shields.io/badge/Diagnostics%20v2-%E2%9C%93%20%2F%20CI%20gated-brightgreen)
+
 Telegram bot that exposes a FastAPI service and ML pipeline for football match predictions.
 
 ## Observability
