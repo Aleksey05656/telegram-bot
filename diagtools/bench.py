@@ -1,6 +1,6 @@
 """
 /**
- * @file: tools/bench.py
+ * @file: diagtools/bench.py
  * @description: Benchmarks for bot commands with latency/peak memory estimates.
  * @created: 2025-10-07
  */

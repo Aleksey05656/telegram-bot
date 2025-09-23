@@ -9,7 +9,12 @@ dependencies = [
     "prometheus-client>=0.20",
     "sentry-sdk>=2",
     "python-dotenv>=1.0",
+    "pyarrow>=15.0",
 ]
+
+[project.scripts]
+diag-drift = "diagtools.drift:main"
+diag-run = "diagtools.run_diagnostics:main"
 
 [tool.black]
 line-length = 100

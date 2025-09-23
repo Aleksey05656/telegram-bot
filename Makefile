@@ -89,15 +89,15 @@ test-smoke:
 
 test-all:
 	pytest --cov=./ --cov-report=xml --cov-report=term-missing && \
-	python -m tools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json
+python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json
 
 coverage-html:
 	pytest --cov=./ --cov-report=xml --cov-report=term-missing && \
-	python -m tools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json && \
+python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json && \
 	pytest --cov=./ --cov-report=html
 
 reports-gaps:
-	python -m tools.coverage_gaps
+python -m diagtools.coverage_gaps
 
 pre-commit-smart:
 	@echo "[pre-commit smart] trying online first, with fallback to offline config"

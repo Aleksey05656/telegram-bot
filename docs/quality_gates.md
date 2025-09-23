@@ -9,8 +9,8 @@
 | Section | Check | Threshold / Condition | Notes |
 | --- | --- | --- | --- |
 | Data Quality | Schema, duplicates, missing values, outliers | ❌ if any blocker (schema / duplicates / NaN) | CSV artefacts under `reports/diagnostics/data_quality/`. |
-| Golden Baseline | GLM coefficients / λ / market probabilities | `GOLDEN_COEF_EPS` (default 0.005), `GOLDEN_LAMBDA_MAPE` (0.015), `GOLDEN_PROB_EPS` (0.005) | Recomputed via `tools/golden_regression.py --check`. |
-| Drift | Feature / outcome / prediction PSI | Warning ≥ `DRIFT_PSI_WARN` (0.1), Fail ≥ `DRIFT_PSI_FAIL` (0.25) | KS statistic reported alongside PSI. |
+| Golden Baseline | GLM coefficients / λ / market probabilities | `GOLDEN_COEF_EPS` (default 0.005), `GOLDEN_LAMBDA_MAPE` (0.015), `GOLDEN_PROB_EPS` (0.005) | Recomputed via `python -m diagtools.golden_regression --check`. |
+| Drift | Feature PSI + KS p-value по global/league/season | Warning ≥ `DRIFT_PSI_WARN` (0.1) или `p ≤ DRIFT_KS_P_WARN` (0.05), Fail ≥ `DRIFT_PSI_FAIL` (0.25) или `p ≤ DRIFT_KS_P_FAIL` (0.01) | `diag-drift` сохраняет Markdown/JSON/CSV, plots и reference parquet. |
 | Calibration | Expected Calibration Error / coverage | ECE reported; coverage must stay within ±2 п.п. from targets (80%/90%) | Reliability PNGs stored in `reports/diagnostics/calibration/`. |
 | Bi-Poisson Invariance | Market swap / scoreline symmetry | Max delta ≤ 1e-6 | Runs on mean λ from synthetic dataset. |
 | Benchmarks | `/today`, `/match`, `/explain` p95 latency | P95 ≤ `BENCH_P95_BUDGET_MS` (default 800 ms) | Peak memory reported per case. |
@@ -19,16 +19,16 @@
 
 ## Updating the golden baseline
 
-1. Run `python tools/golden_regression.py --update --reports-dir <reports>` locally.
+1. Run `python -m diagtools.golden_regression --update --reports-dir <reports>` locally.
 2. Commit the updated `reports/golden/baseline.json` (do not change tolerances without a review).
-3. Verify CI with `python tools/golden_regression.py --check` to ensure tolerances still hold.
+3. Verify CI with `python -m diagtools.golden_regression --check` to ensure tolerances still hold.
 
 ## Where to inspect artefacts
 
 | Artefact | Location |
 | --- | --- |
 | Data quality summary | `reports/diagnostics/data_quality/summary.md` |
-| Drift summary | `reports/diagnostics/drift/summary.md` |
+| Drift summary | `reports/diagnostics/drift/drift_summary.md` + `drift_summary.json` + CSV |
 | Calibration plots | `reports/diagnostics/calibration/*.png` |
 | Bench metrics | `reports/diagnostics/bench/bench.json` + `summary.md` |
 

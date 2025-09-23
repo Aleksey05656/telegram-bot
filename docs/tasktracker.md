@@ -1,3 +1,14 @@
+## Задача: Diagnostics v2.1 — Drift packaging & CI gate
+- **Статус**: Завершена
+- **Описание**: Перевести инструменты диагностики в пакет `diagtools`, усилить дрифт-отчёты (стратификация, окна, пороги) и включить CI-гейт с артефактами.
+- **Шаги выполнения**:
+  - [x] Перенесены CLI (`run_diagnostics`, `bench`, `golden_regression`, `drift`) в пакет `diagtools` и добавлены entrypoints `diag-run`/`diag-drift`.
+  - [x] Реализован `diagtools.drift` с PSI/KS по global/league/season, генерацией Markdown/JSON/CSV/PNG и reference parquet + meta.
+  - [x] Обновлены `diagtools.run_diagnostics`, Prometheus-метрики и Makefile/README под новые ENV (`DRIFT_ROLLING_DAYS`, `DRIFT_KS_P_*`).
+  - [x] Добавлены GitHub Actions job `diagnostics-drift`, .env параметры и CI-команды с использованием `diagtools`.
+  - [x] Написаны тесты `tests/diagnostics/test_drift_packaging|strata|thresholds|artifacts.py`.
+- **Зависимости**: diagtools/*, tests/diagnostics/test_drift_*.py, tests/diagnostics/test_bench_smoke.py, tests/diagnostics/test_golden.py, metrics/metrics.py, pyproject.toml, requirements.txt, requirements.lock, Makefile, .github/workflows/ci.yml, README.md, docs/diagnostics.md, docs/changelog.md, docs/tasktracker.md, CHANGELOG.md, .env.example
+
 ## Задача: Diagnostics drift_report import hotfix
 - **Статус**: Завершена
 - **Описание**: Исправить падение `tools/drift_report.py` при запуске напрямую из корня репозитория из-за отсутствия пути проекта в `sys.path`.

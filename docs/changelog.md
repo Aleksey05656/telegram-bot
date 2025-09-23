@@ -1,3 +1,16 @@
+# [2025-10-12] - Diagnostics v2.1 packaging & drift gate
+### Добавлено
+- Пакет `diagtools` с CLI-энтрипойнтами `diag-run` и `diag-drift`, избавляющими от `sys.path` хака и упрощающими запуск из CI.
+- Стратифицированные отчёты по дрифту (global/league/season) с CSV/Markdown/JSON, reference parquet + checksum и PNG-гистограммами.
+- Prometheus-метрики `drift_last_run_ts`, `drift_psi_max`, `drift_failures_total`, а также GitHub Actions job `diagnostics-drift` с публикацией артефактов.
+
+### Изменено
+- `diagtools.run_diagnostics` интегрирует новый API дрифта и прокидывает статусы в общую сводку.
+- Документация (`docs/diagnostics.md`, README) обновлена под новые команды, параметры `DRIFT_ROLLING_DAYS`, `DRIFT_KS_P_*` и сценарии обновления reference.
+
+### Исправлено
+- Стандартные профили Makefile и workflow используют `python -m diagtools.*`, исключая обращения к устаревшему `tools/`.
+
 # [2025-10-08] - Drift diagnostics import fix
 ### Добавлено
 - —
