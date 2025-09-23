@@ -1,3 +1,12 @@
+## Задача: Stub isolation & SportMonks ETag key hardening
+- **Статус**: Завершена
+- **Описание**: Изолировать оффлайн-заглушки тестов и усилить канонизацию ETag-кэша SportMonks по методу/пути/allowlist.
+- **Шаги выполнения**:
+  - [x] Перенесены stubs `pydantic/httpx/aiogram/prometheus_client/redis/rq` в `tests/_stubs` и добавлен загрузчик `ensure_stubs`.
+  - [x] Обновлён `tests/conftest.py` для ленивого подключения заглушек и инициализации окружения.
+  - [x] Расширен `SportmonksETagCache` каноническими ключами, TTL-страховкой и тестами `tests/sm/test_etag_cache.py`.
+- **Зависимости**: tests/_stubs/*, tests/conftest.py, app/data_providers/sportmonks/{cache.py,provider.py}, tests/sm/test_etag_cache.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: SportMonks offline QA hardening
 - **Статус**: Завершена
 - **Описание**: Обеспечить оффлайн-тестирование SportMonks, ETag-кеш, отчёты по свежести и автоматические гейты.

@@ -1,14 +1,14 @@
 """
 @file: test_etag_cache.py
 @description: Validate Sportmonks ETag caching behaviour.
-@dependencies: pytest, httpx, sqlite3, json
+@dependencies: pytest, httpx, sqlite3, json, datetime
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -68,21 +68,22 @@ async def test_etag_cache_reuses_headers(tmp_path: Path) -> None:
     provider = SportmonksProvider(client, etag_cache=cache)
 
     try:
-        fixtures = await provider.fetch_fixtures(
-            datetime(2025, 1, 1, tzinfo=UTC),
-            datetime(2025, 1, 2, tzinfo=UTC),
-        )
+        start = datetime(2025, 1, 1, tzinfo=UTC)
+        end = datetime(2025, 1, 2, tzinfo=UTC)
+        fixtures = await provider.fetch_fixtures(start, end)
         assert fixtures == []
-        cached_entry = cache.load("/fixtures", {})
+        params = {
+            "include": "league;season;participants",
+            "from": start.strftime("%Y-%m-%d"),
+            "to": end.strftime("%Y-%m-%d"),
+        }
+        cached_entry = cache.load("/fixtures", params)
         assert cached_entry is not None
         assert cached_entry.etag == '"abc"'
 
-        fixtures_second = await provider.fetch_fixtures(
-            datetime(2025, 1, 1, tzinfo=UTC),
-            datetime(2025, 1, 2, tzinfo=UTC),
-        )
+        fixtures_second = await provider.fetch_fixtures(start, end)
         assert fixtures_second == []
-        assert cache.load("/fixtures", {}) is not None
+        assert cache.load("/fixtures", params) is not None
     finally:
         await client.aclose()
 
@@ -92,3 +93,62 @@ async def test_etag_cache_reuses_headers(tmp_path: Path) -> None:
     second_lower = {k.lower(): v for k, v in second_headers.items()}
     assert "if-none-match" not in first_lower
     assert second_lower.get("if-none-match") == '"abc"'
+
+
+def test_etag_cache_key_canonicalization(tmp_path: Path) -> None:
+    repo = _prepare_meta_db(tmp_path / "sm.sqlite")
+    cache = SportmonksETagCache(repo, ttl_seconds=3600)
+
+    cache.store(
+        "/fixtures",
+        {"from": "2025-01-01", "noise": "x"},
+        etag='"abc"',
+        last_modified=None,
+    )
+
+    same_key_entry = cache.load("/fixtures", {"from": "2025-01-01", "noise": "y"})
+    assert same_key_entry is not None
+
+    missing_allowed_entry = cache.load("/fixtures", None)
+    assert missing_allowed_entry is None
+
+    different_param_entry = cache.load("/fixtures", {"from": "2025-01-02"})
+    assert different_param_entry is None
+
+    cache.store(
+        "/fixtures",
+        None,
+        etag='"post"',
+        last_modified=None,
+        method="POST",
+    )
+
+    assert cache.load("/fixtures", None, method="POST") is not None
+    assert cache.load("/fixtures", None, method="DELETE") is None
+
+
+def test_etag_cache_touch_keeps_original_timestamp(tmp_path: Path) -> None:
+    repo = _prepare_meta_db(tmp_path / "sm.sqlite")
+    cache = SportmonksETagCache(repo, ttl_seconds=60)
+
+    cache.store(
+        "/injuries",
+        {"from": "2025-01-01"},
+        etag='"inj"',
+        last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
+    )
+
+    entry = cache.load("/injuries", {"from": "2025-01-01"})
+    assert entry is not None
+
+    entry.stored_at = entry.stored_at - timedelta(minutes=10)
+
+    cache.touch(
+        "/injuries",
+        {"from": "2025-01-01"},
+        entry,
+        etag='"inj"',
+        last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
+    )
+
+    assert cache.load("/injuries", {"from": "2025-01-01"}) is None

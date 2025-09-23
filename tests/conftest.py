@@ -1,7 +1,7 @@
 """
 @file: tests/conftest.py
-@description: Pytest fixtures with numpy/pandas guard and asyncio fallback runner
-@dependencies: app/config.py, tests/conftest_np_guard.py, asyncio
+@description: Pytest fixtures with numpy/pandas guard, asyncio fallback runner and stub loaders
+@dependencies: app/config.py, tests/_stubs, tests/conftest_np_guard.py, asyncio
 @created: 2025-09-10
 """
 
@@ -10,9 +10,19 @@ import os
 import pathlib
 import sys
 
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tests._stubs import ensure_stubs
+
 import pytest
 
 pytest_plugins = ["conftest_np_guard"]
+
+
+# Ensure offline stubs are visible only when optional dependencies are missing.
+ensure_stubs(["pydantic", "httpx", "aiogram", "prometheus_client", "redis", "rq"])
 
 
 # Автоматически включаем STUB-режим SportMonks для тестов,
@@ -24,10 +34,6 @@ def _force_sportmonks_stub():
         os.environ["SPORTMONKS_STUB"] = "1"
     return
 
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from app import config as cfg  # noqa: E402
 
