@@ -1,3 +1,16 @@
+# [2025-10-05] - Hardening Pack v1
+### Добавлено
+- Модуль `app/runtime_lock.py`, health-сервер и универсальный `retry_async` с тестами `tests/test_runtime_lock.py`, `tests/test_env_contract.py`, `tests/test_data_paths.py`.
+- Проверка записи путей и dry-run лог в `main.py`; опция `/health` и обновлённый smoke job.
+
+### Изменено
+- Логирование переведено на стандартный `logging` с `RotatingFileHandler` и logfmt/JSON форматами.
+- `main.py`, `telegram/bot.py`, `.env.example`, `amvera.yaml`, `README.md`, `docs/deploy-amvera.md` синхронизированы с ENV-контрактом и graceful shutdown.
+
+### Исправлено
+- Повторный запуск сообщает о занятом lock без stack trace; корректно освобождаются ресурсы Redis/health-сервер.
+- Сигналы `SIGTERM/SIGINT` останавливают polling c соблюдением таймаута `SHUTDOWN_TIMEOUT`.
+
 ## [2025-10-03] - Amvera deployment support
 ### Добавлено
 - Конфигурация `amvera.yaml` для окружения Python/pip 3.11 с точкой входа `main.py` и монтированием `/data`.

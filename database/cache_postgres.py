@@ -258,3 +258,18 @@ async def init_cache():
     # (если она была бы нужна отдельно) должна быть здесь.
     # В текущем коде основной кэш - это Redis.
     logger.info("Кэш (Redis) инициализирован")
+
+
+async def shutdown_cache():
+    """Закрытие ресурсов кэша Redis/asyncpg."""
+    global pool, cache
+    if cache:
+        try:
+            await cache.close()
+        finally:
+            cache = None
+    if pool:
+        try:
+            await pool.close()
+        finally:
+            pool = None
