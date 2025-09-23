@@ -16,7 +16,7 @@ import pytest
 def test_run_simulation_cli(tmp_path: Path):
     db = tmp_path / "preds.sqlite"
     report = tmp_path / "report.md"
-    env = {"PREDICTIONS_DB_URL": str(db)}
+    env = {"DB_PATH": str(db)}
     cmd = [
         "python",
         "scripts/run_simulation.py",

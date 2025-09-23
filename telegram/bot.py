@@ -1,6 +1,7 @@
 # telegram/bot.py
 # Логика Telegram-бота: инициализация, обработчики, запуск polling.
 import asyncio
+import os
 import signal
 
 from aiogram import Bot, Dispatcher
@@ -158,14 +159,27 @@ class TelegramBot:
         if hasattr(signal, "SIGBREAK"):
             signal.signal(signal.SIGBREAK, self._signal_handler)
 
-    async def run(self):
+    async def run(self, dry_run: bool = False):
         """Запуск бота с обработкой ошибок."""
         try:
+            delay_raw = os.getenv("BOT_STARTUP_DELAY", "2.5")
+            try:
+                delay = max(0.0, float(delay_raw))
+            except ValueError:
+                delay = 2.5
+            if delay:
+                logger.info(f"⏳ Ожидание перед инициализацией бота {delay:.2f} c")
+                await asyncio.sleep(delay)
             # Инициализация
             await self.initialize()
 
             if not self.bot or not self.dp:
                 raise RuntimeError("Бот не инициализирован")
+
+            if dry_run:
+                logger.info("🚦 Dry-run: пропуск запуска polling")
+                await self.cleanup()
+                return
 
             # Настройка обработчиков сигналов
             self._setup_signal_handlers()
@@ -252,16 +266,16 @@ async def get_bot() -> TelegramBot:
     return _bot_instance
 
 
-async def main():
+async def main(dry_run: bool = False):
     """Асинхронная точка входа для бота."""
     bot = await get_bot()
-    await bot.run()
+    await bot.run(dry_run=dry_run)
 
 
 # Альтернативная функция для использования в других модулях
-async def start_bot():
+async def start_bot(dry_run: bool = False):
     """Запуск бота (альтернативный способ)."""
-    await main()
+    await main(dry_run=dry_run)
 
 
 # Экспорт класса и функций

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -78,7 +79,9 @@ def main() -> None:
 
     raw_df = load_dataframe(args.input)
     model_home, model_away, info = train_models(raw_df, args.alpha, args.l2)
-    out_dir = Path("artifacts") / str(args.season_id)
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    registry_root = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
+    out_dir = registry_root / str(args.season_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(model_home, out_dir / "glm_home.pkl")
     joblib.dump(model_away, out_dir / "glm_away.pkl")

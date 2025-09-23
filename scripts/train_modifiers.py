@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -76,7 +77,9 @@ def main() -> None:
     y_home = np.log(targets["target_home"].astype(float)) - np.log(targets["lambda_home"].astype(float))
     y_away = np.log(targets["target_away"].astype(float)) - np.log(targets["lambda_away"].astype(float))
     model = ModifiersModel(alpha=args.alpha).fit(X, y_home, y_away)
-    out_dir = Path("artifacts") / str(args.season_id)
+    data_root = Path(os.getenv("DATA_ROOT", "/data"))
+    registry_root = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
+    out_dir = registry_root / str(args.season_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     model.save(out_dir / "modifiers_model.pkl")
 

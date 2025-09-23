@@ -28,19 +28,28 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_cli_retrain_run_and_schedule(monkeypatch):
+def test_cli_retrain_run_and_schedule(monkeypatch, tmp_path):
     runtime_scheduler.clear_jobs()
     monkeypatch.delenv("RETRAIN_CRON", raising=False)
 
     repo_root = Path(__file__).resolve().parents[2]
-    artifacts_dir = repo_root / "artifacts" / "default"
+    registry_root = tmp_path / "artifacts"
+    reports_root = tmp_path / "reports"
+    logs_root = tmp_path / "logs"
+    db_path = tmp_path / "bot.sqlite3"
+    monkeypatch.setenv("MODEL_REGISTRY_PATH", str(registry_root))
+    monkeypatch.setenv("REPORTS_DIR", str(reports_root))
+    monkeypatch.setenv("LOG_DIR", str(logs_root))
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    artifacts_dir = registry_root / "default"
     if artifacts_dir.exists():
         shutil.rmtree(artifacts_dir)
-    metrics_report = repo_root / "reports" / "metrics" / "MODIFIERS_default.md"
+    metrics_report = reports_root / "metrics" / "MODIFIERS_default.md"
     if metrics_report.exists():
         metrics_report.unlink()
 
-    summary_path = repo_root / "reports" / "RUN_SUMMARY.md"
+    summary_path = reports_root / "RUN_SUMMARY.md"
     summary_before = summary_path.read_text(encoding="utf-8") if summary_path.exists() else ""
 
     result = _run_cli("retrain", "run", "--season-id", "default", "--with-modifiers")

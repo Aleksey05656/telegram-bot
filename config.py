@@ -2,6 +2,7 @@
 """Конфигурация приложения с использованием Pydantic Settings v2.
 Параметры загружаются из переменных окружения."""
 from datetime import datetime
+from pathlib import Path
 
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings
@@ -47,6 +48,13 @@ class Settings(BaseSettings):
     CV_GAP_DAYS: int = 0
     CV_MIN_TRAIN_DAYS: int = 120
     TIME_DECAY_HALFLIFE_DAYS: int = 180
+
+    # --- Storage locations ---
+    DATA_ROOT: str = "/data"
+    DB_PATH: str = "/data/bot.sqlite3"
+    MODEL_REGISTRY_PATH: str = "/data/artifacts"
+    REPORTS_DIR: str = "/data/reports"
+    LOG_DIR: str = "/data/logs"
     # === КОНЕЦ НОВЫХ ПАРАМЕТРОВ ===
 
     # --- Application Settings ---
@@ -144,6 +152,24 @@ class Settings(BaseSettings):
                 # на случай некорректного формата — запасной вариант по дате
                 return f"v{datetime.now().strftime('%Y%m%d')}"
         return v
+
+    @field_validator("DB_PATH")
+    @classmethod
+    def ensure_db_dir(cls, v: str) -> str:
+        path = Path(v)
+        if not path.is_absolute():
+            path = Path(cls.DATA_ROOT) / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    @field_validator("MODEL_REGISTRY_PATH", "REPORTS_DIR", "LOG_DIR")
+    @classmethod
+    def ensure_data_dir(cls, v: str):
+        base = Path(v)
+        if not base.is_absolute():
+            base = Path(cls.DATA_ROOT) / base
+        base.mkdir(parents=True, exist_ok=True)
+        return str(base)
 
     # --- Конфигурация Pydantic ---
     model_config = {

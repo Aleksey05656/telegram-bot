@@ -26,7 +26,15 @@ _JOBS_COUNTER = Counter(
     "Total jobs registered",
     ["service", "env", "version"],
 )
-_STATE_FILE = Path(os.getenv("RUNTIME_SCHEDULER_STATE", "artifacts/runtime_scheduler_state.json"))
+_DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
+_STATE_ENV = os.getenv("RUNTIME_SCHEDULER_STATE")
+if _STATE_ENV:
+    candidate = Path(_STATE_ENV)
+    if not candidate.is_absolute():
+        candidate = _DATA_ROOT / candidate
+    _STATE_FILE = candidate
+else:
+    _STATE_FILE = _DATA_ROOT / "artifacts/runtime_scheduler_state.json"
 
 
 def _state_payload() -> dict[str, Any]:
