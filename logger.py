@@ -8,9 +8,10 @@ import logging
 import logging.handlers
 import os
 import sys
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from config import settings
 
@@ -43,6 +44,31 @@ _STANDARD_ATTRS = {
     "process",
     "message",
 }
+
+_SENSITIVE_KEYWORDS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "PWD")
+
+
+def _mask_secret(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if len(value) <= 4:
+            return "***"
+        return f"{value[:2]}***{value[-2:]}"
+    return "***"
+
+
+def _sanitize_mapping(mapping: Mapping[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in mapping.items():
+        upper_key = key.upper()
+        if isinstance(value, Mapping):
+            sanitized[key] = _sanitize_mapping(value)
+        elif any(token in upper_key for token in _SENSITIVE_KEYWORDS):
+            sanitized[key] = _mask_secret(value)
+        else:
+            sanitized[key] = value
+    return sanitized
 
 
 class JsonFormatter(logging.Formatter):
@@ -127,6 +153,8 @@ class BindableLogger(logging.LoggerAdapter):
     def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         extra = kwargs.setdefault("extra", {})
         extra.update(self.extra)
+        if extra:
+            kwargs["extra"] = _sanitize_mapping(extra)
         return msg, kwargs
 
 

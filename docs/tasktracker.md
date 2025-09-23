@@ -8,6 +8,17 @@
   - [x] Протоколированы изменения в changelog и tasktracker.
 - **Зависимости**: main.py, telegram/bot.py, logger.py, app/runtime_lock.py, app/health.py, app/utils/retry.py, .env.example, amvera.yaml, docs/deploy-amvera.md, README.md, docs/changelog.md, .github/workflows/ci.yml, tests/test_runtime_lock.py, tests/test_env_contract.py, tests/test_data_paths.py, docs/tasktracker.md
 
+## Задача: Amvera Ops v2 readiness & maintenance
+- **Статус**: Завершена
+- **Описание**: Развести `/health` и `/ready`, включить метрики по фичефлагам, настроить резервное копирование SQLite и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Добавлен `RuntimeState` и readiness-проба `/ready` в health-сервер.
+  - [x] Реализованы новые метрики, токен-бакет и идемпотентность команд бота.
+  - [x] Настроены PRAGMA, ежедневные бэкапы и недельный `VACUUM/ANALYZE`.
+  - [x] Обновлены README, docs/deploy-amvera.md, `.env.example`, changelog и tasktracker.
+  - [x] Добавлены тесты (`tests/test_readiness.py`, `tests/test_db_maintenance.py`, `tests/test_metrics_server.py`, `tests/test_runtime_lock_stale.py`).
+- **Зависимости**: main.py, app/health.py, app/runtime_state.py, app/runtime_lock.py, app/db_maintenance.py, app/metrics.py, telegram/bot.py, telegram/middlewares.py, workers/task_manager.py, storage/persistence.py, docs/*, tests/*
+
 ## Задача: Amvera — подготовка к деплою
 - **Статус**: В процессе
 - **Описание**: Перевести бот на требования Amvera: хранить данные в `/data`, добавить `amvera.yaml`, smoke-проверку и документацию.

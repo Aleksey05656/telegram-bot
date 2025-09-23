@@ -10,6 +10,7 @@ from rq import Queue
 from rq.job import Job
 
 from config import settings  # Импортируем settings
+from app.metrics import set_queue_depth
 from logger import logger
 from ml.models.poisson_regression_model import poisson_regression_model
 
@@ -23,6 +24,17 @@ class TaskManager:
         self.prediction_queue: Queue | None = None
         self.retraining_queue: Queue | None = None  # Новая очередь для переобучения
         logger.debug("TaskManager: Инициализация экземпляра...")
+
+    def _update_depth_metric(self) -> None:
+        total = 0
+        for q in (self.prediction_queue, self.retraining_queue):
+            if q is None:
+                continue
+            try:
+                total += len(q)
+            except Exception:
+                continue
+        set_queue_depth(total)
 
     async def initialize(self):
         """Асинхронная инициализация подключения к Redis и очередей."""
@@ -55,12 +67,14 @@ class TaskManager:
 
             logger.debug("✅ Очереди 'predictions' и 'retraining' успешно созданы")
             logger.info("✅ TaskManager успешно инициализирован")
+            self._update_depth_metric()
 
         except redis.ConnectionError as e:
             logger.error(f"❌ Ошибка подключения к Redis: {e}", exc_info=True)
             self.redis_conn = None
             self.prediction_queue = None
             self.retraining_queue = None
+            self._update_depth_metric()
         except Exception as e:  # Этот обработчик теперь поймает AttributeError и другие
             logger.error(
                 f"❌ Неизвестная ошибка при инициализации TaskManager: {e}",
@@ -123,6 +137,7 @@ class TaskManager:
                 meta={"priority": priority, "type": "prediction"},
             )
             logger.info(f"[{job_id}] ✅ Задача прогнозирования успешно поставлена в очередь")
+            self._update_depth_metric()
             return job_obj
         except Exception as e:
             logger.error(
@@ -173,6 +188,7 @@ class TaskManager:
                 },
             )
             logger.info(f"✅ Задача переобучения успешно поставлена в очередь (причина: {reason})")
+            self._update_depth_metric()
             return job_obj
         except Exception as e:
             logger.error(
@@ -193,6 +209,7 @@ class TaskManager:
                 q.empty()
             except Exception:
                 continue
+        self._update_depth_metric()
         return removed
 
     def cleanup(self, days: int = 7) -> int:

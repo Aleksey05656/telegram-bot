@@ -16,3 +16,5 @@ run:
   env:
     ENABLE_HEALTH: "1"
     HEALTH_PORT: "8080"
+    ENABLE_METRICS: "0"
+    METRICS_PORT: "8000"

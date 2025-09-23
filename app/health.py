@@ -7,8 +7,8 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Optional
 
+from app.runtime_state import STATE
 from logger import logger
 
 
@@ -18,8 +18,8 @@ class HealthServer:
 
     host: str = "0.0.0.0"
     port: int = 8080
-    _server: Optional[asyncio.base_events.Server] = None
-    _task: Optional[asyncio.Task[None]] = None
+    _server: asyncio.base_events.Server | None = None
+    _task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         if self._server is not None:
@@ -55,7 +55,17 @@ class HealthServer:
                 body = b"{\"status\":\"method_not_allowed\"}"
             else:
                 path = request_line.split(" ")[1]
-                if path != "/health":
+                if path == "/health":
+                    body = b"{\"status\":\"ok\"}"
+                elif path == "/ready":
+                    ok = STATE.db_ready and STATE.polling_ready and STATE.scheduler_ready
+                    if ok:
+                        status_line = "HTTP/1.1 200 OK\r\n"
+                        body = b"{\"status\":\"ready\"}"
+                    else:
+                        status_line = "HTTP/1.1 503 Service Unavailable\r\n"
+                        body = b"{\"status\":\"not_ready\"}"
+                else:
                     status_line = "HTTP/1.1 404 Not Found\r\n"
                     body = b"{\"status\":\"not_found\"}"
             headers = (
