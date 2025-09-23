@@ -104,14 +104,15 @@ def test_fixture_context_contains_standings_and_injuries(tmp_path: Path) -> None
     )
     repo.upsert_injuries(
         [
-            InjuryDTO(
-                injury_id=500,
-                fixture_id=42,
-                team_id=10,
-                player_name="John Doe",
-                status="out",
-                payload={"player_name": "John Doe"},
-            )
+        InjuryDTO(
+            injury_id=500,
+            fixture_id=42,
+            team_id=10,
+            league_id=8,
+            player_name="John Doe",
+            status="out",
+            payload={"player_name": "John Doe"},
+        )
         ],
         pulled_at=pulled,
     )

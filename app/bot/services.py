@@ -29,7 +29,28 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 
 from config import settings
 from logger import logger
-from telegram.services import DeterministicPredictorService, SportMonksFixturesRepository
+
+try:
+    from telegram.services import DeterministicPredictorService, SportMonksFixturesRepository
+except ModuleNotFoundError:  # pragma: no cover - offline stub
+
+    class SportMonksFixturesRepository:  # type: ignore[override]
+        async def list_fixtures_for_date(self, *_args, **_kwargs):  # pragma: no cover - stub
+            return []
+
+        async def get_fixture(self, _match_id: int):  # pragma: no cover - stub
+            return None
+
+    class DeterministicPredictorService:  # type: ignore[override]
+        def __init__(self, *_args, **_kwargs) -> None:  # pragma: no cover - stub
+            return
+
+        async def get_prediction(self, *_args, **_kwargs):  # pragma: no cover - stub
+            return {}
+
+        @staticmethod
+        def _estimate_lambdas(_match_id: int) -> tuple[float, float]:  # pragma: no cover - stub
+            return 1.0, 1.0
 
 from app.data_source import SportmonksDataSource
 

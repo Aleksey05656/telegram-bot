@@ -45,10 +45,13 @@ python -m diagtools.bench --iterations ${BENCH_ITER}
   проверки лимитов: `SPORTMONKS_RPS_LIMIT`, `SPORTMONKS_TIMEOUT_SEC`, `SPORTMONKS_RETRY_ATTEMPTS`, `SPORTMONKS_BACKOFF_BASE`.
 - В `app/data_providers/sportmonks/metrics.py` публикуются метрики `sm_requests_total`, `sm_ratelimit_sleep_seconds_total`,
   `sm_etl_rows_upserted_total`, `sm_last_sync_timestamp`, `sm_sync_failures_total`, `sm_freshness_hours_max`.
-- Диагностика `diag-run` добавляет раздел **Data Freshness** — статус WARN/FAIL вычисляется по `SM_FRESHNESS_WARN_HOURS` и
-  `SM_FRESHNESS_FAIL_HOURS`. Метрика `sm_freshness_hours_max` отражает максимальную задержку по таблицам `sm_*`.
+- Диагностика `diag-run` добавляет раздел **Data Freshness** — статус OK/WARN/FAIL вычисляется по `SM_FRESHNESS_WARN_HOURS` и
+  `SM_FRESHNESS_FAIL_HOURS`, а Markdown/JSON-отчёты включают таблицу свежести по лигам. Метрика `sm_freshness_hours_max`
+  отражает максимальную задержку по таблицам `sm_*`.
 - При ошибках 429/5xx включается экспоненциальный бэкофф, токен-бакет и повторные попытки (`SportmonksClient`).
 - Бот показывает бейджи свежести (`SHOW_DATA_STALENESS=1`), а планировщик retrain пропускает запуск при устаревших данных.
+- Для одиночной проверки без полного `diag-run` используйте `python -m diagtools.freshness --check` — CLI возвращает exit code 2
+  при FAIL и печатает подробности (опционально `--json`).
 
 ## Continuous monitoring & Chat-Ops
 

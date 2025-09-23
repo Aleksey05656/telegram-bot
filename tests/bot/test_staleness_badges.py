@@ -50,7 +50,7 @@ def _prediction(freshness: float) -> Prediction:
 def test_freshness_note_for_recent_data() -> None:
     preds = [_prediction(0.2)]
     note = commands._freshness_note(preds)
-    assert note and "updated" in note
+    assert note and "🟢" in note and "updated" in note
     text = format_today_matches(
         title="Test",
         timezone="UTC",
@@ -59,10 +59,16 @@ def test_freshness_note_for_recent_data() -> None:
         total_pages=1,
         freshness_note=note,
     )
-    assert "updated" in text
+    assert "🟢" in text
 
 
 def test_freshness_note_for_stale_data() -> None:
     preds = [_prediction(30.0)]
     note = commands._freshness_note(preds)
-    assert note and "stale" in note
+    assert note and "⚠️" in note and "fail" in note
+
+
+def test_freshness_note_for_warning_level() -> None:
+    preds = [_prediction(18.0)]
+    note = commands._freshness_note(preds)
+    assert note and "⚠️" in note and "warn" in note

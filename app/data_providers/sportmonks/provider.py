@@ -7,19 +7,26 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from app.mapping.keys import normalize_name
 
 from .client import SportmonksClient
+from .cache import SportmonksETagCache
 from .schemas import FixtureDTO, InjuryDTO, StandingDTO, TeamDTO
 
 
 class SportmonksProvider:
     """Fetch and normalize Sportmonks entities into internal DTOs."""
 
-    def __init__(self, client: SportmonksClient | None = None) -> None:
+    def __init__(
+        self,
+        client: SportmonksClient | None = None,
+        *,
+        etag_cache: SportmonksETagCache | None = None,
+    ) -> None:
         self._client = client or SportmonksClient()
+        self._etag_cache = etag_cache
 
     @property
     def client(self) -> SportmonksClient:
@@ -33,6 +40,7 @@ class SportmonksProvider:
         league_ids: Sequence[str | int] | None = None,
     ) -> list[FixtureDTO]:
         params = self._league_params(league_ids)
+        allowed = self._resolve_allowed_leagues(league_ids)
         params.update(
             {
                 "include": "league;season;participants",
@@ -40,17 +48,20 @@ class SportmonksProvider:
                 "to": _fmt_date(date_to),
             }
         )
-        response = await self._client.get("/fixtures", params=params)
+        response = await self._get("/fixtures", params=params)
         records = _iter_records(response.data)
         fixtures: list[FixtureDTO] = []
         for record in records:
             dto = _parse_fixture(record)
-            if dto:
+            if dto and self._is_league_allowed(dto.league_id, allowed):
                 fixtures.append(dto)
         return fixtures
 
     async def fetch_teams(self, league_id: str | int) -> list[TeamDTO]:
-        response = await self._client.get(f"/leagues/{league_id}/teams", params={"include": "country"})
+        response = await self._get(
+            f"/leagues/{league_id}/teams",
+            params={"include": "country"},
+        )
         teams: list[TeamDTO] = []
         for record in _iter_records(response.data):
             dto = _parse_team(record)
@@ -59,7 +70,7 @@ class SportmonksProvider:
         return teams
 
     async def fetch_standings(self, league_id: str | int, season_id: str | int) -> list[StandingDTO]:
-        response = await self._client.get(
+        response = await self._get(
             f"/standings/season/{season_id}",
             params={"league_ids": str(league_id)},
         )
@@ -78,12 +89,13 @@ class SportmonksProvider:
         league_ids: Sequence[str | int] | None = None,
     ) -> list[InjuryDTO]:
         params = self._league_params(league_ids)
+        allowed = self._resolve_allowed_leagues(league_ids)
         params.update({"from": _fmt_date(date_from), "to": _fmt_date(date_to)})
-        response = await self._client.get("/injuries", params=params)
+        response = await self._get("/injuries", params=params)
         injuries: list[InjuryDTO] = []
         for record in _iter_records(response.data):
             dto = _parse_injury(record)
-            if dto:
+            if dto and self._is_league_allowed(dto.league_id, allowed):
                 injuries.append(dto)
         return injuries
 
@@ -96,6 +108,56 @@ class SportmonksProvider:
         if not resolved:
             return {}
         return {"league_ids": ",".join(str(item) for item in resolved)}
+
+    async def _get(
+        self,
+        endpoint: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+    ) -> "SportmonksResponse":
+        cached_entry = None
+        etag: str | None = None
+        last_modified: str | None = None
+        if self._etag_cache is not None:
+            cached_entry = self._etag_cache.load(endpoint, params)
+            if cached_entry:
+                etag = cached_entry.etag
+                last_modified = cached_entry.last_modified
+        response = await self._client.get(
+            endpoint,
+            params=params,
+            etag=etag,
+            last_modified=last_modified,
+        )
+        if self._etag_cache is not None:
+            if response.status_code == 200:
+                self._etag_cache.store(
+                    endpoint,
+                    params,
+                    etag=response.etag,
+                    last_modified=response.last_modified,
+                )
+            elif response.status_code == 304:
+                self._etag_cache.touch(endpoint, params, cached_entry)
+        return response
+
+    def _resolve_allowed_leagues(
+        self, league_ids: Sequence[str | int] | None
+    ) -> set[str]:
+        if league_ids:
+            return {str(item) for item in league_ids if str(item)}
+        allowlist = self._client.config.leagues_allowlist
+        if allowlist:
+            return {str(item) for item in allowlist if str(item)}
+        return set()
+
+    @staticmethod
+    def _is_league_allowed(league_id: int | None, allowed: set[str]) -> bool:
+        if not allowed:
+            return True
+        if league_id is None:
+            return False
+        return str(league_id) in allowed
 
 
 def _iter_records(payload: Any) -> Iterable[dict[str, Any]]:
@@ -120,6 +182,8 @@ def _parse_fixture(record: dict[str, Any]) -> FixtureDTO | None:
     season_id = _safe_int(record.get("season_id") or (record.get("season") or {}).get("id"))
     home_id = _participant_id(record, "home")
     away_id = _participant_id(record, "away")
+    if league_id is None or season_id is None or home_id is None or away_id is None:
+        return None
     kickoff = _parse_datetime(record.get("starting_at") or record.get("kickoff") or record.get("time"))
     status = record.get("status") or (record.get("time") or {}).get("status") if isinstance(record.get("time"), dict) else None
     payload = {
@@ -194,11 +258,20 @@ def _parse_injury(record: dict[str, Any]) -> InjuryDTO | None:
         return None
     fixture_id = _safe_int(record.get("fixture_id"))
     team_id = _safe_int((record.get("team") or {}).get("id") if isinstance(record.get("team"), dict) else record.get("team_id"))
+    league_id = _safe_int(record.get("league_id") or (record.get("league") or {}).get("id"))
+    if league_id is None:
+        fixture_info = record.get("fixture")
+        if isinstance(fixture_info, dict):
+            league_id = _safe_int(
+                fixture_info.get("league_id")
+                or (fixture_info.get("league") or {}).get("id")
+            )
     status = record.get("status") or (record.get("type") or {}).get("name") if isinstance(record.get("type"), dict) else None
     payload = {
         "id": injury_id,
         "fixture_id": fixture_id,
         "team_id": team_id,
+        "league_id": league_id,
         "player_name": player,
         "status": status,
         "position": record.get("position"),
@@ -207,6 +280,7 @@ def _parse_injury(record: dict[str, Any]) -> InjuryDTO | None:
         injury_id=injury_id,
         fixture_id=fixture_id,
         team_id=team_id,
+        league_id=league_id,
         player_name=player,
         status=status,
         payload=payload,
