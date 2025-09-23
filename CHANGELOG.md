@@ -1,3 +1,16 @@
+## [2025-10-12] - Diagnostics v2.1 drift packaging
+### Added
+- `diagtools` package with console scripts `diag-run` and `diag-drift`, reference parquet exports and stratified PSI/KS summaries.
+- Drift diagnostics tests covering packaging, stratification, threshold gates and artefact creation.
+- CI job `diagnostics-drift` uploading `reports/diagnostics/drift` artefacts and new Prometheus gauges/counters for drift health.
+
+### Changed
+- `diagtools.run_diagnostics` aggregates drift statuses, updates metrics and persists enhanced summaries.
+- Documentation, README and Makefile updated for `diagtools` entrypoints and new environment variables (`DRIFT_ROLLING_DAYS`, `DRIFT_KS_P_WARN/FAIL`).
+
+### Fixed
+- Workflow steps now invoke `python -m diagtools.*` eliminating legacy `tools` imports and sys.path manipulation.
+
 ## [2025-09-23] - E6.2: Coverage configuration hardening
 ### Added
 - `.coveragerc` with statement coverage settings omitting migrations, documentation, tests and shell scripts.

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from tools.golden_regression import GoldenSnapshot, build_snapshot, compare_snapshots
+from diagtools.golden_regression import GoldenSnapshot, build_snapshot, compare_snapshots
 
 
 def test_compare_identical_snapshots_passes(monkeypatch) -> None:

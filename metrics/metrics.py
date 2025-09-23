@@ -101,6 +101,16 @@ drift_psi_max = Gauge(
     "Maximum PSI observed during drift detection",
     ["bucket", "service", "env", "version"],
 )
+drift_last_run_ts = Gauge(
+    "drift_last_run_ts",
+    "Timestamp of the last drift window evaluation",
+    ["reference", "service", "env", "version"],
+)
+drift_failures_total = Counter(
+    "drift_failures_total",
+    "Number of drift scope failures",
+    ["reference", "scope", "service", "env", "version"],
+)
 
 _windows: dict[tuple[str, str], deque[tuple[float, int]]] = {}
 
@@ -221,6 +231,7 @@ def record_diagnostics_summary(
     *,
     data_quality_total: int,
     drift_max: dict[str, float],
+    drift_status: dict[str, dict[str, str]] | None = None,
 ) -> None:
     """Push diagnostics outcome metrics to Prometheus."""
 
@@ -231,3 +242,12 @@ def record_diagnostics_summary(
     data_quality_issues_total.labels(**_LABELS).set(float(data_quality_total))
     for bucket, value in drift_max.items():
         drift_psi_max.labels(bucket=bucket, **_LABELS).set(float(value))
+    now = time.time()
+    if drift_status:
+        for reference, scopes in drift_status.items():
+            drift_last_run_ts.labels(reference=reference, **_LABELS).set(now)
+            for scope, status in scopes.items():
+                if scope == "overall":
+                    continue
+                if status == "FAIL":
+                    drift_failures_total.labels(reference=reference, scope=scope, **_LABELS).inc()

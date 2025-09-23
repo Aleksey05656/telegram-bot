@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from tools.bench import run_benchmarks
+from diagtools.bench import run_benchmarks
 
 
 def test_benchmark_runs_within_budget() -> None:

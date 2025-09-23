@@ -1,6 +1,6 @@
 """
 /**
- * @file: tools/run_diagnostics.py
+ * @file: diagtools/run_diagnostics.py
  * @description: End-to-end diagnostics harness for Telegram bot, ML models and ops glue.
  * @dependencies: argparse, asyncio, json, math, os, pathlib, statistics, subprocess, textwrap,
  *                 pandas, numpy, matplotlib, seaborn, sklearn
@@ -42,9 +42,6 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency in CI
     PercentFormatter = None  # type: ignore[assignment]
     HAS_MPL = False
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 from sklearn.calibration import calibration_curve
 from sklearn.linear_model import Ridge
 from sklearn.metrics import log_loss, roc_auc_score
@@ -61,9 +58,9 @@ from app.diagnostics import (
 
 from metrics.metrics import record_diagnostics_summary
 
-from tools import bench as bench_module
-from tools import drift_report as drift_module
-from tools import golden_regression as golden_module
+from diagtools import bench as bench_module
+from diagtools import drift as drift_module
+from diagtools import golden_regression as golden_module
 
 # Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
 
@@ -456,41 +453,39 @@ def _run_golden(reports_root: Path) -> dict[str, Any]:
     }
 
 
-def _run_drift(diag_dir: Path) -> dict[str, Any]:
+def _run_drift(diag_dir: Path, dataset: pd.DataFrame) -> dict[str, Any]:
     drift_dir = diag_dir / "drift"
-    psi_warn = float(os.getenv("DRIFT_PSI_WARN", "0.1"))
-    psi_fail = float(os.getenv("DRIFT_PSI_FAIL", "0.25"))
-    report = drift_module.generate_report(
-        current_path=None,
-        reference_path=None,
-        ref_days=int(os.getenv("DRIFT_REF_DAYS", "90")),
-        reports_dir=drift_dir,
-        psi_warn=psi_warn,
-        psi_fail=psi_fail,
+    thresholds = drift_module.DriftThresholds(
+        psi_warn=float(os.getenv("DRIFT_PSI_WARN", "0.1")),
+        psi_fail=float(os.getenv("DRIFT_PSI_FAIL", "0.25")),
+        ks_p_warn=float(os.getenv("DRIFT_KS_P_WARN", "0.05")),
+        ks_p_fail=float(os.getenv("DRIFT_KS_P_FAIL", "0.01")),
     )
-    worst = "✅"
-    for bucket in (report.features, report.outcome, report.predictions):
-        for stat in bucket:
-            if stat.status == "❌":
-                worst = "❌"
-                break
-            if stat.status == "⚠️" and worst != "❌":
-                worst = "⚠️"
-        if worst == "❌":
-            break
-    max_feature_psi = max((stat.psi for stat in report.features), default=0.0)
-    max_outcome_psi = max((stat.psi for stat in report.outcome), default=0.0)
-    max_prediction_psi = max((stat.psi for stat in report.predictions), default=0.0)
+    config = drift_module.DriftConfig(
+        reports_dir=drift_dir,
+        ref_days=int(os.getenv("DRIFT_REF_DAYS", "90")),
+        ref_rolling_days=int(os.getenv("DRIFT_ROLLING_DAYS", "30")),
+        thresholds=thresholds,
+    )
+    result = drift_module.run(config, dataset=dataset)
+    status_map = {"OK": "✅", "WARN": "⚠️", "FAIL": "❌"}
+    status_emoji = status_map.get(result.worst_status, "⚠️")
+    scope_notes = []
+    for reference, scopes in sorted(result.status_by_reference.items()):
+        overall = scopes.get("overall", "OK")
+        scope_notes.append(f"{reference}:{overall}")
+    psi_max: dict[str, float] = {}
+    for scope in {"global", "league", "season"}:
+        values = [m.psi for m in result.metrics if m.scope == scope and not math.isnan(m.psi)]
+        if values:
+            psi_max[scope] = max(values)
     return {
-        "status": worst,
-        "note": f"summary={report.summary_path.name}",
-        "summary_path": str(report.summary_path),
-        "json_path": str(report.json_path),
-        "psi_max": {
-            "feature": max_feature_psi,
-            "outcome": max_outcome_psi,
-            "prediction": max_prediction_psi,
-        },
+        "status": status_emoji,
+        "note": ", ".join(scope_notes) or "no-scope-data",
+        "summary_path": str(result.summary_path),
+        "json_path": str(result.json_path),
+        "psi_max": psi_max,
+        "status_raw": result.status_by_reference,
     }
 
 
@@ -1334,7 +1329,7 @@ def main() -> None:
     statuses["Golden Baseline"] = {"status": golden["status"], "note": golden["note"]}
     metrics["golden"] = golden
 
-    drift = _run_drift(diag_dir)
+    drift = _run_drift(diag_dir, dataset)
     statuses["Drift"] = {"status": drift["status"], "note": drift["note"]}
     metrics["drift"] = drift
 
@@ -1414,6 +1409,7 @@ def main() -> None:
         statuses,
         data_quality_total=dq_result.get("issue_total", 0),
         drift_max=drift.get("psi_max", {}),
+        drift_status=drift.get("status_raw", {}),
     )
 
     context = {

@@ -1,6 +1,6 @@
 """
 /**
- * @file: tools/golden_regression.py
+ * @file: diagtools/golden_regression.py
  * @description: Golden baseline generation and epsilon-regression checks for GLM artefacts.
  * @created: 2025-10-07
  */
