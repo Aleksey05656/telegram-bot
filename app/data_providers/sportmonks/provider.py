@@ -138,7 +138,13 @@ class SportmonksProvider:
                     last_modified=response.last_modified,
                 )
             elif response.status_code == 304:
-                self._etag_cache.touch(endpoint, params, cached_entry)
+                self._etag_cache.touch(
+                    endpoint,
+                    params,
+                    cached_entry,
+                    etag=response.etag,
+                    last_modified=response.last_modified,
+                )
         return response
 
     def _resolve_allowed_leagues(
