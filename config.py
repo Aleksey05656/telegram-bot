@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     # --- API Keys ---
     TELEGRAM_BOT_TOKEN: str = ""
     SPORTMONKS_API_KEY: str = ""
+    SPORTMONKS_API_TOKEN: str = ""
+    SPORTMONKS_BASE_URL: str = "https://api.sportmonks.com/v3/football"
+    SPORTMONKS_TIMEOUT_SEC: float = 10.0
+    SPORTMONKS_RETRY_ATTEMPTS: int = 4
+    SPORTMONKS_BACKOFF_BASE: float = 0.5
+    SPORTMONKS_RPS_LIMIT: float = 3.0
+    SPORTMONKS_DEFAULT_TIMEWINDOW_DAYS: int = 7
+    SPORTMONKS_LEAGUES_ALLOWLIST: str = ""
+    SPORTMONKS_CACHE_TTL_SEC: int = 900
     ODDS_API_KEY: str = ""  # Обязательное поле, без значения по умолчанию
 
     # --- Infrastructure ---
@@ -85,6 +94,7 @@ class Settings(BaseSettings):
     CACHE_TTL_SECONDS: int = 120
     ADMIN_IDS: str = ""
     DIGEST_DEFAULT_TIME: str = "09:00"
+    SHOW_DATA_STALENESS: int = 0
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
@@ -135,6 +145,8 @@ class Settings(BaseSettings):
     ALERTS_CHAT_ID: str | None = None
     ALERTS_MIN_LEVEL: str = "WARN"
     AUTO_REF_UPDATE: str = "off"
+    SM_FRESHNESS_WARN_HOURS: int = 12
+    SM_FRESHNESS_FAIL_HOURS: int = 48
 
     # --- Динамические поля ---
     @computed_field  # Генерируется на основе других полей

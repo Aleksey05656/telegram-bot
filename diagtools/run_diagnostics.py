@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 import importlib.util
+import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -58,6 +59,9 @@ from app.diagnostics import (
 )
 
 from metrics.metrics import record_diagnostics_summary
+
+from app.data_providers.sportmonks.metrics import sm_freshness_hours_max
+from app.data_source import SportmonksDataSource
 
 from diagtools import bench as bench_module
 from diagtools import drift as drift_module
@@ -1204,6 +1208,65 @@ def _ops_checks(settings: Any, diag_dir: Path) -> dict[str, Any]:
     return ops_info
 
 
+def _sportmonks_freshness(settings: Any) -> dict[str, Any]:
+    tables = ["sm_fixtures", "sm_standings", "sm_injuries", "sm_teams"]
+    warn_hours = float(getattr(settings, "SM_FRESHNESS_WARN_HOURS", 12))
+    fail_hours = float(getattr(settings, "SM_FRESHNESS_FAIL_HOURS", 48))
+    db_path = Path(settings.DB_PATH)
+    if not db_path.exists():
+        sm_freshness_hours_max.set(float("inf"))
+        return {
+            "status": "❌",
+            "note": "DB missing",
+            "max_hours": None,
+            "per_table": {},
+        }
+    conn = sqlite3.connect(db_path)
+    ages: dict[str, float] = {}
+    status = "✅"
+    notes: list[str] = []
+    data_source = SportmonksDataSource(settings.DB_PATH)
+    try:
+        for table in tables:
+            try:
+                row = conn.execute(
+                    f"SELECT pulled_at_utc FROM {table} ORDER BY pulled_at_utc DESC LIMIT 1"
+                ).fetchone()
+            except sqlite3.Error as exc:  # pragma: no cover - defensive
+                ages[table] = float("inf")
+                status = "❌"
+                notes.append(f"{table}=error:{exc}")
+                continue
+            if not row or not row[0]:
+                ages[table] = float("inf")
+                status = "❌"
+                notes.append(f"{table}=empty")
+                continue
+            parsed = data_source._normalize_row(  # type: ignore[attr-defined]
+                {"pulled_at_utc": row[0], "payload_json": "{}"}
+            ).get("pulled_at_dt")
+            if isinstance(parsed, datetime):
+                age_hours = (datetime.now(tz=UTC) - parsed).total_seconds() / 3600
+            else:
+                age_hours = float("inf")
+            ages[table] = age_hours
+            if age_hours > fail_hours:
+                status = "❌"
+            elif age_hours > warn_hours and status == "✅":
+                status = "⚠️"
+            notes.append(f"{table}={age_hours:.1f}h")
+    finally:
+        conn.close()
+    max_age = max(ages.values()) if ages else float("inf")
+    sm_freshness_hours_max.set(max_age if math.isfinite(max_age) else 0.0)
+    return {
+        "status": status,
+        "note": "; ".join(notes),
+        "max_hours": max_age,
+        "per_table": ages,
+    }
+
+
 def _write_diagnostics_md(
     diag_dir: Path,
     statuses: dict[str, dict[str, Any]],
@@ -1376,6 +1439,10 @@ def main() -> None:
         "status": "✅",
         "note": f"health={ops_diag.get('health_response')} ready={ops_diag.get('ready_response')}",
     }
+
+    freshness_diag = _sportmonks_freshness(settings)
+    statuses["Data Freshness"] = {"status": freshness_diag["status"], "note": freshness_diag["note"]}
+    metrics["sportmonks_freshness"] = freshness_diag
 
     static_diag = _run_static_analysis(diag_dir)
     statuses["Static Analysis"] = {"status": static_diag["status"], "note": static_diag["note"]}

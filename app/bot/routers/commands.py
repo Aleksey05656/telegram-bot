@@ -85,6 +85,7 @@ def _prediction_to_item(prediction: Prediction) -> dict[str, Any]:
         "confidence": prediction.confidence,
         "expected_goals": prediction.expected_goals,
         "totals": prediction.totals,
+        "freshness_hours": prediction.freshness_hours,
     }
 
 
@@ -103,6 +104,9 @@ def _prediction_to_detail(prediction: Prediction) -> dict[str, Any]:
         "top_scores": prediction.top_scores,
         "fair_odds": prediction.fair_odds,
         "confidence": prediction.confidence,
+        "standings": prediction.standings,
+        "injuries": prediction.injuries,
+        "freshness_hours": prediction.freshness_hours,
     }
 
 
@@ -119,7 +123,35 @@ def _prediction_to_explain(prediction: Prediction) -> dict[str, Any]:
         "delta_probabilities": prediction.delta_probabilities,
         "confidence": prediction.confidence,
         "summary": prediction.summary,
+        "standings": prediction.standings,
+        "injuries": prediction.injuries,
+        "freshness_hours": prediction.freshness_hours,
     }
+
+
+def _format_freshness_badge(hours: float) -> str:
+    if hours < 1:
+        minutes = max(1, int(hours * 60))
+        return f"🟢 updated {minutes}m ago"
+    if hours <= settings.SM_FRESHNESS_WARN_HOURS:
+        return f"🟢 updated {int(hours)}h ago"
+    if hours <= settings.SM_FRESHNESS_FAIL_HOURS:
+        return f"🟡 aging {int(hours)}h"
+    return f"⚠️ stale {int(hours)}h"
+
+
+def _freshness_note(predictions: Sequence[Prediction]) -> str | None:
+    if not settings.SHOW_DATA_STALENESS:
+        return None
+    hours = [
+        float(p.freshness_hours)
+        for p in predictions
+        if isinstance(p.freshness_hours, (int, float))
+    ]
+    if not hours:
+        return None
+    worst = max(hours)
+    return _format_freshness_badge(worst)
 
 
 def _paginate(items: Sequence[Prediction], page: int, page_size: int) -> Sequence[Prediction]:
@@ -215,6 +247,7 @@ async def handle_today(message: Message, command: CommandObject) -> None:
         items=[_prediction_to_item(item) for item in slice_items],
         page=page,
         total_pages=total_pages,
+        freshness_note=_freshness_note(predictions),
     )
     observe_render_latency("today", monotonic() - render_start)
     record_command("today")
@@ -324,6 +357,7 @@ async def handle_league(message: Message, command: CommandObject) -> None:
         items=[_prediction_to_item(item) for item in slice_items],
         page=page,
         total_pages=total_pages,
+        freshness_note=_freshness_note(predictions),
     )
     observe_render_latency("league", monotonic() - render_start)
     record_command("league")

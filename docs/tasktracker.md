@@ -1,3 +1,16 @@
+## Задача: SportMonks Integrator v1
+- **Статус**: Завершена
+- **Описание**: Добавить SportMonks ETL/клиент, кэш, мэппинг, свежесть данных и интеграцию в бота.
+- **Шаги выполнения**:
+  - [x] Реализован пакет `app/data_providers/sportmonks` (client/provider/repository/metrics).
+  - [x] Добавлены таблицы `sm_*`, `map_*`, CLI `scripts/sm_sync.py` и миграция.
+  - [x] Обновлены бот (`SportmonksDataSource`, бейджи свежести), планировщик и диагностика Data Freshness.
+  - [x] Расширены документация (.env, README, changelog/tasktracker) и тесты (`tests/sm/*`, `tests/bot/test_staleness_badges.py`).
+- **Зависимости**: app/data_providers/sportmonks/*, app/data_source.py, scripts/sm_sync.py, workers/retrain_scheduler.py, app/bot/*,
+  diagtools/run_diagnostics.py, database/migrations/versions/20240917_002_add_sportmonks_tables.py, database/schema.sql,
+  .env.example, README.md, docs/changelog.md, docs/tasktracker.md, tests/sm/*, tests/bot/test_staleness_badges.py,
+  tests/model/test_features_from_sm.py
+
 ## Задача: Diagnostics v2.2 — Continuous monitoring & Chat-Ops
 - **Статус**: Завершена
 - **Описание**: Включить автоматический запуск диагностики, HTML-дэшборд, Chat-Ops и защиту от бинарников в PR.

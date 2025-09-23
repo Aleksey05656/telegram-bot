@@ -14,6 +14,8 @@ from html import escape
 from typing import Iterable, Sequence
 from zoneinfo import ZoneInfo
 
+from config import settings
+
 _CONFIDENCE_THRESHOLDS = (
     (0.65, "⬆️"),
     (0.45, "➡️"),
@@ -51,6 +53,17 @@ def _render_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
     else:
         table = "\n".join([header_line, divider, "(нет данных)"])
     return f"<pre>{escape(table)}</pre>"
+
+
+def _render_freshness(hours: float) -> str:
+    if hours < 1:
+        minutes = max(1, int(hours * 60))
+        return f"🟢 updated {minutes}m ago"
+    if hours <= settings.SM_FRESHNESS_WARN_HOURS:
+        return f"🟢 updated {int(hours)}h ago"
+    if hours <= settings.SM_FRESHNESS_FAIL_HOURS:
+        return f"🟡 aging {int(hours)}h"
+    return f"⚠️ stale {int(hours)}h"
 
 
 def _resolve_timezone(name: str) -> ZoneInfo:
@@ -106,10 +119,14 @@ def format_today_matches(
     items: Sequence[dict[str, object]],
     page: int,
     total_pages: int,
+    freshness_note: str | None = None,
 ) -> str:
     tz = _resolve_timezone(timezone)
     when = datetime.now(UTC).astimezone(tz).strftime("%Y-%m-%d %H:%M")
-    lines = [f"📅 <b>{escape(title)}</b>", f"🕒 {escape(when)} ({escape(timezone)})", ""]
+    lines = [f"📅 <b>{escape(title)}</b>", f"🕒 {escape(when)} ({escape(timezone)})"]
+    if freshness_note:
+        lines.append(freshness_note)
+    lines.append("")
     table_rows = []
     for item in items:
         match_line = f"{escape(str(item['home']))} vs {escape(str(item['away']))}"
@@ -172,6 +189,35 @@ def format_match_details(data: dict[str, object]) -> str:
         body.append(_render_table(["Счёт", "Вероятность"], score_rows))
     confidence = float(data.get("confidence", 0.5))
     body.append(f"Уровень уверенности: {_confidence_indicator(confidence)} {_fmt_percent(confidence)}")
+
+    freshness = data.get("freshness_hours")
+    if isinstance(freshness, (int, float)):
+        body.append(_render_freshness(freshness))
+
+    standings = data.get("standings", []) or []
+    if standings:
+        body.append("🏆 <b>Текущее положение</b>")
+        table_rows = [
+            (
+                escape(str(row.get("team_id"))),
+                str(row.get("position", "?")),
+                str(row.get("points", "?")),
+            )
+            for row in standings
+        ]
+        body.append(_render_table(["Команда", "Поз.", "Очки"], table_rows))
+
+    injuries = data.get("injuries", []) or []
+    if injuries:
+        body.append("🚑 <b>Травмы</b>")
+        injury_rows = [
+            (
+                escape(str(item.get("player_name"))),
+                escape(str(item.get("status", "?"))),
+            )
+            for item in injuries[:6]
+        ]
+        body.append(_render_table(["Игрок", "Статус"], injury_rows))
     return "\n".join(body)
 
 
@@ -209,6 +255,32 @@ def format_explain(payload: dict[str, object]) -> str:
     lines.append("")
     lines.append(f"Итог: {summary}")
     lines.append(f"Уверенность: {_confidence_indicator(confidence)} {_fmt_percent(confidence)}")
+    freshness = payload.get("freshness_hours")
+    if isinstance(freshness, (int, float)):
+        lines.append(_render_freshness(freshness))
+    standings = payload.get("standings", []) or []
+    if standings:
+        rows = [
+            (
+                escape(str(item.get("team_id"))),
+                str(item.get("position", "?")),
+                str(item.get("points", "?")),
+            )
+            for item in standings[:6]
+        ]
+        lines.append("🏆 Турнирная таблица:")
+        lines.append(_render_table(["Команда", "Поз.", "Очки"], rows))
+    injuries = payload.get("injuries", []) or []
+    if injuries:
+        rows = [
+            (
+                escape(str(item.get("player_name"))),
+                escape(str(item.get("status", "?"))),
+            )
+            for item in injuries[:6]
+        ]
+        lines.append("🚑 Травмы:")
+        lines.append(_render_table(["Игрок", "Статус"], rows))
     return "\n".join(lines)
 
 

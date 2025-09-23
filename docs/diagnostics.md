@@ -39,6 +39,17 @@ python -m diagtools.bench --iterations ${BENCH_ITER}
 - **Chaos / Ops** — smoke CLI, health endpoints, runtime lock exercise and backup inventory.
 - **Static Analysis & Security** — strict mypy for `app/` и `app/bot/`, `bandit`, `pip-audit` и проверка утечек секретов в логах.
 
+## SportMonks data freshness
+
+- ETL запускается через `scripts/sm_sync.py` (режимы `backfill` и `incremental`). В проде включайте live-синк только после
+  проверки лимитов: `SPORTMONKS_RPS_LIMIT`, `SPORTMONKS_TIMEOUT_SEC`, `SPORTMONKS_RETRY_ATTEMPTS`, `SPORTMONKS_BACKOFF_BASE`.
+- В `app/data_providers/sportmonks/metrics.py` публикуются метрики `sm_requests_total`, `sm_ratelimit_sleep_seconds_total`,
+  `sm_etl_rows_upserted_total`, `sm_last_sync_timestamp`, `sm_sync_failures_total`, `sm_freshness_hours_max`.
+- Диагностика `diag-run` добавляет раздел **Data Freshness** — статус WARN/FAIL вычисляется по `SM_FRESHNESS_WARN_HOURS` и
+  `SM_FRESHNESS_FAIL_HOURS`. Метрика `sm_freshness_hours_max` отражает максимальную задержку по таблицам `sm_*`.
+- При ошибках 429/5xx включается экспоненциальный бэкофф, токен-бакет и повторные попытки (`SportmonksClient`).
+- Бот показывает бейджи свежести (`SHOW_DATA_STALENESS=1`), а планировщик retrain пропускает запуск при устаревших данных.
+
 ## Continuous monitoring & Chat-Ops
 
 - Планировщик (`diagtools.scheduler`) регистрируется через `workers.runtime_scheduler.register` и по умолчанию срабатывает ежедневно в `06:00` (`DIAG_SCHEDULE_CRON=0 6 * * *`).

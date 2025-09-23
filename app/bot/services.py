@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import base64
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -30,6 +30,8 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 from config import settings
 from logger import logger
 from telegram.services import DeterministicPredictorService, SportMonksFixturesRepository
+
+from app.data_source import SportmonksDataSource
 
 from .storage import record_report
 
@@ -53,6 +55,9 @@ class Prediction:
     modifiers: list[dict[str, Any]]
     delta_probabilities: dict[str, float]
     summary: str
+    freshness_hours: float | None = None
+    standings: list[dict[str, Any]] = field(default_factory=list)
+    injuries: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PredictionFacade:
@@ -62,9 +67,11 @@ class PredictionFacade:
         self,
         fixtures_repo: SportMonksFixturesRepository | None = None,
         predictor: DeterministicPredictorService | None = None,
+        data_source: SportmonksDataSource | None = None,
     ) -> None:
         self._fixtures = fixtures_repo or SportMonksFixturesRepository()
         self._predictor = predictor or DeterministicPredictorService(self._fixtures)
+        self._data_source = data_source or SportmonksDataSource()
 
     async def today(self, target_date: date, *, league: str | None = None) -> list[Prediction]:
         fixtures = await self._fixtures.list_fixtures_for_date(target_date)
@@ -120,6 +127,15 @@ class PredictionFacade:
         deltas = self._calc_deltas(probabilities, lam_home, lam_away)
         summary = self._summarize(modifiers, deltas)
         confidence = self._confidence_from_scores(payload.get("top_scores", []))
+        try:
+            context = self._data_source.fixture_context(match_id)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("Context lookup failed", extra={"match": match_id, "error": str(exc)})
+            context = None
+        freshness = context.freshness_hours if context else None
+        standings = context.standings if context else []
+        injuries = context.injuries if context else []
+
         return Prediction(
             match_id=match_id,
             home=str(fixture.get("home", "?")),
@@ -138,6 +154,9 @@ class PredictionFacade:
             modifiers=modifiers,
             delta_probabilities=deltas,
             summary=summary,
+            freshness_hours=freshness,
+            standings=standings,
+            injuries=injuries,
         )
 
     @staticmethod

@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": 101,
+      "league_id": 8,
+      "season_id": 2024,
+      "participants": {
+        "data": [
+          {"id": 501, "meta": {"location": "home"}},
+          {"id": 502, "meta": {"location": "away"}}
+        ]
+      },
+      "starting_at": {"date_time": "2024-05-01T18:00:00+00:00"},
+      "status": "NS"
+    }
+  ]
+}

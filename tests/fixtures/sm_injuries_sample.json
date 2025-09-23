@@ -1,0 +1,11 @@
+{
+  "data": [
+    {
+      "id": 9001,
+      "fixture_id": 101,
+      "team": {"id": 501},
+      "player": {"name": "John Doe"},
+      "status": "doubtful"
+    }
+  ]
+}
