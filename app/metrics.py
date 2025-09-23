@@ -1,0 +1,113 @@
+"""
+@file: metrics.py
+@description: Prometheus metric registry and helpers.
+@dependencies: prometheus_client
+@created: 2025-09-30
+"""
+from __future__ import annotations
+
+import asyncio
+import os
+from pathlib import Path
+
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
+
+__all__ = [
+    "bot_updates_total",
+    "bot_commands_total",
+    "retrain_success_total",
+    "retrain_failure_total",
+    "db_size_bytes",
+    "queue_depth",
+    "handler_latency",
+    "start_metrics_server",
+    "update_db_size",
+    "set_queue_depth",
+    "record_command",
+    "record_update",
+    "record_retrain_success",
+    "record_retrain_failure",
+    "periodic_db_size_updater",
+]
+
+
+bot_updates_total = Counter(
+    "bot_updates_total", "Total Telegram updates handled"
+)
+bot_commands_total = Counter(
+    "bot_commands_total", "Total bot commands handled", ["cmd"]
+)
+retrain_success_total = Counter(
+    "retrain_success_total", "Successful retrain runs"
+)
+retrain_failure_total = Counter(
+    "retrain_failure_total", "Failed retrain runs"
+)
+db_size_bytes = Gauge("db_size_bytes", "SQLite file size in bytes")
+queue_depth = Gauge("queue_depth", "Internal task queue depth")
+handler_latency = Histogram(
+    "handler_latency_seconds", "Bot handler latency seconds"
+)
+
+
+def start_metrics_server(port: int) -> None:
+    """Start Prometheus HTTP server on the given port if not already running."""
+
+    start_http_server(port)
+
+
+def update_db_size(db_path: str | os.PathLike[str]) -> None:
+    """Update database size gauge for the provided SQLite path."""
+
+    try:
+        size = Path(db_path).stat().st_size
+    except FileNotFoundError:
+        size = 0
+    db_size_bytes.set(size)
+
+
+def set_queue_depth(depth: int) -> None:
+    """Publish queue depth gauge for background workers."""
+
+    queue_depth.set(max(depth, 0))
+
+
+def record_command(command: str) -> None:
+    """Increment command counter for the provided command name."""
+
+    if not command:
+        command = "unknown"
+    bot_commands_total.labels(cmd=command).inc()
+
+
+def record_update() -> None:
+    """Increment update counter."""
+
+    bot_updates_total.inc()
+
+
+def record_retrain_success() -> None:
+    """Increment retrain success counter."""
+
+    retrain_success_total.inc()
+
+
+def record_retrain_failure() -> None:
+    """Increment retrain failure counter."""
+
+    retrain_failure_total.inc()
+
+
+async def periodic_db_size_updater(
+    db_path: str | os.PathLike[str],
+    interval: float,
+    stop_event: asyncio.Event,
+) -> None:
+    """Periodically update the DB size gauge until the stop event is set."""
+
+    while not stop_event.is_set():
+        update_db_size(db_path)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            continue

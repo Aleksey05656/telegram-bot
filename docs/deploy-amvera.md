@@ -11,7 +11,7 @@
 - **amvera.yaml** описывает окружение `python/pip 3.11`, точку входа `main.py`, монтирование `/data`.
 - Все изменяемые данные (`DB_PATH`, `MODEL_REGISTRY_PATH`, `REPORTS_DIR`, `LOG_DIR`) должны находиться под `/data`.
 - Переменные окружения и секреты задаются в UI Amvera; во время сборки недоступны.
-- Для Telegram long polling добавлена задержка `BOT_STARTUP_DELAY` (2.5 c) и флаг `--dry-run` для smoke.
+- Для Telegram long polling используется флаг `STARTUP_DELAY_SEC` (по умолчанию 0 c) и флаг `--dry-run` для smoke.
 - Логи должны идти без буферизации (`PYTHONUNBUFFERED=1`).
 - Серверное время — UTC; конвертацию делайте в клиенте/репортах при необходимости.
 
@@ -31,9 +31,14 @@
 | `REPORTS_DIR` | Каталог отчётов и markdown | `/data/reports` |
 | `LOG_DIR` | Каталог логов (RotatingFileHandler) | `/data/logs` |
 | `RUNTIME_LOCK_PATH` | Путь для lock-файла единственного инстанса | `/data/runtime.lock` |
-| `ENABLE_HEALTH` | Флаг запуска встроенного `/health` | `0` |
+| `ENABLE_HEALTH` | Флаг запуска встроенных `/health` и `/ready` | `0` |
 | `HEALTH_HOST` / `HEALTH_PORT` | Адрес и порт health-сервера | `0.0.0.0` / `8080` |
-| `BOT_STARTUP_DELAY` | Задержка перед polling (секунды) | `2.5` |
+| `ENABLE_METRICS` / `METRICS_PORT` | Prometheus-метрики и порт | `0` / `8000` |
+| `STARTUP_DELAY_SEC` | Задержка перед polling (секунды) | `0` |
+| `ENABLE_POLLING` | Запуск Telegram polling | `1` |
+| `ENABLE_SCHEDULER` | Регистрация задач переобучения/обслуживания | `1` |
+| `FAILSAFE_MODE` | Отключить тяжёлые фоновые задачи (maintenance/retrain) | `0` |
+| `BACKUP_DIR` / `BACKUP_KEEP` | Каталог и глубина ротации SQLite-бэкапов | `/data/backups` / `10` |
 | `PYTHONUNBUFFERED` | Небуферизованные логи | `1` |
 | `SHUTDOWN_TIMEOUT` | Таймаут graceful shutdown (секунды) | `30` |
 | `RETRY_ATTEMPTS` / `RETRY_DELAY` / `RETRY_MAX_DELAY` / `RETRY_BACKOFF` | Параметры экспоненциальных ретраев | `3` / `1.0` / `8.0` / `2.0` |
@@ -47,6 +52,7 @@
 
 ## 4. CI и smoke-проверка
 - GitHub Actions содержит job `amvera-smoke`, который выполняет `python -m main --dry-run` c временным `DB_PATH`/`REPORTS_DIR`.
+- Дополнительная job `amvera-ops-v2-smoke` запускает `python -m main --dry-run` с включёнными `ENABLE_HEALTH=1` и `ENABLE_METRICS=1`, затем проверяет `/health`, `/ready` и `/metrics` curl-запросами.
 - Локально перед деплоем выполните:
   ```bash
   export DB_PATH=$(mktemp -u)
@@ -68,10 +74,10 @@
 - Размещение lock-файла в `/data` гарантирует совместимость с Amvera persistence.
 - Проверьте права записи, если контейнер работает под не-root пользователем.
 
-## 7. Health-probe
-- Включается переменной `ENABLE_HEALTH=1` (см. `amvera.yaml`, порт 8080).
-- Сервер отвечает на `GET /health` со статусом `200 OK` и JSON `{"status":"ok"}`; другие методы возвращают 405/404.
-- Подходит для probe из Amvera или внешнего ALB. При выключенном флаге сервер не стартует.
+## 7. Health / Readiness probes
+- Включаются переменной `ENABLE_HEALTH=1` (см. `amvera.yaml`, порт 8080).
+- `GET /health` отвечает `200 OK` пока процесс жив, а `GET /ready` возвращает `200` только после успешной инициализации SQLite, планировщика и запуска polling (`503`, если компонент ещё поднимается или остановлен).
+- При выключенном флаге сервер не стартует.
 
 ## 8. Logs & retention
 - Логгер использует `RotatingFileHandler` с ротацией 10 МБ × 5 файлов (`/data/logs/app.log` + бэкапы).
@@ -87,7 +93,7 @@
 ## 10. Отладка 429/5xx/таймаутов
 - Сетевые операции (инициализация Redis, Telegram API) обёрнуты в `retry_async` с экспоненциальным бэкоффом. Параметры изменяются через `RETRY_*`.
 - В логах видно попытки повторов (`Retrying <fn> in X.XXs`). Если превышен лимит, запись `Retry attempts exhausted` поможет локализовать узкое место.
-- Для API Telegram следите за статусами 429 — увеличьте задержку `BOT_STARTUP_DELAY` или подключите прокси.
+- Для API Telegram следите за статусами 429 — увеличьте `STARTUP_DELAY_SEC` или подключите прокси.
 - При ошибках Redis проверьте доступность `REDIS_URL` и политику firewall.
 
 ## 11. Перенос существующей SQLite
@@ -96,6 +102,9 @@
 3. В Amvera откройте **Repository → Data**, создайте каталог `data` (если нет) и загрузите файл как `bot.sqlite3`.
 4. Проверьте права доступа: файл должен принадлежать пользователю приложения и находиться по пути `/data/bot.sqlite3`.
 5. Обновите переменную `DB_PATH`, если имя файла отличается.
+6. Планировщик делает ежедневные бэкапы в `BACKUP_DIR` (по умолчанию `/data/backups`) и хранит не более `BACKUP_KEEP` файлов. Для восстановления достаточно остановить контейнер, скопировать нужный `bot-*.sqlite3` в `DB_PATH` и запустить приложение.
+7. Раз в неделю выполняется `VACUUM/ANALYZE` — операция блокирует SQLite на несколько секунд; включайте `FAILSAFE_MODE=1`, если обслуживающие задачи нужно отключить.
+8. Все соединения к SQLite открываются в режиме WAL (`journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `foreign_keys=ON`).
 
 ## 12. Сценарии доставки кода
 ### 6.1 Git push в репозиторий Amvera
@@ -124,7 +133,7 @@
 ## 15. Типовые ошибки и диагностика
 | Симптом | Причина | Диагностика |
 | --- | --- | --- |
-| `double getUpdates` / бот отключается | Несколько инстансов без задержки | Убедитесь, что `BOT_STARTUP_DELAY` > 0 и только один контейнер активен. |
+| `double getUpdates` / бот отключается | Несколько инстансов без задержки | Убедитесь, что `STARTUP_DELAY_SEC` > 0 и только один контейнер активен. |
 | `sqlite is readonly` | Файл находится вне `/data` | Проверьте переменную `DB_PATH`, права и расположение файла. |
 | Нет логов в UI | Отсутствует `PYTHONUNBUFFERED` | Установите переменную в окружении и перезапустите контейнер. |
 | Ошибки Redis | `REDIS_URL` не задан или неверный | Проверьте переменную в UI, выполните `redis-cli PING` из контейнера. |

@@ -1,7 +1,6 @@
 # @file: telegram/bot.py
 # Логика Telegram-бота: инициализация, обработчики, запуск polling.
 import asyncio
-import os
 from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
@@ -10,11 +9,16 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand
 
+from app.runtime_state import STATE
 from app.utils import retry_async
 from config import settings
 from database.cache_postgres import init_cache
 from logger import logger
-from telegram.middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
+from telegram.middlewares import (
+    IdempotencyMiddleware,
+    ProcessingTimeMiddleware,
+    RateLimitMiddleware,
+)
 
 
 class TelegramBot:
@@ -54,8 +58,11 @@ class TelegramBot:
             logger.info("✅ Кэш PostgreSQL инициализирован")
 
             self.dp = Dispatcher()
-            self.dp.message.middleware.register(RateLimitMiddleware())
-            self.dp.callback_query.middleware.register(RateLimitMiddleware())
+            message_rate = RateLimitMiddleware()
+            callback_rate = RateLimitMiddleware()
+            self.dp.message.middleware.register(message_rate)
+            self.dp.callback_query.middleware.register(callback_rate)
+            self.dp.message.middleware.register(IdempotencyMiddleware())
             timing = ProcessingTimeMiddleware()
             self.dp.message.middleware.register(timing)
             self.dp.callback_query.middleware.register(timing)
@@ -112,6 +119,7 @@ class TelegramBot:
             if settings.DEBUG_MODE:
                 logger.info("🔧 Режим отладки включен")
             self.is_running = True
+            STATE.polling_ready = True
         except TelegramAPIError as exc:
             logger.error("❌ Ошибка Telegram API при запуске: %s", exc)
         except Exception as exc:  # pragma: no cover - defensive
@@ -121,6 +129,7 @@ class TelegramBot:
         try:
             logger.info("🛑 Получен сигнал остановки бота...")
             self.is_running = False
+            STATE.polling_ready = False
             logger.info("✅ Бот остановлен")
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("❌ Ошибка при остановке бота: %s", exc)
@@ -131,11 +140,10 @@ class TelegramBot:
         shutdown_event: asyncio.Event | None = None,
     ) -> None:
         try:
-            delay_raw = os.getenv("BOT_STARTUP_DELAY", "2.5")
             try:
-                delay = max(0.0, float(delay_raw))
-            except ValueError:
-                delay = 2.5
+                delay = max(0.0, float(settings.STARTUP_DELAY_SEC))
+            except (TypeError, ValueError):
+                delay = 0.0
             if delay:
                 logger.info("⏳ Ожидание перед инициализацией бота %.2f c", delay)
                 await asyncio.sleep(delay)
@@ -215,6 +223,7 @@ class TelegramBot:
 
             self.is_initialized = False
             self.is_running = False
+            STATE.polling_ready = False
             if self._active_shutdown is None or self._active_shutdown is self._internal_shutdown:
                 self._internal_shutdown = asyncio.Event()
             self._active_shutdown = None

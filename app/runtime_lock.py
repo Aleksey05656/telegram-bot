@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import os
 import sys
 from dataclasses import dataclass
@@ -18,13 +19,21 @@ class RuntimeLockError(RuntimeError):
     """Raised when the runtime lock cannot be acquired."""
 
 
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError as exc:
+        return exc.errno == errno.EPERM
+
+
 @dataclass(slots=True)
 class RuntimeLock:
     """A cooperative filesystem lock used to guard single-instance launches."""
 
     path: Path
-    _file: Optional[IO[str]] = None
-    _loop: Optional[asyncio.AbstractEventLoop] = None
+    _file: IO[str] | None = None
+    _loop: asyncio.AbstractEventLoop | None = None
 
     async def acquire(self) -> None:
         """Acquire the runtime lock asynchronously."""
@@ -47,6 +56,21 @@ class RuntimeLock:
         await loop.run_in_executor(None, self._release_blocking)
 
     def _acquire_blocking(self) -> None:
+        if self.path.exists():
+            try:
+                text = self.path.read_text(encoding="utf-8").strip()
+                if text.startswith("pid="):
+                    stale_pid = int(text.split("=", 1)[1])
+                    if not pid_alive(stale_pid):
+                        logger.warning(
+                            "Обнаружен устаревший lock %s для pid=%s — переинициализация",
+                            self.path,
+                            stale_pid,
+                        )
+                        self.path.unlink(missing_ok=True)
+            except (ValueError, OSError):
+                # ignore malformed lock file, will be overwritten below
+                pass
         try:
             file_handle = self.path.open("w+")
         except OSError as exc:  # pragma: no cover - filesystem failure
@@ -114,7 +138,7 @@ class RuntimeLock:
             except OSError:
                 pass
 
-    async def __aenter__(self) -> "RuntimeLock":
+    async def __aenter__(self) -> RuntimeLock:
         await self.acquire()
         return self
 
@@ -122,4 +146,4 @@ class RuntimeLock:
         await self.release()
 
 
-__all__ = ["RuntimeLock", "RuntimeLockError"]
+__all__ = ["RuntimeLock", "RuntimeLockError", "pid_alive"]

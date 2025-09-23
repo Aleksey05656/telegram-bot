@@ -11,6 +11,22 @@
 - Повторный запуск сообщает о занятом lock без stack trace; корректно освобождаются ресурсы Redis/health-сервер.
 - Сигналы `SIGTERM/SIGINT` останавливают polling c соблюдением таймаута `SHUTDOWN_TIMEOUT`.
 
+## [2025-09-30] - Amvera Ops v2 readiness & maintenance
+### Добавлено
+- Эндпоинт `/ready` и `RuntimeState` для отражения готовности компонентов.
+- Prometheus-метрики бота, счётчики команд и периодическое обновление размера SQLite.
+- Ежедневные бэкапы SQLite с ротацией, недельный `VACUUM/ANALYZE` и тесты (`tests/test_db_maintenance.py`, `tests/test_readiness.py`, `tests/test_metrics_server.py`).
+- Токен-бакет для rate-limit и middleware идемпотентности команд.
+
+### Изменено
+- Основной цикл (`main.py`) стартует сервер метрик по `ENABLE_METRICS`, учитывает фиче-флаги polling/scheduler и обновляет readiness.
+- Логи маскируют секреты по ключам `*_TOKEN`, `*_KEY`, `PASSWORD` на уровне адаптера.
+- Документация (`README.md`, `docs/deploy-amvera.md`, `.env.example`) описывает `/health` vs `/ready`, фиче-флаги и регламент бэкапов.
+
+### Исправлено
+- `RuntimeLock` очищает устаревшие lock-файлы с мёртвым PID.
+- `storage/persistence.py` применяет безопасные PRAGMA на всех SQLite-соединениях.
+
 ## [2025-10-03] - Amvera deployment support
 ### Добавлено
 - Конфигурация `amvera.yaml` для окружения Python/pip 3.11 с точкой входа `main.py` и монтированием `/data`.

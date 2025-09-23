@@ -55,10 +55,14 @@ class Settings(BaseSettings):
     MODEL_REGISTRY_PATH: str = "/data/artifacts"
     REPORTS_DIR: str = "/data/reports"
     LOG_DIR: str = "/data/logs"
+    BACKUP_DIR: str = "/data/backups"
+    BACKUP_KEEP: int = 10
     RUNTIME_LOCK_PATH: str = "/data/runtime.lock"
     ENABLE_HEALTH: bool = False
     HEALTH_HOST: str = "0.0.0.0"
     HEALTH_PORT: int = 8080
+    ENABLE_METRICS: bool = False
+    METRICS_PORT: int = 8000
     SHUTDOWN_TIMEOUT: float = 30.0
 
     RETRY_ATTEMPTS: int = 3
@@ -73,6 +77,10 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_VERSION: str = "0.0.0"
     GIT_SHA: str = "dev"
+    ENABLE_POLLING: bool = True
+    ENABLE_SCHEDULER: bool = True
+    STARTUP_DELAY_SEC: float = 0.0
+    FAILSAFE_MODE: bool = False
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
@@ -144,6 +152,13 @@ class Settings(BaseSettings):
             raise ValueError("HEALTH_PORT must be between 1 and 65535")
         return v
 
+    @field_validator("METRICS_PORT")
+    @classmethod
+    def validate_metrics_port(cls, v: int) -> int:
+        if v <= 0 or v > 65535:
+            raise ValueError("METRICS_PORT must be between 1 and 65535")
+        return v
+
     @field_validator("RETRY_ATTEMPTS")
     @classmethod
     def validate_retry_attempts(cls, v: int) -> int:
@@ -193,7 +208,7 @@ class Settings(BaseSettings):
         path.parent.mkdir(parents=True, exist_ok=True)
         return str(path)
 
-    @field_validator("MODEL_REGISTRY_PATH", "REPORTS_DIR", "LOG_DIR")
+    @field_validator("MODEL_REGISTRY_PATH", "REPORTS_DIR", "LOG_DIR", "BACKUP_DIR")
     @classmethod
     def ensure_data_dir(cls, v: str):
         base = Path(v)
@@ -201,6 +216,13 @@ class Settings(BaseSettings):
             base = Path(cls.DATA_ROOT) / base
         base.mkdir(parents=True, exist_ok=True)
         return str(base)
+
+    @field_validator("BACKUP_KEEP")
+    @classmethod
+    def validate_backup_keep(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("BACKUP_KEEP must be positive")
+        return v
 
     @field_validator("RUNTIME_LOCK_PATH")
     @classmethod

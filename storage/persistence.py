@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from app.db_maintenance import apply_pragmas
+
 
 DEFAULT_DB_PATH = os.getenv("DB_PATH", "/data/bot.sqlite3")
 
@@ -42,7 +44,9 @@ class SQLitePredictionsStore:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        apply_pragmas(conn)
+        return conn
 
     def _ensure_schema(self) -> None:
         conn = self._connect()
