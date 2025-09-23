@@ -1,0 +1,25 @@
+{
+  "@file": "standings.json",
+  "@description": "Minimal Sportmonks standings payload for offline tests.",
+  "@created": "2025-02-14",
+  "data": [
+    {
+      "league_id": 8,
+      "season_id": 2024,
+      "team": {
+        "id": 501
+      },
+      "position": 1,
+      "points": 55
+    },
+    {
+      "league_id": 99,
+      "season_id": 2024,
+      "team": {
+        "id": 601
+      },
+      "position": 2,
+      "points": 44
+    }
+  ]
+}

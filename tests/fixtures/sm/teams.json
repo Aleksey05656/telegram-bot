@@ -1,0 +1,31 @@
+{
+  "@file": "teams.json",
+  "@description": "Minimal Sportmonks teams payload for offline tests.",
+  "@created": "2025-02-14",
+  "data": [
+    {
+      "id": 501,
+      "name": "Example FC",
+      "short_code": "EFC",
+      "country": {
+        "name": "England"
+      }
+    },
+    {
+      "id": 502,
+      "name": "Mock United",
+      "short_code": "MUN",
+      "country": {
+        "name": "England"
+      }
+    },
+    {
+      "id": 601,
+      "name": "Filtered Team",
+      "short_code": "FLT",
+      "country": {
+        "name": "England"
+      }
+    }
+  ]
+}

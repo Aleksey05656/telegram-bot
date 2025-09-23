@@ -1,3 +1,29 @@
+# [2025-02-15] - Offline dependency stubs
+### Добавлено
+- Текстовые заглушки `pydantic`, `pydantic_settings`, `httpx`, `prometheus_client`, `aiogram`, `redis`, `rq` для запуска оффлайн-тестов.
+- Asyncio-раннер в `tests/conftest.py` и вспомогательные билдеры клавиатур для aiogram.
+
+### Изменено
+- `SportmonksProvider` игнорирует фикстуры без идентификаторов лиги и хранит ETag по endpoint без параметров.
+- Тесты свежести коммитят тестовые данные SQLite для корректной оценки порогов.
+
+### Исправлено
+- `diagtools.freshness` и bot-сервисы теперь импортируются без внешних зависимостей; pytest-сценарии используют локальный event loop.
+
+# [2025-02-14] - SportMonks offline QA
+### Добавлено
+- Текстовые фикстуры `tests/fixtures/sm/*.json`, оффлайн-режим `scripts/sm_sync.py --dry-run` и CSV отчёт о коллизиях команд в `reports/diagnostics/`.
+- Комплект тестов SportMonks: `tests/sm/test_windows.py`, `tests/sm/test_retry_rps.py`, `tests/sm/test_etag_cache.py`, `tests/sm/test_allowlist.py`, `tests/sm/test_mapping_collisions.py`, `tests/sm/test_upsert_idempotent.py`, а также `tests/model/test_features_ingestion.py`, обновлённый `tests/bot/test_staleness_badges.py` и `tests/ops/test_freshness_gate.py`.
+- CLI `python -m diagtools.freshness` и сводка свежести по лигам в Markdown/JSON отчётах диагностики.
+
+### Изменено
+- `SportmonksProvider` и `scripts/sm_sync.py` используют ETag/Last-Modified, строгую фильтрацию по allowlist и dry-run без сети.
+- README и `docs/diagnostics.md` описывают оффлайн-тесты, включение ETag и метрики `sm_*`; бот отображает бейджи `🟢/⚠️`.
+
+### Исправлено
+- Метрики `sm_requests_total`/`sm_ratelimit_sleep_seconds_total` покрывают ретраи и лимиты; `sm_freshness_hours_max` обновляется при диагностике.
+- Диагностика свежести отдаёт статусы OK/WARN/FAIL и корректные exit-коды для CI.
+
 # [2025-10-14] - SportMonks ingest v1
 ### Добавлено
 - Асинхронный клиент `app/data_providers/sportmonks` с ретраями, токен-бакетом и DTO.

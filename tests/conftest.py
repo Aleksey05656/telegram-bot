@@ -1,10 +1,11 @@
 """
 @file: tests/conftest.py
-@description: Pytest fixtures with numpy/pandas guard
-@dependencies: app/config.py, tests/conftest_np_guard.py
+@description: Pytest fixtures with numpy/pandas guard and asyncio fallback runner
+@dependencies: app/config.py, tests/conftest_np_guard.py, asyncio
 @created: 2025-09-10
 """
 
+import asyncio
 import os
 import pathlib
 import sys
@@ -44,3 +45,23 @@ def _defaults_env(monkeypatch):
     monkeypatch.setenv("APP_NAME", os.getenv("APP_NAME", "ml-service"))
     monkeypatch.setenv("DEBUG", os.getenv("DEBUG", "false"))
     return
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """Execute async test functions via a local event loop if pytest-asyncio is unavailable."""
+
+    test_obj = pyfuncitem.obj
+    if asyncio.iscoroutinefunction(test_obj):
+        argnames = getattr(pyfuncitem._fixtureinfo, "argnames", ())
+        kwargs = {name: pyfuncitem.funcargs[name] for name in argnames}
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(test_obj(**kwargs))
+        finally:
+            loop.close()
+        return True
+    return None
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "asyncio: mark async test for the local loop runner")

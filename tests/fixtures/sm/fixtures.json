@@ -1,0 +1,67 @@
+{
+  "@file": "fixtures.json",
+  "@description": "Minimal Sportmonks fixtures payload for offline tests.",
+  "@created": "2025-02-14",
+  "data": [
+    {
+      "id": 101,
+      "league_id": 8,
+      "season_id": 2024,
+      "starting_at": "2025-02-14T18:00:00Z",
+      "status": "NS",
+      "participants": {
+        "data": [
+          {
+            "id": 501,
+            "meta": {
+              "location": "home"
+            }
+          },
+          {
+            "id": 502,
+            "meta": {
+              "location": "away"
+            }
+          }
+        ]
+      },
+      "league": {
+        "id": 8,
+        "name": "Premier League"
+      },
+      "season": {
+        "id": 2024
+      }
+    },
+    {
+      "id": 202,
+      "league_id": 99,
+      "season_id": 2024,
+      "starting_at": "2025-02-15T20:00:00Z",
+      "status": "NS",
+      "participants": {
+        "data": [
+          {
+            "id": 601,
+            "meta": {
+              "location": "home"
+            }
+          },
+          {
+            "id": 602,
+            "meta": {
+              "location": "away"
+            }
+          }
+        ]
+      },
+      "league": {
+        "id": 99,
+        "name": "Filtered League"
+      },
+      "season": {
+        "id": 2024
+      }
+    }
+  ]
+}

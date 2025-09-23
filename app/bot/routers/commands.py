@@ -130,14 +130,16 @@ def _prediction_to_explain(prediction: Prediction) -> dict[str, Any]:
 
 
 def _format_freshness_badge(hours: float) -> str:
-    if hours < 1:
-        minutes = max(1, int(hours * 60))
-        return f"🟢 updated {minutes}m ago"
-    if hours <= settings.SM_FRESHNESS_WARN_HOURS:
+    warn = float(settings.SM_FRESHNESS_WARN_HOURS)
+    fail = float(settings.SM_FRESHNESS_FAIL_HOURS)
+    if hours <= warn:
+        if hours < 1:
+            minutes = max(1, int(hours * 60))
+            return f"🟢 updated {minutes}m ago"
         return f"🟢 updated {int(hours)}h ago"
-    if hours <= settings.SM_FRESHNESS_FAIL_HOURS:
-        return f"🟡 aging {int(hours)}h"
-    return f"⚠️ stale {int(hours)}h"
+    if hours <= fail:
+        return f"⚠️ stale {int(hours)}h (warn)"
+    return f"⚠️ stale {int(hours)}h (fail)"
 
 
 def _freshness_note(predictions: Sequence[Prediction]) -> str | None:

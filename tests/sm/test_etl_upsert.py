@@ -110,6 +110,7 @@ def test_repository_upserts_without_duplicates(tmp_path: Path) -> None:
             injury_id=100,
             fixture_id=1,
             team_id=10,
+            league_id=8,
             player_name="John Doe",
             status="doubtful",
             payload={"player_name": "John Doe"},

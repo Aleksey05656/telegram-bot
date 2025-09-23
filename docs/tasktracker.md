@@ -1,3 +1,22 @@
+## Задача: SportMonks offline QA hardening
+- **Статус**: Завершена
+- **Описание**: Обеспечить оффлайн-тестирование SportMonks, ETag-кеш, отчёты по свежести и автоматические гейты.
+- **Шаги выполнения**:
+  - [x] Добавлены фикстуры `tests/fixtures/sm/*.json`, dry-run для `scripts/sm_sync.py` и CSV отчёт по коллизиям команд.
+  - [x] Реализован `SportmonksETagCache`, фильтрация allowlist и расширенный `SportmonksProvider`/ботовые бейджи.
+  - [x] Добавлены тесты (`tests/sm/test_*`, `tests/model/test_features_ingestion.py`, `tests/bot/test_staleness_badges.py`, `tests/ops/test_freshness_gate.py`).
+  - [x] CLI `diagtools.freshness`, секция лиг в отчётах и обновлённые README/diagnostics/.env.example/changelog/tasktracker.
+- **Зависимости**: scripts/sm_sync.py, app/data_providers/sportmonks/{cache.py,provider.py,schemas.py}, app/bot/routers/commands.py, diagtools/freshness.py, diagtools/run_diagnostics.py, tests/sm/*, tests/model/test_features_ingestion.py, tests/bot/test_staleness_badges.py, tests/ops/test_freshness_gate.py, docs/diagnostics.md, README, .env.example, docs/changelog.md, docs/tasktracker.md.
+
+## Задача: Offline dependency stubs for SportMonks QA
+- **Статус**: Завершена
+- **Описание**: Заменить недостающие зависимости (pydantic/httpx/aiogram/prometheus_client/redis/rq) текстовыми заглушками и адаптировать тесты к оффлайн-режиму.
+- **Шаги выполнения**:
+  - [x] Добавлены stubs `pydantic`, `pydantic_settings`, `httpx`, `prometheus_client`, `aiogram`, `redis`, `rq` с необходимыми интерфейсами.
+  - [x] Расширен `tests/conftest.py` для поддержки async-тестов без pytest-asyncio и обновлены билдеры клавиатур aiogram.
+  - [x] Ужесточён парсинг матчей (`SportmonksProvider`), ключи ETag и фиксация данных свежести в тестах.
+- **Зависимости**: pydantic/*, pydantic_settings/*, httpx/*, prometheus_client/*, aiogram/*, redis/*, rq/*, app/bot/services.py, app/data_providers/sportmonks/{provider.py,cache.py}, tests/{conftest.py,ops/test_freshness_gate.py}, docs/changelog.md, docs/tasktracker.md.
+
 ## Задача: SportMonks Integrator v1
 - **Статус**: Завершена
 - **Описание**: Добавить SportMonks ETL/клиент, кэш, мэппинг, свежесть данных и интеграцию в бота.

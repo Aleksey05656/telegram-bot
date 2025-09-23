@@ -107,6 +107,13 @@
 - Кеширование тяжёлых команд реализовано на in-memory LRU (`app/bot/caching.py`), invalidate — `/admin reload`.
 - Экспорт PNG использует `matplotlib>=3.8` (без GUI, backend Agg).
 
+### SportMonks оффлайн-режим и метрики
+
+- `scripts/sm_sync.py --dry-run` запускает полный пайплайн без сети, подставляя фикстуры из `tests/fixtures/sm/*.json` и сохраняя отчёты о коллизиях в `reports/diagnostics/`.
+- Для регресса интеграции в CI и локально: `pytest tests/sm tests/model/test_features_ingestion.py tests/bot/test_staleness_badges.py tests/ops/test_freshness_gate.py`.
+- ETag/Last-Modified кешируются в SQLite (`sm_meta`) при включённом `SPORTMONKS_CACHE_TTL_SEC>0`, запросы автоматически шлют `If-None-Match`.
+- Метрики Prometheus: `sm_requests_total{endpoint,status}`, `sm_ratelimit_sleep_seconds_total`, `sm_freshness_hours_max` (пороговые 12/48 ч управляются `SM_FRESHNESS_WARN_HOURS` и `SM_FRESHNESS_FAIL_HOURS`).
+
 ------------------------------------------------------------------------
 
 ## Методология трёхуровневой модели

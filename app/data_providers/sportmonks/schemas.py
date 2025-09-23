@@ -39,6 +39,7 @@ class InjuryPayload(TypedDict, total=False):
     id: int
     fixture_id: int | None
     team_id: int | None
+    league_id: int | None
     player_name: str | None
     status: str | None
     position: str | None
@@ -89,6 +90,7 @@ class InjuryDTO:
     injury_id: int
     fixture_id: int | None
     team_id: int | None
+    league_id: int | None
     player_name: str
     status: str | None
     payload: InjuryPayload

@@ -1,0 +1,31 @@
+{
+  "@file": "injuries.json",
+  "@description": "Minimal Sportmonks injuries payload for offline tests.",
+  "@created": "2025-02-14",
+  "data": [
+    {
+      "id": 9001,
+      "fixture_id": 101,
+      "league_id": 8,
+      "team": {
+        "id": 501
+      },
+      "player": {
+        "name": "Jane Doe"
+      },
+      "status": "questionable"
+    },
+    {
+      "id": 9002,
+      "fixture_id": 202,
+      "league_id": 99,
+      "team": {
+        "id": 601
+      },
+      "player": {
+        "name": "Filtered Player"
+      },
+      "status": "fit"
+    }
+  ]
+}
