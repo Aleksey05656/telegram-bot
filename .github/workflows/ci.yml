@@ -97,6 +97,8 @@ jobs:
           LOG_DIR: ${{ runner.temp }}/amvera/logs
           MODEL_REGISTRY_PATH: ${{ runner.temp }}/amvera/artifacts
           PYTHONUNBUFFERED: "1"
+          ENABLE_HEALTH: "1"
+          HEALTH_PORT: "8080"
         run: |
           mkdir -p "$REPORTS_DIR" "$LOG_DIR" "$MODEL_REGISTRY_PATH"
           python -m main --dry-run

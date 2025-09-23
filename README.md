@@ -13,6 +13,14 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
+## Reliability snapshot
+
+- **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).
+- **Graceful shutdown** — `SIGTERM`/`SIGINT` останавливают polling через `TelegramBot.stop()` с таймаутом `SHUTDOWN_TIMEOUT`.
+- **Health-probe** — опциональный сервер `/health` включается `ENABLE_HEALTH=1` (порт 8080, см. `amvera.yaml`).
+- **Логи** — ротация 10 МБ×5 в `/data/logs/app.log`, stdout в logfmt, JSON для файлов.
+- **ENV-контракт** — `.env.example` синхронизирован с кодом (pytest `tests/test_env_contract.py`).
+
 ## Quick start
 
 ```bash

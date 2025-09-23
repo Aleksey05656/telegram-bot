@@ -1,3 +1,13 @@
+## Задача: Hardening Pack v1
+- **Статус**: Завершена
+- **Описание**: Обеспечить единственный инстанс, graceful shutdown, health-probe и контракт окружения.
+- **Шаги выполнения**:
+  - [x] Добавлены `app/runtime_lock.py`, health-сервер и универсальный `retry_async`.
+  - [x] Обновлены `main.py`, `telegram/bot.py`, `logger.py`, `.env.example`, `amvera.yaml` и CI smoke.
+  - [x] Дополнена документация (`README.md`, `docs/deploy-amvera.md`) и введены тесты (`tests/test_runtime_lock.py`, `tests/test_env_contract.py`, `tests/test_data_paths.py`).
+  - [x] Протоколированы изменения в changelog и tasktracker.
+- **Зависимости**: main.py, telegram/bot.py, logger.py, app/runtime_lock.py, app/health.py, app/utils/retry.py, .env.example, amvera.yaml, docs/deploy-amvera.md, README.md, docs/changelog.md, .github/workflows/ci.yml, tests/test_runtime_lock.py, tests/test_env_contract.py, tests/test_data_paths.py, docs/tasktracker.md
+
 ## Задача: Amvera — подготовка к деплою
 - **Статус**: В процессе
 - **Описание**: Перевести бот на требования Amvera: хранить данные в `/data`, добавить `amvera.yaml`, smoke-проверку и документацию.

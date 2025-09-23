@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     MODEL_REGISTRY_PATH: str = "/data/artifacts"
     REPORTS_DIR: str = "/data/reports"
     LOG_DIR: str = "/data/logs"
+    RUNTIME_LOCK_PATH: str = "/data/runtime.lock"
+    ENABLE_HEALTH: bool = False
+    HEALTH_HOST: str = "0.0.0.0"
+    HEALTH_PORT: int = 8080
+    SHUTDOWN_TIMEOUT: float = 30.0
+
+    RETRY_ATTEMPTS: int = 3
+    RETRY_DELAY: float = 1.0
+    RETRY_MAX_DELAY: float = 8.0
+    RETRY_BACKOFF: float = 2.0
     # === КОНЕЦ НОВЫХ ПАРАМЕТРОВ ===
 
     # --- Application Settings ---
@@ -127,6 +137,27 @@ class Settings(BaseSettings):
             raise ValueError(f"CALIBRATION_METHOD must be one of {allowed_methods}")
         return v
 
+    @field_validator("HEALTH_PORT")
+    @classmethod
+    def validate_health_port(cls, v: int) -> int:
+        if v <= 0 or v > 65535:
+            raise ValueError("HEALTH_PORT must be between 1 and 65535")
+        return v
+
+    @field_validator("RETRY_ATTEMPTS")
+    @classmethod
+    def validate_retry_attempts(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("RETRY_ATTEMPTS must be >= 0")
+        return v
+
+    @field_validator("RETRY_DELAY", "RETRY_MAX_DELAY", "RETRY_BACKOFF")
+    @classmethod
+    def validate_retry_numbers(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Retry timing parameters must be positive")
+        return v
+
     @field_validator("CACHE_VERSION")
     @classmethod
     def validate_cache_version(cls, v: str) -> str:
@@ -170,6 +201,15 @@ class Settings(BaseSettings):
             base = Path(cls.DATA_ROOT) / base
         base.mkdir(parents=True, exist_ok=True)
         return str(base)
+
+    @field_validator("RUNTIME_LOCK_PATH")
+    @classmethod
+    def ensure_lock_path(cls, v: str) -> str:
+        path = Path(v)
+        if not path.is_absolute():
+            path = Path(cls.DATA_ROOT) / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return str(path)
 
     # --- Конфигурация Pydantic ---
     model_config = {
