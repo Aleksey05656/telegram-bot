@@ -1,9 +1,10 @@
 """
-"""
-@file: token_bucket.py
-@description: Simple token bucket rate limiter utility.
-@dependencies: time
-@created: 2025-09-30
+/**
+ * @file: telegram/utils/token_bucket.py
+ * @description: Simple token bucket rate limiter utility.
+ * @dependencies: time
+ * @created: 2025-09-30
+ */
 """
 from __future__ import annotations
 

@@ -1,0 +1,1082 @@
+"""
+/**
+ * @file: tools/run_diagnostics.py
+ * @description: End-to-end diagnostics harness for Telegram bot, ML models and ops glue.
+ * @dependencies: argparse, asyncio, json, math, os, pathlib, statistics, subprocess, textwrap,
+ *                 pandas, numpy, matplotlib, seaborn, sklearn
+ * @created: 2025-10-07
+ */
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import dataclasses
+import hashlib
+import json
+import math
+import os
+import re
+import statistics
+import subprocess
+import sys
+import textwrap
+import time
+from collections import Counter, defaultdict
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Iterable
+
+import numpy as np
+import pandas as pd
+try:
+    from matplotlib import pyplot as plt
+    from matplotlib.ticker import PercentFormatter
+
+    HAS_MPL = True
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in CI
+    plt = None  # type: ignore[assignment]
+    PercentFormatter = None  # type: ignore[assignment]
+    HAS_MPL = False
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from sklearn.calibration import calibration_curve
+from sklearn.linear_model import Ridge
+from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.model_selection import TimeSeriesSplit
+
+# Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
+
+
+@contextmanager
+def _temp_env(overrides: dict[str, str] | None = None) -> Iterable[None]:
+    env = os.environ.copy()
+    overrides = overrides or {}
+    try:
+        os.environ.update(overrides)
+        yield
+    finally:
+        # Удаляем ключи, которых не было ранее
+        for key in overrides:
+            if key in env:
+                os.environ[key] = env[key]
+            else:
+                os.environ.pop(key, None)
+
+
+def _load_settings() -> Any:
+    from config import settings
+
+    return settings
+
+
+def _resolve_reports_dir(settings: Any, override: str | None = None) -> Path:
+    base = Path(override or settings.REPORTS_DIR)
+    base.mkdir(parents=True, exist_ok=True)
+    diag_dir = base / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+    return diag_dir
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run diagnostics suite and persist artifacts")
+    parser.add_argument(
+        "--reports-dir",
+        type=str,
+        default=None,
+        help="Override reports directory (defaults to settings.REPORTS_DIR)",
+    )
+    parser.add_argument(
+        "--pytest",
+        action="store_true",
+        help="Re-run pytest even if diagnostics already invoked inside CI",
+    )
+    parser.add_argument(
+        "--skip-smoke",
+        action="store_true",
+        help="Skip smoke run (useful when running inside constrained CI job)",
+    )
+    return parser.parse_args()
+
+
+def _collect_entry_flags() -> dict[str, Any]:
+    import inspect
+    import main as main_module
+
+    source = inspect.getsource(main_module.parse_args)
+    flags = sorted(set(re.findall(r"\"--([\w-]+)\"", source)))
+    return {
+        "entry_point": "python -m main",
+        "script": str(Path(main_module.__file__).resolve()),
+        "flags": flags,
+    }
+
+
+def _collect_env_contract(root: Path) -> dict[str, Any]:
+    env_example = root / ".env.example"
+    example_keys: set[str] = set()
+    for line in env_example.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        if "=" in raw:
+            key = raw.split("=", 1)[0].strip()
+            if key:
+                example_keys.add(key)
+
+    import ast
+
+    getenv_keys: set[str] = set()
+    for py_path in root.rglob("*.py"):
+        try:
+            tree = ast.parse(py_path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                    if func.value.id == "os" and func.attr in {"getenv"}:
+                        if node.args and isinstance(node.args[0], ast.Constant):
+                            getenv_keys.add(str(node.args[0].value))
+                    if func.value.id == "os" and func.attr == "environ":
+                        # os.environ.get("FOO")
+                        if node.attr == "get" and node.args and isinstance(node.args[0], ast.Constant):
+                            getenv_keys.add(str(node.args[0].value))
+                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Call):
+                    # например Path(os.getenv("FOO"))
+                    inner = func.value
+                    if (
+                        isinstance(inner.func, ast.Attribute)
+                        and isinstance(inner.func.value, ast.Name)
+                        and inner.func.value.id == "os"
+                        and inner.func.attr == "getenv"
+                        and inner.args
+                        and isinstance(inner.args[0], ast.Constant)
+                    ):
+                        getenv_keys.add(str(inner.args[0].value))
+
+    from config import Settings
+
+    settings_fields = set(Settings.model_fields.keys())
+    return {
+        "example_keys": sorted(example_keys),
+        "getenv_keys": sorted(getenv_keys),
+        "settings_fields": sorted(settings_fields),
+        "missing_in_example": sorted(getenv_keys - example_keys),
+        "extra_in_example": sorted(example_keys - (getenv_keys | settings_fields)),
+        "settings_only": sorted(settings_fields - example_keys),
+    }
+
+
+def _ensure_paths(settings: Any) -> list[str]:
+    paths = [
+        ("DB_PATH", Path(settings.DB_PATH).resolve()),
+        ("REPORTS_DIR", Path(settings.REPORTS_DIR).resolve()),
+        ("MODEL_REGISTRY_PATH", Path(settings.MODEL_REGISTRY_PATH).resolve()),
+        ("LOG_DIR", Path(settings.LOG_DIR).resolve()),
+        ("BACKUP_DIR", Path(settings.BACKUP_DIR).resolve()),
+        ("RUNTIME_LOCK_PATH", Path(settings.RUNTIME_LOCK_PATH).resolve()),
+    ]
+    notes: list[str] = []
+    for label, path in paths:
+        target = path if path.is_dir() else path.parent
+        target.mkdir(parents=True, exist_ok=True)
+        notes.append(f"{label} -> {path}")
+    return notes
+
+
+def _run_subprocess(
+    cmd: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    log_path: Path | None = None,
+    timeout: int | None = None,
+) -> tuple[int, str, str]:
+    result = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if log_path:
+        log_path.write_text(result.stdout + "\n" + result.stderr, encoding="utf-8")
+    return result.returncode, result.stdout, result.stderr
+
+
+def _run_pytest(diag_dir: Path, env: dict[str, str]) -> dict[str, Any]:
+    log_path = diag_dir / "pytest.log"
+    code, stdout, stderr = _run_subprocess([sys.executable, "-m", "pytest", "-q"], env=env, log_path=log_path)
+    return {
+        "returncode": code,
+        "stdout_tail": "\n".join(stdout.splitlines()[-10:]),
+        "stderr_tail": "\n".join(stderr.splitlines()[-10:]),
+        "log": str(log_path),
+    }
+
+
+def _run_smoke(diag_dir: Path, env: dict[str, str]) -> dict[str, Any]:
+    log_path = diag_dir / "smoke.log"
+    cmd = [
+        sys.executable,
+        "-m",
+        "main",
+        "--dry-run",
+    ]
+    code, stdout, stderr = _run_subprocess(cmd, env=env, log_path=log_path, timeout=300)
+    notes = []
+    for marker in ("/health", "/ready"):
+        if marker in stdout or marker in stderr:
+            notes.append(f"log contains {marker}")
+    return {
+        "returncode": code,
+        "stdout_tail": "\n".join(stdout.splitlines()[-10:]),
+        "stderr_tail": "\n".join(stderr.splitlines()[-10:]),
+        "log": str(log_path),
+        "notes": notes,
+    }
+
+
+@dataclass
+class LevelAMetrics:
+    folds: list[dict[str, float]]
+    best_alpha: float
+    feature_ranking: list[tuple[str, float]]
+    lambda_stats: dict[str, float]
+    artifact: Path
+
+
+def _simulate_dataset(n_rows: int = 180, seed: int = 20240920) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2023-08-01", periods=n_rows, freq="D")
+    leagues = rng.choice(["EPL", "LaLiga", "SerieA", "Bundesliga"], size=n_rows)
+    home_team = rng.integers(100, 200, size=n_rows)
+    away_team = rng.integers(200, 300, size=n_rows)
+    rest_home = rng.integers(2, 8, size=n_rows)
+    rest_away = rng.integers(2, 8, size=n_rows)
+    motivation = rng.normal(0.0, 0.4, size=n_rows)
+    fatigue = rng.normal(0.0, 0.3, size=n_rows)
+    injuries = rng.normal(0.0, 0.2, size=n_rows)
+    home_xg = rng.gamma(2.0, 0.7, size=n_rows)
+    away_xg = rng.gamma(2.1, 0.6, size=n_rows)
+    home_xga = rng.gamma(2.0, 0.5, size=n_rows)
+    away_xga = rng.gamma(2.2, 0.45, size=n_rows)
+    ppda_home = rng.normal(10, 2, size=n_rows)
+    ppda_away = rng.normal(10.5, 2, size=n_rows)
+    oppda_home = rng.normal(12, 2.5, size=n_rows)
+    oppda_away = rng.normal(11.5, 2.5, size=n_rows)
+    mismatch_home = rng.normal(0, 1, size=n_rows)
+    mismatch_away = rng.normal(0, 1, size=n_rows)
+    z_att_home = rng.normal(0, 1, size=n_rows)
+    z_att_away = rng.normal(0, 1, size=n_rows)
+    z_def_home = rng.normal(0, 1, size=n_rows)
+    z_def_away = rng.normal(0, 1, size=n_rows)
+
+    lambda_home = np.clip(
+        1.1
+        + 0.4 * (home_xg - away_xga)
+        + 0.08 * motivation
+        - 0.12 * fatigue
+        - 0.05 * injuries
+        + 0.03 * z_att_home
+        - 0.04 * z_def_away,
+        0.3,
+        4.5,
+    )
+    lambda_away = np.clip(
+        0.9
+        + 0.35 * (away_xg - home_xga)
+        + 0.06 * (-motivation)
+        - 0.1 * (-fatigue)
+        - 0.04 * injuries
+        + 0.04 * z_att_away
+        - 0.03 * z_def_home,
+        0.2,
+        4.0,
+    )
+    goals_home = rng.poisson(lambda_home)
+    goals_away = rng.poisson(lambda_away)
+
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "league_id": leagues,
+            "home_team_id": home_team,
+            "away_team_id": away_team,
+            "home_rest_days": rest_home,
+            "away_rest_days": rest_away,
+            "motivation": motivation,
+            "fatigue": fatigue,
+            "injuries": injuries,
+            "home_km_trip": rng.uniform(10, 600, size=n_rows),
+            "away_km_trip": rng.uniform(10, 600, size=n_rows),
+            "home_xg": home_xg,
+            "away_xg": away_xg,
+            "home_xga": home_xga,
+            "away_xga": away_xga,
+            "home_ppda": ppda_home,
+            "away_ppda": ppda_away,
+            "home_oppda": oppda_home,
+            "away_oppda": oppda_away,
+            "home_mismatch": mismatch_home,
+            "away_mismatch": mismatch_away,
+            "home_league_zscore_attack": z_att_home,
+            "away_league_zscore_attack": z_att_away,
+            "home_league_zscore_defense": z_def_home,
+            "away_league_zscore_defense": z_def_away,
+            "home_goals": goals_home,
+            "away_goals": goals_away,
+            "lambda_home_true": lambda_home,
+            "lambda_away_true": lambda_away,
+        }
+    )
+    return df
+
+
+def _poisson_1x2_prob(lambda_home: np.ndarray, lambda_away: np.ndarray) -> np.ndarray:
+    max_goals = 10
+    probs = np.zeros((lambda_home.size, 3))
+    for idx, (lam_h, lam_a) in enumerate(zip(lambda_home, lambda_away)):
+        pmf_cache: dict[int, float] = {}
+        total_prob = 0.0
+        home = 0.0
+        draw = 0.0
+        away = 0.0
+        for h in range(max_goals + 1):
+            pmf_h = math.exp(-lam_h) * lam_h**h / math.factorial(h)
+            pmf_cache[h] = pmf_h
+        for a in range(max_goals + 1):
+            pmf_a = math.exp(-lam_a) * lam_a**a / math.factorial(a)
+            for h, pmf_h in pmf_cache.items():
+                prob = pmf_h * pmf_a
+                total_prob += prob
+                if h > a:
+                    home += prob
+                elif h == a:
+                    draw += prob
+                else:
+                    away += prob
+        probs[idx] = [home, draw, away]
+        if total_prob < 0.999:
+            # Нормализация на случай обрезания хвостов
+            probs[idx] = probs[idx] / max(total_prob, 1e-9)
+    return probs
+
+
+def _safe_log_loss(outcomes: np.ndarray, probs: np.ndarray) -> float:
+    clipped = np.clip(probs, 1e-9, 1 - 1e-9)
+    clipped = clipped / clipped.sum(axis=1, keepdims=True)
+    return float(log_loss(outcomes, clipped, labels=[0, 1, 2]))
+
+
+def _multiclass_brier(y_true: np.ndarray, probs: np.ndarray) -> float:
+    one_hot = np.eye(3)[y_true]
+    return float(np.mean(np.sum((probs - one_hot) ** 2, axis=1)))
+
+
+def _train_level_a(df: pd.DataFrame, diag_dir: Path) -> LevelAMetrics:
+    features = [
+        "home_rest_days",
+        "away_rest_days",
+        "home_xg",
+        "away_xg",
+        "home_xga",
+        "away_xga",
+        "home_ppda",
+        "away_ppda",
+        "home_oppda",
+        "away_oppda",
+        "home_league_zscore_attack",
+        "away_league_zscore_attack",
+        "home_league_zscore_defense",
+        "away_league_zscore_defense",
+        "motivation",
+        "fatigue",
+        "injuries",
+    ]
+    X = df[features].to_numpy()
+    y_home = df["home_goals"].to_numpy()
+    y_away = df["away_goals"].to_numpy()
+    log_y_home = np.log1p(y_home)
+    log_y_away = np.log1p(y_away)
+    folds: list[dict[str, float]] = []
+    coefs_home: list[np.ndarray] = []
+    coefs_away: list[np.ndarray] = []
+    lambda_preds_home = np.zeros_like(y_home, dtype=float)
+    lambda_preds_away = np.zeros_like(y_away, dtype=float)
+    tscv = TimeSeriesSplit(n_splits=4, test_size=max(10, len(df) // 8))
+    alphas = np.geomspace(0.001, 0.5, num=5)
+    best_alpha = None
+    best_score = float("inf")
+    for alpha in alphas:
+        cv_scores = []
+        lambda_cv_home = np.zeros_like(y_home, dtype=float)
+        lambda_cv_away = np.zeros_like(y_away, dtype=float)
+        for fold_id, (train_idx, test_idx) in enumerate(tscv.split(X)):
+            model_home = Ridge(alpha=alpha)
+            model_away = Ridge(alpha=alpha)
+            model_home.fit(X[train_idx], log_y_home[train_idx])
+            model_away.fit(X[train_idx], log_y_away[train_idx])
+            preds_home = np.clip(np.expm1(model_home.predict(X[test_idx])), 0.1, 6.0)
+            preds_away = np.clip(np.expm1(model_away.predict(X[test_idx])), 0.1, 6.0)
+            lambda_cv_home[test_idx] = preds_home
+            lambda_cv_away[test_idx] = preds_away
+            probs = _poisson_1x2_prob(preds_home, preds_away)
+            outcomes = np.where(y_home[test_idx] > y_away[test_idx], 0, np.where(y_home[test_idx] == y_away[test_idx], 1, 2))
+            fold_logloss = _safe_log_loss(outcomes, probs)
+            fold_brier = _multiclass_brier(outcomes, probs)
+            cv_scores.append(fold_logloss)
+            if alpha == alphas[0]:
+                # Сохраняем коэффициенты только для первой итерации, далее усредним после выбора alpha.
+                pass
+        mean_score = float(np.mean(cv_scores))
+        if mean_score < best_score:
+            best_score = mean_score
+            best_alpha = float(alpha)
+            lambda_preds_home = lambda_cv_home
+            lambda_preds_away = lambda_cv_away
+
+    if best_alpha is None:
+        best_alpha = float(alphas[0])
+
+    # Повторно прогоняем с лучшим alpha, чтобы собрать fold-метрики и коэффициенты
+    for fold_id, (train_idx, test_idx) in enumerate(tscv.split(X)):
+        model_home = Ridge(alpha=best_alpha)
+        model_away = Ridge(alpha=best_alpha)
+        model_home.fit(X[train_idx], log_y_home[train_idx])
+        model_away.fit(X[train_idx], log_y_away[train_idx])
+        preds_home = np.clip(np.expm1(model_home.predict(X[test_idx])), 0.1, 6.0)
+        preds_away = np.clip(np.expm1(model_away.predict(X[test_idx])), 0.1, 6.0)
+        probs = _poisson_1x2_prob(preds_home, preds_away)
+        outcomes = np.where(y_home[test_idx] > y_away[test_idx], 0, np.where(y_home[test_idx] == y_away[test_idx], 1, 2))
+        fold_logloss = _safe_log_loss(outcomes, probs)
+        fold_brier = _multiclass_brier(outcomes, probs)
+        folds.append({"fold": fold_id, "logloss": fold_logloss, "brier": fold_brier})
+        coefs_home.append(model_home.coef_)
+        coefs_away.append(model_away.coef_)
+
+    coef_mean = (np.mean(coefs_home, axis=0) + np.mean(coefs_away, axis=0)) / 2
+    feature_ranking = sorted(zip(features, np.abs(coef_mean)), key=lambda item: item[1], reverse=True)
+    lambda_stats = {
+        "lambda_home_mean": float(np.mean(lambda_preds_home)),
+        "lambda_away_mean": float(np.mean(lambda_preds_away)),
+        "lambda_home_std": float(np.std(lambda_preds_home)),
+        "lambda_away_std": float(np.std(lambda_preds_away)),
+        "mae_home": float(np.mean(np.abs(lambda_preds_home - df["lambda_home_true"].to_numpy()))),
+        "mae_away": float(np.mean(np.abs(lambda_preds_away - df["lambda_away_true"].to_numpy()))),
+    }
+
+    artifact = diag_dir / "level_a_predictions.csv"
+    export_df = df.copy()
+    export_df["lambda_home_hat"] = lambda_preds_home
+    export_df["lambda_away_hat"] = lambda_preds_away
+    export_df.to_csv(artifact, index=False)
+
+    return LevelAMetrics(folds=folds, best_alpha=best_alpha, feature_ranking=feature_ranking, lambda_stats=lambda_stats, artifact=artifact)
+
+
+@dataclass
+class LevelBMetrics:
+    monotonic_checks: dict[str, float]
+    ablation: dict[str, Any]
+    artifact: Path
+
+
+def _train_modifiers(df: pd.DataFrame, level_a: LevelAMetrics, diag_dir: Path) -> LevelBMetrics:
+    from ml.modifiers_model import ModifiersModel
+
+    feature_cols = ["motivation", "fatigue", "injuries"]
+    X = df[feature_cols]
+    lam_home_base = df["lambda_home_true"].to_numpy()
+    lam_away_base = df["lambda_away_true"].to_numpy()
+    y_home = np.clip(lam_home_base * (1 + 0.05 * df["motivation"].to_numpy()), 0.2, 5.0)
+    y_away = np.clip(lam_away_base * (1 - 0.04 * df["motivation"].to_numpy()), 0.2, 5.0)
+
+    model = ModifiersModel(alpha=0.5).fit(X, y_home, y_away)
+    lam_home_mod, lam_away_mod = model.transform(level_a.lambda_stats["lambda_home_mean"] * np.ones_like(y_home), level_a.lambda_stats["lambda_away_mean"] * np.ones_like(y_away), X)
+
+    monotonic_checks = {}
+    for feature, sign in {"motivation": 1, "fatigue": -1, "injuries": -1}.items():
+        feature_values = X[feature].to_numpy()
+        if hasattr(statistics, "correlation"):
+            try:
+                corr_home = statistics.correlation(feature_values, lam_home_mod)
+            except statistics.StatisticsError:
+                corr_home = 0.0
+        else:
+            corr_home = float(np.corrcoef(feature_values, lam_home_mod)[0, 1])
+            if np.isnan(corr_home):
+                corr_home = 0.0
+        monotonic_checks[f"home_{feature}"] = float(corr_home * sign)
+
+    probs_base = _poisson_1x2_prob(level_a.lambda_stats["lambda_home_mean"] * np.ones_like(y_home), level_a.lambda_stats["lambda_away_mean"] * np.ones_like(y_away))
+    outcomes = np.where(df["home_goals"] > df["away_goals"], 0, np.where(df["home_goals"] == df["away_goals"], 1, 2))
+    logloss_base = _safe_log_loss(outcomes, probs_base)
+
+    lam_home_adj = lam_home_mod
+    lam_away_adj = lam_away_mod
+    probs_mod = _poisson_1x2_prob(lam_home_adj, lam_away_adj)
+    logloss_mod = _safe_log_loss(outcomes, probs_mod)
+    brier_base = _multiclass_brier(outcomes, probs_base)
+    brier_mod = _multiclass_brier(outcomes, probs_mod)
+
+    artifact = diag_dir / "level_b_modifiers.csv"
+    pd.DataFrame(
+        {
+            "motivation": X["motivation"],
+            "fatigue": X["fatigue"],
+            "injuries": X["injuries"],
+            "lambda_home_mod": lam_home_adj,
+            "lambda_away_mod": lam_away_adj,
+        }
+    ).to_csv(artifact, index=False)
+
+    return LevelBMetrics(
+        monotonic_checks=monotonic_checks,
+        ablation={
+            "logloss_base": float(logloss_base),
+            "logloss_mod": float(logloss_mod),
+            "brier_base": float(brier_base),
+            "brier_mod": float(brier_mod),
+        },
+        artifact=artifact,
+    )
+
+
+@dataclass
+class LevelCMetrics:
+    markets: dict[str, float]
+    top_scores: list[tuple[str, float]]
+    calibration: dict[str, Any]
+    artifacts: dict[str, str]
+
+
+def _simulate_level_c(df: pd.DataFrame, diag_dir: Path) -> LevelCMetrics:
+    from ml.montecarlo_simulator import simulate
+
+    lam_home = df["lambda_home_true"].iloc[:50].mean()
+    lam_away = df["lambda_away_true"].iloc[:50].mean()
+    sim_result = simulate(5000, lambda_home=lam_home, lambda_away=lam_away, seed=20240920, top_n=10)
+
+    totals = df["home_goals"] + df["away_goals"]
+    over25 = (totals > 2.5).astype(int)
+    probs_over = np.clip(df["lambda_home_true"] + df["lambda_away_true"], 0, 8) / 8
+    frac_pos, mean_pred = calibration_curve(over25, probs_over, n_bins=8, strategy="quantile")
+
+    artifacts: dict[str, str] = {}
+    if HAS_MPL and plt is not None:
+        rel_path = diag_dir / "reliability_over25.png"
+        plt.figure(figsize=(6, 4))
+        plt.plot(mean_pred, frac_pos, marker="o", label="Model")
+        plt.plot([0, 1], [0, 1], linestyle="--", label="Perfect")
+        plt.title("Reliability — Over 2.5 Goals")
+        plt.xlabel("Predicted probability")
+        plt.ylabel("Observed frequency")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(rel_path)
+        plt.close()
+        artifacts["reliability"] = str(rel_path)
+
+        totals_path = diag_dir / "totals_distribution.png"
+        plt.figure(figsize=(6, 4))
+        plt.hist(totals, bins=range(0, 9), edgecolor="black")
+        if PercentFormatter is not None:
+            plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=len(totals)))
+        plt.title("Distribution of Total Goals")
+        plt.xlabel("Total goals")
+        plt.ylabel("Frequency")
+        plt.tight_layout()
+        plt.savefig(totals_path)
+        plt.close()
+        artifacts["totals"] = str(totals_path)
+
+        heatmap_path = diag_dir / "scorelines_heatmap.png"
+        matrix = np.zeros((6, 6))
+        for score, prob in sim_result.top_scorelines:
+            home, away = map(int, score.split("-"))
+            if home < 6 and away < 6:
+                matrix[home, away] = prob
+        plt.figure(figsize=(5, 4))
+        plt.imshow(matrix, cmap="magma")
+        plt.colorbar(label="Probability")
+        plt.title("Top scorelines heatmap")
+        plt.xlabel("Away goals")
+        plt.ylabel("Home goals")
+        plt.tight_layout()
+        plt.savefig(heatmap_path)
+        plt.close()
+        artifacts["scorelines"] = str(heatmap_path)
+
+        gain_path = diag_dir / "gain_chart.png"
+        preds = probs_over
+        actual = over25
+        order = np.argsort(preds)[::-1]
+        gains = np.cumsum(actual[order]) / max(1, actual.sum())
+        plt.figure(figsize=(6, 4))
+        plt.plot(np.linspace(0, 1, len(gains)), gains, label="Model")
+        plt.plot([0, 1], [0, 1], linestyle="--", label="Random")
+        plt.title("Gain chart — Over 2.5")
+        plt.xlabel("Fraction of samples")
+        plt.ylabel("Recall")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(gain_path)
+        plt.close()
+        artifacts["gain"] = str(gain_path)
+    else:
+        artifacts = {key: "" for key in ("reliability", "totals", "scorelines", "gain")}
+
+    fair_prices = {k: round(1.0 / v, 2) if v > 0 else float("inf") for k, v in {
+        "1": sim_result.home_win,
+        "X": sim_result.draw,
+        "2": sim_result.away_win,
+        "BTTS": sim_result.btts,
+    }.items()}
+
+    return LevelCMetrics(
+        markets={
+            "home_win": sim_result.home_win,
+            "draw": sim_result.draw,
+            "away_win": sim_result.away_win,
+            "over_2_5": sim_result.over_2_5,
+            "over_3_5": sim_result.over_3_5,
+            "btts": sim_result.btts,
+            "fair_prices": fair_prices,
+        },
+        top_scores=sim_result.top_scorelines,
+        calibration={
+            "over25_curve": {
+                "pred": mean_pred.tolist(),
+                "observed": frac_pos.tolist(),
+            }
+        },
+        artifacts=artifacts,
+    )
+
+
+def _backtest_metrics(df: pd.DataFrame, diag_dir: Path) -> dict[str, Any]:
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df["season_week"] = df["date"].dt.isocalendar().week
+    df["league"] = df["league_id"]
+    df["total_goals"] = df["home_goals"] + df["away_goals"]
+    df["btts"] = (df["home_goals"] > 0) & (df["away_goals"] > 0)
+    df["over25"] = df["total_goals"] > 2
+    df["outcome"] = np.where(df["home_goals"] > df["away_goals"], 0, np.where(df["home_goals"] == df["away_goals"], 1, 2))
+
+    preds = _poisson_1x2_prob(df["lambda_home_true"].to_numpy(), df["lambda_away_true"].to_numpy())
+    logloss_val = _safe_log_loss(df["outcome"].to_numpy(), preds)
+    brier_val = _multiclass_brier(df["outcome"], preds)
+    roc_btts = roc_auc_score(df["btts"].astype(int), preds[:, 0] + preds[:, 2])
+    roc_over = roc_auc_score(df["over25"].astype(int), preds[:, 0] + preds[:, 2])
+
+    summary_rows = []
+    for (league, week), group in df.groupby(["league", "season_week"]):
+        probs = _poisson_1x2_prob(group["lambda_home_true"].to_numpy(), group["lambda_away_true"].to_numpy())
+        row = {
+            "league": league,
+            "week": int(week),
+            "matches": len(group),
+            "logloss": _safe_log_loss(group["outcome"].to_numpy(), probs),
+            "brier": _multiclass_brier(group["outcome"], probs),
+            "roc_btts": roc_auc_score(group["btts"].astype(int), probs[:, 0] + probs[:, 2]) if group["btts"].nunique() > 1 else float("nan"),
+            "roc_over": roc_auc_score(group["over25"].astype(int), probs[:, 0] + probs[:, 2]) if group["over25"].nunique() > 1 else float("nan"),
+        }
+        summary_rows.append(row)
+
+    csv_path = diag_dir / "backtest_summary.csv"
+    pd.DataFrame(summary_rows).to_csv(csv_path, index=False)
+
+    return {
+        "aggregate": {
+            "logloss": float(logloss_val),
+            "brier": float(brier_val),
+            "roc_auc_btts": float(roc_btts),
+            "roc_auc_over": float(roc_over),
+        },
+        "csv": str(csv_path),
+    }
+
+
+def _bot_emulation(diag_dir: Path, settings: Any) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    from app.bot.formatting import (
+        format_about,
+        format_explain,
+        format_help,
+        format_match_details,
+        format_settings,
+        format_start,
+        format_today_matches,
+    )
+    from app.bot.keyboards import match_details_keyboard, today_keyboard
+    from app.bot.services import Prediction
+    from app.bot.storage import ensure_schema, list_reports, record_report
+
+    ensure_schema()
+    now = datetime.now(UTC)
+    sample_prediction = Prediction(
+        match_id=4242,
+        home="Sample FC",
+        away="Mock Town",
+        league="EPL",
+        kickoff=now,
+        markets={"1x2": {"home": 0.51, "draw": 0.27, "away": 0.22}},
+        totals={"2.5": {"over": 0.61, "under": 0.39}},
+        btts={"yes": 0.58, "no": 0.42},
+        top_scores=[{"score": "2:1", "probability": 0.13}, {"score": "1:1", "probability": 0.11}],
+        lambda_home=1.45,
+        lambda_away=1.12,
+        expected_goals=2.57,
+        fair_odds={"home": 1.96, "draw": 3.7, "away": 4.55},
+        confidence=0.68,
+        modifiers=[{"name": "Мотивация", "delta": 0.05, "impact": 0.04}],
+        delta_probabilities={"home": 0.04, "draw": -0.01, "away": -0.03},
+        summary="Форма хозяев выше среднего, защита гостей проседает.",
+    )
+
+    timings = {}
+
+    def _timeit(label: str, func: Callable[[], str]) -> str:
+        start = time.perf_counter()
+        result = func()
+        timings[label] = time.perf_counter() - start
+        return result
+
+    html_start = _timeit("/start", lambda: format_start("ru", "Europe/Moscow", ["/start", "/today"]))
+    html_help = _timeit("/help", format_help)
+    today_item = {
+        "id": sample_prediction.match_id,
+        "home": sample_prediction.home,
+        "away": sample_prediction.away,
+        "league": sample_prediction.league,
+        "kickoff": sample_prediction.kickoff,
+        "markets": sample_prediction.markets,
+        "confidence": sample_prediction.confidence,
+        "totals": sample_prediction.totals,
+        "expected_goals": sample_prediction.expected_goals,
+    }
+    html_today = _timeit(
+        "/today",
+        lambda: format_today_matches(
+            title="Матчи дня",
+            timezone="Europe/Moscow",
+            items=[today_item],
+            page=1,
+            total_pages=1,
+        ),
+    )
+    html_match = _timeit(
+        "/match",
+        lambda: format_match_details(
+            {
+                "fixture": {
+                    "id": sample_prediction.match_id,
+                    "home": sample_prediction.home,
+                    "away": sample_prediction.away,
+                    "league": sample_prediction.league,
+                    "kickoff": sample_prediction.kickoff,
+                },
+                "markets": sample_prediction.markets,
+                "totals": sample_prediction.totals,
+                "both_teams_to_score": sample_prediction.btts,
+                "top_scores": sample_prediction.top_scores,
+                "fair_odds": sample_prediction.fair_odds,
+                "confidence": sample_prediction.confidence,
+            }
+        ),
+    )
+    html_explain = _timeit(
+        "/explain",
+        lambda: format_explain(
+            {
+                "id": sample_prediction.match_id,
+                "fixture": {"home": sample_prediction.home, "away": sample_prediction.away},
+                "lambda_home": sample_prediction.lambda_home,
+                "lambda_away": sample_prediction.lambda_away,
+                "modifiers": sample_prediction.modifiers,
+                "delta_probabilities": sample_prediction.delta_probabilities,
+                "confidence": sample_prediction.confidence,
+                "summary": sample_prediction.summary,
+            }
+        ),
+    )
+    html_settings = _timeit("/settings", lambda: format_settings({"tz": "Europe/Moscow", "lang": "ru"}))
+    html_about = _timeit(
+        "/about",
+        lambda: format_about(
+            {
+                "version": settings.APP_VERSION,
+                "environment": settings.APP_ENV,
+                "cache_ttl": settings.CACHE_TTL_SECONDS,
+            }
+        ),
+    )
+
+    keyboard_today = today_keyboard([today_item], query_hash="abc123", page=1, total_pages=1)
+    keyboard_match = match_details_keyboard(
+        match_id=sample_prediction.match_id,
+        query_hash="abc123",
+        page=1,
+    )
+
+    record_report("diag-report", match_id=sample_prediction.match_id, path="/tmp/report.csv")
+    reports = list_reports()
+
+    html_payloads = {
+        "start": html_start,
+        "help": html_help,
+        "today": html_today,
+        "match": html_match,
+        "explain": html_explain,
+        "settings": html_settings,
+        "about": html_about,
+    }
+    html_lengths = {key: len(value) for key, value in html_payloads.items()}
+
+    artifact_path = diag_dir / "bot_payloads.json"
+    artifact_path.write_text(json.dumps(html_payloads, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {
+        "latency": {key: round(value * 1000, 2) for key, value in timings.items()},
+        "html_lengths": html_lengths,
+        "reports": reports,
+        "keyboards": {
+            "today_buttons": len(keyboard_today.inline_keyboard),
+            "match_buttons": len(keyboard_match.inline_keyboard),
+        },
+        "payloads_artifact": str(artifact_path),
+        "cache_ttl": getattr(settings, "CACHE_TTL_SECONDS", None),
+    }
+
+
+def _ops_checks(settings: Any, diag_dir: Path) -> dict[str, Any]:
+    from app.health import HealthServer
+    from app.runtime_lock import RuntimeLock
+    from app.runtime_state import STATE
+
+    health = HealthServer(settings.HEALTH_HOST, settings.HEALTH_PORT)
+    lock = RuntimeLock(Path(settings.RUNTIME_LOCK_PATH))
+    ops_info = {}
+
+    async def _exercise_health() -> None:
+        await health.start()
+        await asyncio.sleep(0.05)
+        reader, writer = await asyncio.open_connection(settings.HEALTH_HOST, settings.HEALTH_PORT)
+        writer.write(b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        await writer.drain()
+        data = await reader.read(512)
+        writer.close()
+        await writer.wait_closed()
+        ops_info["health_response"] = data.decode("utf-8", errors="ignore").splitlines()[0]
+        STATE.db_ready = True
+        STATE.polling_ready = True
+        STATE.scheduler_ready = True
+        reader2, writer2 = await asyncio.open_connection(settings.HEALTH_HOST, settings.HEALTH_PORT)
+        writer2.write(b"GET /ready HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        await writer2.drain()
+        data_ready = await reader2.read(512)
+        writer2.close()
+        await writer2.wait_closed()
+        ops_info["ready_response"] = data_ready.decode("utf-8", errors="ignore").splitlines()[0]
+        await health.stop()
+
+    async def _exercise_lock() -> None:
+        await lock.acquire()
+        held = Path(settings.RUNTIME_LOCK_PATH).exists()
+        await lock.release()
+        ops_info["runtime_lock"] = held
+
+    async def _runner() -> None:
+        await _exercise_health()
+        await _exercise_lock()
+
+    asyncio.run(_runner())
+
+    backups = list(Path(settings.BACKUP_DIR).glob("*.sqlite3"))
+    ops_info["backups"] = [str(p) for p in backups]
+    return ops_info
+
+
+def _write_diagnostics_md(
+    diag_dir: Path,
+    statuses: dict[str, dict[str, Any]],
+    context: dict[str, Any],
+    metrics: dict[str, Any],
+) -> Path:
+    lines = ["# Diagnostics Summary", ""]
+    lines.append("| Section | Status | Notes |")
+    lines.append("| --- | --- | --- |")
+    for section, payload in statuses.items():
+        status = payload.get("status", "⚠️")
+        note = payload.get("note", "")
+        lines.append(f"| {section} | {status} | {note} |")
+    lines.extend(["", "## Context", ""])
+    lines.append("```json")
+    lines.append(json.dumps(context, ensure_ascii=False, indent=2))
+    lines.append("```")
+    lines.extend(["", "## Metrics Snapshot", ""])
+    lines.append("```json")
+    lines.append(json.dumps(metrics, ensure_ascii=False, indent=2))
+    lines.append("```")
+    path = diag_dir / "DIAGNOSTICS.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def _write_diagnostics_json(
+    diag_dir: Path,
+    context: dict[str, Any],
+    metrics: dict[str, Any],
+    statuses: dict[str, dict[str, Any]],
+) -> Path:
+    payload = {
+        "context": context,
+        "metrics": metrics,
+        "statuses": statuses,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    path = diag_dir / "diagnostics_report.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def main() -> None:
+    args = _parse_args()
+    repo_root = Path(__file__).resolve().parents[1]
+    with _temp_env({"PYTHONUNBUFFERED": "1", "SPORTMONKS_STUB": "1", "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", "stub-token"), "ODDS_API_KEY": os.getenv("ODDS_API_KEY", "stub-odds")}):
+        settings = _load_settings()
+    diag_dir = _resolve_reports_dir(settings, args.reports_dir)
+
+    statuses: dict[str, dict[str, Any]] = {}
+    metrics: dict[str, Any] = {}
+
+    entry = _collect_entry_flags()
+    env_contract = _collect_env_contract(repo_root)
+    statuses["ENV"] = {
+        "status": "✅" if not env_contract["missing_in_example"] else "⚠️",
+        "note": f"missing_in_example={env_contract['missing_in_example']} extra={env_contract['extra_in_example']}",
+    }
+    path_notes = _ensure_paths(settings)
+    statuses["Paths"] = {"status": "✅", "note": "; ".join(path_notes)}
+
+    base_env = os.environ.copy()
+    base_env.update(
+        {
+            "PYTHONUNBUFFERED": "1",
+            "SPORTMONKS_STUB": "1",
+            "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", "stub-token"),
+            "ODDS_API_KEY": os.getenv("ODDS_API_KEY", "stub-odds"),
+        }
+    )
+
+    if args.pytest:
+        pytest_result = _run_pytest(diag_dir, base_env)
+        statuses["Tests"] = {
+            "status": "✅" if pytest_result["returncode"] == 0 else "❌",
+            "note": f"rc={pytest_result['returncode']} log={pytest_result['log']}",
+        }
+        metrics["pytest"] = pytest_result
+
+    if not args.skip_smoke:
+        smoke_env = base_env.copy()
+        smoke_env.update(
+            {
+                "ENABLE_HEALTH": "1",
+                "ENABLE_POLLING": "0",
+                "ENABLE_SCHEDULER": "0",
+            }
+        )
+        smoke = _run_smoke(diag_dir, smoke_env)
+        statuses["Smoke"] = {
+            "status": "✅" if smoke["returncode"] == 0 else "❌",
+            "note": f"rc={smoke['returncode']} log={smoke['log']}",
+        }
+        metrics["smoke"] = smoke
+
+    dataset = _simulate_dataset()
+    dataset_hash = hashlib.sha256(pd.util.hash_pandas_object(dataset, index=True).values).hexdigest()
+    level_a = _train_level_a(dataset, diag_dir)
+    statuses["Model Level A"] = {
+        "status": "✅",
+        "note": f"alpha={level_a.best_alpha} folds={len(level_a.folds)}",
+    }
+
+    level_b = _train_modifiers(dataset, level_a, diag_dir)
+    statuses["Model Level B"] = {
+        "status": "✅",
+        "note": f"Δlogloss={level_b.ablation['logloss_mod'] - level_b.ablation['logloss_base']:.4f}",
+    }
+
+    level_c = _simulate_level_c(dataset, diag_dir)
+    statuses["Model Level C"] = {"status": "✅", "note": f"home_win={level_c.markets['home_win']:.3f}"}
+
+    backtest = _backtest_metrics(dataset, diag_dir)
+    statuses["Backtest"] = {
+        "status": "✅",
+        "note": f"logloss={backtest['aggregate']['logloss']:.3f} brier={backtest['aggregate']['brier']:.3f}",
+    }
+
+    bot_diag = _bot_emulation(diag_dir, settings)
+    statuses["Bot UX"] = {
+        "status": "✅",
+        "note": f"latency_ms≈{statistics.mean(bot_diag['latency'].values()):.1f}",
+    }
+
+    ops_diag = _ops_checks(settings, diag_dir)
+    statuses["Ops"] = {
+        "status": "✅",
+        "note": f"health={ops_diag.get('health_response')} ready={ops_diag.get('ready_response')}",
+    }
+
+    level_a_dict = dataclasses.asdict(level_a)
+    level_a_dict["artifact"] = str(level_a.artifact)
+    level_b_dict = dataclasses.asdict(level_b)
+    level_b_dict["artifact"] = str(level_b.artifact)
+
+    metrics.update(
+        {
+            "dataset_hash": dataset_hash,
+            "env_contract": env_contract,
+            "level_a": level_a_dict,
+            "level_b": level_b_dict,
+            "level_c": {
+                "markets": level_c.markets,
+                "top_scores": level_c.top_scores,
+                "calibration": level_c.calibration,
+                "artifacts": level_c.artifacts,
+            },
+            "backtest": backtest,
+            "bot": bot_diag,
+            "ops": ops_diag,
+        }
+    )
+
+    context = {
+        "entry": entry,
+        "reports_dir": str(diag_dir),
+        "settings_snapshot": {
+            "DB_PATH": settings.DB_PATH,
+            "REPORTS_DIR": settings.REPORTS_DIR,
+            "MODEL_REGISTRY_PATH": settings.MODEL_REGISTRY_PATH,
+        },
+    }
+
+    diag_md = _write_diagnostics_md(diag_dir, statuses, context, metrics)
+    diag_json = _write_diagnostics_json(diag_dir, context, metrics, statuses)
+    print("Diagnostics complete")
+    print(f"Markdown report: {diag_md}")
+    print(f"JSON report: {diag_json}")
+
+
+if __name__ == "__main__":
+    main()
