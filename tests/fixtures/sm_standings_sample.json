@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "league_id": 8,
+      "season_id": 2024,
+      "team": {"id": 501},
+      "position": 1,
+      "points": 78
+    },
+    {
+      "league_id": 8,
+      "season_id": 2024,
+      "team": {"id": 502},
+      "position": 2,
+      "points": 74
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "data": [
+    {"id": 501, "name": "Sample FC", "country": {"name": "England"}},
+    {"id": 502, "name": "Mock United", "country": {"name": "England"}}
+  ]
+}

@@ -51,6 +51,24 @@ class Settings(BaseSettings):
     env: str = Field(default="local", alias="ENV")
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     sportmonks_api_key: str = Field(default="", alias="SPORTMONKS_API_KEY")
+    sportmonks_api_token: str = Field(default="", alias="SPORTMONKS_API_TOKEN")
+    sportmonks_base_url: str = Field(
+        default="https://api.sportmonks.com/v3/football", alias="SPORTMONKS_BASE_URL"
+    )
+    sportmonks_timeout_sec: float = Field(default=10.0, alias="SPORTMONKS_TIMEOUT_SEC")
+    sportmonks_retry_attempts: int = Field(default=4, alias="SPORTMONKS_RETRY_ATTEMPTS")
+    sportmonks_backoff_base: float = Field(default=0.5, alias="SPORTMONKS_BACKOFF_BASE")
+    sportmonks_rps_limit: float = Field(default=3.0, alias="SPORTMONKS_RPS_LIMIT")
+    sportmonks_default_timewindow_days: int = Field(
+        default=7, alias="SPORTMONKS_DEFAULT_TIMEWINDOW_DAYS"
+    )
+    sportmonks_leagues_allowlist: tuple[str, ...] = Field(
+        default_factory=tuple, alias="SPORTMONKS_LEAGUES_ALLOWLIST"
+    )
+    sportmonks_cache_ttl_sec: int = Field(default=900, alias="SPORTMONKS_CACHE_TTL_SEC")
+    show_data_staleness: bool = Field(default=False, alias="SHOW_DATA_STALENESS")
+    sm_freshness_warn_hours: int = Field(default=12, alias="SM_FRESHNESS_WARN_HOURS")
+    sm_freshness_fail_hours: int = Field(default=48, alias="SM_FRESHNESS_FAIL_HOURS")
     retrain_cron: str | None = Field(default=None, alias="RETRAIN_CRON")
     sentry: SentrySettings = SentrySettings()
     prometheus: PrometheusSettings = PrometheusSettings()
@@ -60,6 +78,17 @@ class Settings(BaseSettings):
     sim_rho: float = Field(default=0.1, alias="SIM_RHO")
     sim_n: int = Field(default=10000, alias="SIM_N")
     sim_chunk: int = Field(default=100000, alias="SIM_CHUNK")
+
+    @field_validator("sportmonks_leagues_allowlist", mode="before")
+    @classmethod
+    def _split_allowlist(cls, value: tuple[str, ...] | str | None) -> tuple[str, ...]:
+        if value is None:
+            return tuple()
+        if isinstance(value, tuple):
+            return value
+        if not value:
+            return tuple()
+        return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
 @lru_cache(1)

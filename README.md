@@ -175,14 +175,24 @@ Control parameters via environment variables:
 
 ## SportMonks stub mode
 
-Режим заглушки включается, если установить `SPORTMONKS_STUB=1` или оставить `SPORTMONKS_API_KEY`
-пустым/`dummy`. Для реального API необходимо задать ключ и выставить `SPORTMONKS_STUB=0`.
+Режим заглушки включается, если установить `SPORTMONKS_STUB=1` или оставить `SPORTMONKS_API_TOKEN`
+пустым/`dummy`. Для реального API необходимо задать токен и выставить `SPORTMONKS_STUB=0`. Клиент
+использует асинхронные запросы с бэкоффом и лимитами RPS.
 
 ## Key environment variables
 
 - `TELEGRAM_BOT_TOKEN` — токен Telegram-бота.
-- `SPORTMONKS_API_KEY` — ключ API SportMonks.
+- `SPORTMONKS_API_KEY` — legacy ключ SportMonks (совместимость).
+- `SPORTMONKS_API_TOKEN` — Bearer-токен SportMonks v3.
+- `SPORTMONKS_BASE_URL` — базовый URL API (по умолчанию `https://api.sportmonks.com/v3/football`).
+- `SPORTMONKS_TIMEOUT_SEC`, `SPORTMONKS_RETRY_ATTEMPTS`, `SPORTMONKS_BACKOFF_BASE` — параметры таймаутов и ретраев.
+- `SPORTMONKS_RPS_LIMIT` — лимит запросов в секунду (token bucket).
+- `SPORTMONKS_DEFAULT_TIMEWINDOW_DAYS` — окно для инкрементальных синков (сегодня ± N дней).
+- `SPORTMONKS_LEAGUES_ALLOWLIST` — разрешённые лиги через запятую.
+- `SPORTMONKS_CACHE_TTL_SEC` — TTL для кэша HTTP-ответов.
 - `SPORTMONKS_STUB` — `1` включает заглушечные ответы SportMonks.
+- `SM_FRESHNESS_WARN_HOURS` / `SM_FRESHNESS_FAIL_HOURS` — пороги свежести для диагностики и CI-гейта.
+- `SHOW_DATA_STALENESS` — при `1` бот показывает бейджи свежести данных.
 - `MODEL_REGISTRY_PATH` — каталог LocalModelRegistry (по умолчанию `/data/artifacts`).
 - `REPORTS_DIR` — каталог для Markdown отчётов и снимков CI (по умолчанию `/data/reports`).
 - `LOG_DIR` — каталог JSON-логов приложения (по умолчанию `/data/logs`).
@@ -219,6 +229,23 @@ python scripts/validate_modifiers.py --season-id 23855 --input data/val.csv --al
 В job `numeric` выполняется CLI проверки модификаторов. Шаг завершается с ошибкой,
 если `logloss` ухудшился больше `TOL_LOSS` или `ece` больше `TOL_ECE`.
 Значения по умолчанию берутся из переменных окружения `TOL_LOSS` и `TOL_ECE`.
+
+## SportMonks ETL
+
+CLI `scripts/sm_sync.py` реализует backfill и инкрементальные синки данных:
+
+```bash
+python scripts/sm_sync.py --mode backfill --from 2024-05-01 --to 2024-05-05 --leagues EPL,LaLiga
+python scripts/sm_sync.py --mode incremental --window-days ${SPORTMONKS_DEFAULT_TIMEWINDOW_DAYS}
+```
+
+Pipeline выполняет шаги fetch → validate → map → upsert → метрики. Данные записываются в
+таблицы `sm_fixtures`, `sm_teams`, `sm_standings`, `sm_injuries`, а служебная информация —
+в `sm_meta`, `map_teams`, `map_leagues`. Метрики Prometheus: `sm_requests_total`,
+`sm_ratelimit_sleep_seconds_total`, `sm_etl_rows_upserted_total`, `sm_last_sync_timestamp`,
+`sm_sync_failures_total`, `sm_freshness_hours_max`. Диагностика `diagtools.run_diagnostics`
+добавляет раздел **Data Freshness**, а `workers.retrain_scheduler` пропускает переобучение,
+если данные старше `SM_FRESHNESS_WARN_HOURS`/`SM_FRESHNESS_FAIL_HOURS`.
 
 
 ## Тесты без NumPy/Pandas (офлайн/прокси)

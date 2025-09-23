@@ -1,3 +1,16 @@
+# [2025-10-14] - SportMonks ingest v1
+### Добавлено
+- Асинхронный клиент `app/data_providers/sportmonks` с ретраями, токен-бакетом и DTO.
+- SQLite-репозиторий, CLI `scripts/sm_sync.py`, метрики Prometheus и таблицы `sm_*`, `map_*`.
+- Диагностика свежести данных и комплект юнит-тестов (`tests/sm/*`, `tests/bot/test_staleness_badges.py`).
+
+### Изменено
+- Бот отображает бейджи свежести, контекст матчей и использует `SportmonksDataSource`.
+- Планировщик переобучения пропускает запуск при устаревших данных; README описывает ETL и новые ENV.
+
+### Исправлено
+- —
+
 # [2025-10-12] - Diagnostics v2.1 packaging & drift gate
 ### Добавлено
 - Пакет `diagtools` с CLI-энтрипойнтами `diag-run` и `diag-drift`, избавляющими от `sys.path` хака и упрощающими запуск из CI.
