@@ -1,3 +1,19 @@
+# [2025-09-23] - Product v1 bot commands
+### Добавлено
+- Пакет `app/bot` с кешированием, форматированием, inline-клавиатурами и SQLite-хранилищем предпочтений.
+- Новые aiogram-роутеры (`commands.py`, `callbacks.py`) с поддержкой `/today`, `/match`, `/explain`, `/league`, `/subscribe`, `/export`, `/about`, `/admin`.
+- Генерация CSV и PNG отчётов (`PredictionFacade.generate_csv/png`), таблицы `user_prefs`, `subscriptions`, `reports` в `database/schema.sql`.
+- Документация `docs/user_guide.md`, `docs/dev_guide.md`, тесты `tests/bot/*`, метрики `bot_digest_sent_total`, `render_latency_seconds`.
+
+### Изменено
+- README, `.env.example`, `docs/Project.md` обновлены под архитектуру Product v1 и ENV (`PAGINATION_PAGE_SIZE`, `CACHE_TTL_SECONDS`, `ADMIN_IDS`, `DIGEST_DEFAULT_TIME`).
+- `telegram/handlers/__init__.py` подключает новый root-router `build_bot_router()`.
+- `config.Settings` валидирует новые параметры, `requirements.txt` включает `matplotlib>=3.8`.
+
+### Исправлено
+- Устранены дубли команд: старые роутеры исключены из регистрации, кеш очистки вынесен в `/admin reload`.
+- Тестовый контракт `.env` расширен, чтобы избежать пропуска новых ключей окружения.
+
 # [2025-10-05] - Hardening Pack v1
 ### Добавлено
 - Модуль `app/runtime_lock.py`, health-сервер и универсальный `retry_async` с тестами `tests/test_runtime_lock.py`, `tests/test_env_contract.py`, `tests/test_data_paths.py`.

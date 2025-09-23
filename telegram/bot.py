@@ -90,17 +90,20 @@ class TelegramBot:
             raise
 
     async def _set_bot_commands(self) -> None:
-        if not self.bot:
-            return
+            if not self.bot:
+                return
         try:
             commands = [
                 BotCommand(command="start", description="Начало работы"),
-                BotCommand(command="help", description="Справка и команды"),
-                BotCommand(command="model", description="Версия модели"),
+                BotCommand(command="help", description="Справка и примеры"),
                 BotCommand(command="today", description="Матчи на сегодня"),
-                BotCommand(command="match", description="Прогноз по id"),
-                BotCommand(command="predict", description="Поставить задачу"),
-                BotCommand(command="terms", description="Условия использования"),
+                BotCommand(command="match", description="Карточка матча"),
+                BotCommand(command="explain", description="Объяснить прогноз"),
+                BotCommand(command="league", description="Матчи лиги"),
+                BotCommand(command="subscribe", description="Ежедневный дайджест"),
+                BotCommand(command="settings", description="Личные настройки"),
+                BotCommand(command="export", description="Экспорт отчёта"),
+                BotCommand(command="about", description="Версии и статус"),
             ]
             await self.bot.set_my_commands(commands)
             logger.info("✅ Команды бота установлены")

@@ -30,6 +30,13 @@ telegram-bot/
 ├─ core/
 │  └─ services/predictor.py      # фасад RecommendationEngine с унифицированным payload
 ├─ app/
+│  ├─ bot/                   | Product v1 Telegram UX (routers, форматирование, кеши, SQLite prefs)
+│  │  ├─ caching.py          # TTL LRU-кеш для тяжёлых расчётов
+│  │  ├─ formatting.py       # HTML-рендеры (таблицы, explainability)
+│  │  ├─ keyboards.py        # inline-кнопки (страницы, детали, экспорт)
+│  │  ├─ services.py         # фасад прогнозов + экспорт CSV/PNG
+│  │  ├─ storage.py          # schema.sql, user_prefs/subscriptions/reports
+│  │  └─ routers/            # commands.py, callbacks.py, state singletons
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
 │     ├─ validators.py          # Legacy-обёртка на `data_processor.py`
