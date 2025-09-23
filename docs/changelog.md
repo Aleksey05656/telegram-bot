@@ -1,3 +1,15 @@
+# [2025-10-07] - Diagnostics automation & bot fixes
+### Добавлено
+- Скрипт `tools/run_diagnostics.py` для сквозной диагностики ENV/моделей/бота/ops с генерацией `reports/diagnostics/*`.
+- Артефакты диагностики: Markdown/JSON отчёты, CSV модулей A/B, логи pytest/smoke.
+
+### Изменено
+- Регрессия `/run_simulation` покрывается e2e-диагностикой; резюме статусов выводится в консоль.
+
+### Исправлено
+- Исправлена индентация в `telegram/bot.py::_set_bot_commands`, устраняющая `IndentationError` при импорте.
+- В `telegram/utils/token_bucket.py` восстановлена заголовочная @file-докстрока во избежание синтаксической ошибки.
+
 # [2025-09-23] - Product v1 bot commands
 ### Добавлено
 - Пакет `app/bot` с кешированием, форматированием, inline-клавиатурами и SQLite-хранилищем предпочтений.

@@ -90,8 +90,8 @@ class TelegramBot:
             raise
 
     async def _set_bot_commands(self) -> None:
-            if not self.bot:
-                return
+        if not self.bot:
+            return
         try:
             commands = [
                 BotCommand(command="start", description="Начало работы"),

@@ -1,3 +1,13 @@
+## Задача: Diagnostics automation & ops sanity
+- **Статус**: Завершена
+- **Описание**: Автоматизировать сбор сквозной диагностики (ENV/модели/бот/Ops) и устранить блокирующие синтаксические ошибки.
+- **Шаги выполнения**:
+  - [x] Реализован скрипт `tools/run_diagnostics.py` с генерацией отчетов/логов в `reports/diagnostics`.
+  - [x] Прогнан smoke `python -m main --dry-run`, собраны логи pytest и сводка статусов.
+  - [x] Исправлены ошибки индентации `telegram/bot.py` и заголовка `telegram/utils/token_bucket.py`.
+  - [x] Обновлены `docs/changelog.md`, `docs/tasktracker.md`.
+- **Зависимости**: tools/run_diagnostics.py, reports/diagnostics/*, telegram/bot.py, telegram/utils/token_bucket.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Product v1 — Predictions UX rollout
 - **Статус**: Завершена
 - **Описание**: Выпустить продакшн-набор команд Telegram-бота с объяснимостью, ежедневными дайджестами, кешем и экспортом.
