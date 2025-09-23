@@ -15,18 +15,22 @@ from prometheus_client import Counter, Gauge, Histogram, start_http_server
 __all__ = [
     "bot_updates_total",
     "bot_commands_total",
+    "bot_digest_sent_total",
     "retrain_success_total",
     "retrain_failure_total",
     "db_size_bytes",
     "queue_depth",
     "handler_latency",
+    "render_latency_seconds",
     "start_metrics_server",
     "update_db_size",
     "set_queue_depth",
     "record_command",
     "record_update",
+    "record_digest_sent",
     "record_retrain_success",
     "record_retrain_failure",
+    "observe_render_latency",
     "periodic_db_size_updater",
 ]
 
@@ -36,6 +40,9 @@ bot_updates_total = Counter(
 )
 bot_commands_total = Counter(
     "bot_commands_total", "Total bot commands handled", ["cmd"]
+)
+bot_digest_sent_total = Counter(
+    "bot_digest_sent_total", "Total digests delivered"
 )
 retrain_success_total = Counter(
     "retrain_success_total", "Successful retrain runs"
@@ -47,6 +54,9 @@ db_size_bytes = Gauge("db_size_bytes", "SQLite file size in bytes")
 queue_depth = Gauge("queue_depth", "Internal task queue depth")
 handler_latency = Histogram(
     "handler_latency_seconds", "Bot handler latency seconds"
+)
+render_latency_seconds = Histogram(
+    "render_latency_seconds", "Rendering latency seconds", ["cmd"]
 )
 
 
@@ -80,6 +90,12 @@ def record_command(command: str) -> None:
     bot_commands_total.labels(cmd=command).inc()
 
 
+def record_digest_sent() -> None:
+    """Increment digest counter."""
+
+    bot_digest_sent_total.inc()
+
+
 def record_update() -> None:
     """Increment update counter."""
 
@@ -96,6 +112,12 @@ def record_retrain_failure() -> None:
     """Increment retrain failure counter."""
 
     retrain_failure_total.inc()
+
+
+def observe_render_latency(cmd: str, duration: float) -> None:
+    """Publish render latency measurement for a command."""
+
+    render_latency_seconds.labels(cmd=cmd or "unknown").observe(duration)
 
 
 async def periodic_db_size_updater(

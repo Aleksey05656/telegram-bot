@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     ENABLE_SCHEDULER: bool = True
     STARTUP_DELAY_SEC: float = 0.0
     FAILSAFE_MODE: bool = False
+    PAGINATION_PAGE_SIZE: int = 5
+    CACHE_TTL_SECONDS: int = 120
+    ADMIN_IDS: str = ""
+    DIGEST_DEFAULT_TIME: str = "09:00"
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
@@ -172,6 +176,35 @@ class Settings(BaseSettings):
         if v <= 0:
             raise ValueError("Retry timing parameters must be positive")
         return v
+
+    @field_validator("PAGINATION_PAGE_SIZE")
+    @classmethod
+    def validate_page_size(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("PAGINATION_PAGE_SIZE must be positive")
+        return v
+
+    @field_validator("CACHE_TTL_SECONDS")
+    @classmethod
+    def validate_cache_ttl(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("CACHE_TTL_SECONDS must be positive")
+        return v
+
+    @field_validator("DIGEST_DEFAULT_TIME")
+    @classmethod
+    def validate_digest_time(cls, v: str) -> str:
+        parts = v.split(":")
+        if len(parts) != 2:
+            raise ValueError("DIGEST_DEFAULT_TIME must be HH:MM")
+        hour, minute = parts
+        if not hour.isdigit() or not minute.isdigit():
+            raise ValueError("DIGEST_DEFAULT_TIME must be HH:MM")
+        hour_i = int(hour)
+        minute_i = int(minute)
+        if not (0 <= hour_i <= 23 and 0 <= minute_i <= 59):
+            raise ValueError("DIGEST_DEFAULT_TIME must be valid time")
+        return f"{hour_i:02d}:{minute_i:02d}"
 
     @field_validator("CACHE_VERSION")
     @classmethod

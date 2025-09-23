@@ -1,3 +1,14 @@
+## Задача: Product v1 — Predictions UX rollout
+- **Статус**: Завершена
+- **Описание**: Выпустить продакшн-набор команд Telegram-бота с объяснимостью, ежедневными дайджестами, кешем и экспортом.
+- **Шаги выполнения**:
+  - [x] Реализованы модули `app/bot/*` (кеширование, форматирование, сервисы, SQLite, inline-клавиатуры).
+  - [x] Добавлены роутеры `/today`, `/match`, `/explain`, `/league`, `/subscribe`, `/settings`, `/export`, `/about`, `/admin`.
+  - [x] Обновлены конфиги и документация (`config.py`, `.env.example`, README, docs/user_guide.md, docs/dev_guide.md, docs/Project.md`).
+  - [x] Реализованы экспорт CSV/PNG, таблицы `user_prefs`, `subscriptions`, `reports`, метрики `render_latency_seconds`, `bot_digest_sent_total`.
+  - [x] Написаны тесты `tests/bot/*`, расширен контракт ENV и changelog/tasktracker.
+- **Зависимости**: app/bot/*, telegram/handlers/__init__.py, config.py, requirements.txt, requirements.lock, database/schema.sql, README, docs/*, tests/bot/*, docs/changelog.md, docs/tasktracker.md, .env.example, app/metrics.py
+
 ## Задача: Hardening Pack v1
 - **Статус**: Завершена
 - **Описание**: Обеспечить единственный инстанс, graceful shutdown, health-probe и контракт окружения.
