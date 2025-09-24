@@ -25,6 +25,23 @@ class PrometheusSettings(BaseModel):
     endpoint: str = "/metrics"
 
 
+class OddsSettings(BaseModel):
+    provider: Literal["dummy", "csv", "http"] = "dummy"
+    refresh_sec: int = 300
+    rps_limit: float = 3.0
+    timeout_sec: float = 8.0
+    retry_attempts: int = 4
+    backoff_base: float = 0.4
+    overround_method: Literal["proportional", "shin"] = "proportional"
+
+
+class ValueSettings(BaseModel):
+    min_edge_pct: float = 3.0
+    min_confidence: float = 0.6
+    max_picks: int = 5
+    markets: tuple[str, ...] = ("1X2", "OU_2_5", "BTTS")
+
+
 class RateLimitSettings(BaseModel):
     enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
     requests: int = Field(default=60, alias="RATE_LIMIT_REQUESTS")
@@ -78,6 +95,24 @@ class Settings(BaseSettings):
     sim_rho: float = Field(default=0.1, alias="SIM_RHO")
     sim_n: int = Field(default=10000, alias="SIM_N")
     sim_chunk: int = Field(default=100000, alias="SIM_CHUNK")
+    odds_provider: Literal["dummy", "csv", "http"] = Field(
+        default="dummy", alias="ODDS_PROVIDER"
+    )
+    odds_refresh_sec: int = Field(default=300, alias="ODDS_REFRESH_SEC")
+    odds_rps_limit: float = Field(default=3.0, alias="ODDS_RPS_LIMIT")
+    odds_timeout_sec: float = Field(default=8.0, alias="ODDS_TIMEOUT_SEC")
+    odds_retry_attempts: int = Field(default=4, alias="ODDS_RETRY_ATTEMPTS")
+    odds_backoff_base: float = Field(default=0.4, alias="ODDS_BACKOFF_BASE")
+    odds_overround_method: Literal["proportional", "shin"] = Field(
+        default="proportional", alias="ODDS_OVERROUND_METHOD"
+    )
+    value_min_edge_pct: float = Field(default=3.0, alias="VALUE_MIN_EDGE_PCT")
+    value_min_confidence: float = Field(default=0.6, alias="VALUE_MIN_CONFIDENCE")
+    value_max_picks: int = Field(default=5, alias="VALUE_MAX_PICKS")
+    value_markets: tuple[str, ...] = Field(
+        default=("1X2", "OU_2_5", "BTTS"), alias="VALUE_MARKETS"
+    )
+    enable_value_features: bool = Field(default=False, alias="ENABLE_VALUE_FEATURES")
 
     @field_validator("sportmonks_leagues_allowlist", mode="before")
     @classmethod
@@ -89,6 +124,40 @@ class Settings(BaseSettings):
         if not value:
             return tuple()
         return tuple(item.strip() for item in value.split(",") if item.strip())
+
+    @field_validator("value_markets", mode="before")
+    @classmethod
+    def _split_value_markets(
+        cls, value: tuple[str, ...] | str | None
+    ) -> tuple[str, ...]:
+        if value is None:
+            return ("1X2", "OU_2_5", "BTTS")
+        if isinstance(value, tuple):
+            return value
+        if not value:
+            return tuple()
+        return tuple(item.strip() for item in value.split(",") if item.strip())
+
+    @property
+    def odds(self) -> OddsSettings:
+        return OddsSettings(
+            provider=self.odds_provider,
+            refresh_sec=self.odds_refresh_sec,
+            rps_limit=float(self.odds_rps_limit),
+            timeout_sec=float(self.odds_timeout_sec),
+            retry_attempts=int(self.odds_retry_attempts),
+            backoff_base=float(self.odds_backoff_base),
+            overround_method=self.odds_overround_method,
+        )
+
+    @property
+    def value(self) -> ValueSettings:
+        return ValueSettings(
+            min_edge_pct=float(self.value_min_edge_pct),
+            min_confidence=float(self.value_min_confidence),
+            max_picks=int(self.value_max_picks),
+            markets=self.value_markets,
+        )
 
 
 @lru_cache(1)

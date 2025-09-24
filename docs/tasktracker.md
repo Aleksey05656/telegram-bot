@@ -1,3 +1,13 @@
+## Задача: Value odds integration & bot UX
+- **Статус**: Завершена
+- **Описание**: Подключить провайдеры котировок (CSV/HTTP), нормализовать overround, вычислять value-кейсы и отобразить их в боте/диагностике.
+- **Шаги выполнения**:
+  - [x] Реализован пакет `app.lines` (mapper, CSV/HTTP провайдеры, SQLite-хранилище odds_snapshots и миграция).
+  - [x] Добавлены `app/pricing/overround.py`, `app/value_detector.py`, `app/value_service.py`, счётчики Prometheus и Value-CLI `diagtools/value_check.py`.
+  - [x] Расширены команды `/value`, `/compare`, `/alerts`, форматирование карточек, хранение предпочтений (`value_alerts`).
+  - [x] Обновлены `diagtools/run_diagnostics.py` (секция Value & Odds), `.env.example`, README, docs/user_guide.md, docs/dev_guide.md, docs/Project.md, changelog/tasktracker и тесты (`tests/odds/*`, `tests/bot/test_value_commands.py`, `tests/diag/test_value_check.py`).
+- **Зависимости**: app/lines/*, app/pricing/overround.py, app/value_detector.py, app/value_service.py, app/bot/{formatting.py,routers/commands.py,storage.py}, app/metrics.py, config.py, .env.example, database/schema.sql, database/migrations/versions/20240917_003_add_odds_snapshots.py, diagtools/run_diagnostics.py, diagtools/value_check.py, README.md, docs/{user_guide.md,dev_guide.md,Project.md,changelog.md,tasktracker.md}, tests/{odds/*,bot/test_value_commands.py,diag/test_value_check.py}.
+
 ## Задача: Stub isolation & SportMonks ETag key hardening
 - **Статус**: Завершена
 - **Описание**: Изолировать оффлайн-заглушки тестов и усилить канонизацию ETag-кэша SportMonks по методу/пути/allowlist.

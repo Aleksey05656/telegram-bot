@@ -15,6 +15,7 @@ from typing import Iterable, Sequence
 from zoneinfo import ZoneInfo
 
 from config import settings
+from app.value_detector import ValuePick
 
 _CONFIDENCE_THRESHOLDS = (
     (0.65, "⬆️"),
@@ -282,6 +283,90 @@ def format_explain(payload: dict[str, object]) -> str:
         lines.append("🚑 Травмы:")
         lines.append(_render_table(["Игрок", "Статус"], rows))
     return "\n".join(lines)
+
+
+def format_value_picks(
+    *,
+    title: str,
+    cards: Sequence[dict[str, object]],
+) -> str:
+    lines = [f"💎 <b>{escape(title)}</b>"]
+    if not cards:
+        lines.append("Пока нет value-кейсов для заданных фильтров.")
+        return "\n".join(lines)
+    for card in cards:
+        match = card.get("match", {}) or {}
+        pick: ValuePick = card.get("pick")  # type: ignore[assignment]
+        home = escape(str(match.get("home", "?")))
+        away = escape(str(match.get("away", "?")))
+        league = escape(str(match.get("league", "")))
+        kickoff = match.get("kickoff")
+        kickoff_str = "N/A"
+        if isinstance(kickoff, datetime):
+            kickoff_str = kickoff.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+        header = f"• {home} vs {away} ({league}) — {escape(kickoff_str)}"
+        market_line = (
+            f"{escape(pick.market)} / {escape(pick.selection)}: "
+            f"model={_fmt_percent(pick.model_probability)} | "
+            f"market={_fmt_percent(pick.market_probability)}"
+        )
+        price_line = (
+            f"Fair {_fmt_decimal(pick.fair_price)} vs market {_fmt_decimal(pick.market_price)}"
+            f" → edge {pick.edge_pct:.1f}%"
+        )
+        confidence_line = (
+            f"Confidence {_fmt_percent(pick.confidence)} • Provider {escape(pick.provider)}"
+        )
+        lines.extend([header, market_line, price_line, confidence_line, ""])
+    return "\n".join(lines).strip()
+
+
+def format_value_comparison(data: dict[str, object]) -> str:
+    match = data.get("match", {}) or {}
+    home = escape(str(match.get("home", "?")))
+    away = escape(str(match.get("away", "?")))
+    league = escape(str(match.get("league", "")))
+    kickoff = match.get("kickoff")
+    kickoff_str = "N/A"
+    if isinstance(kickoff, datetime):
+        kickoff_str = kickoff.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+    lines = [
+        f"⚖️ <b>{home} vs {away}</b>",
+        f"🏟️ {league} — {escape(kickoff_str)}",
+        "",
+    ]
+    markets = data.get("markets", {}) or {}
+    if not markets:
+        lines.append("Для матча нет котировок для сравнения.")
+        return "\n".join(lines)
+    for market_name, selections in markets.items():
+        lines.append(f"<b>{escape(market_name)}</b>")
+        table_rows: list[Sequence[str]] = []
+        for selection, payload in selections.items():
+            model_p = float(payload.get("model_p", 0.0))
+            market_p = float(payload.get("market_p", 0.0))
+            price = float(payload.get("price", 0.0))
+            fair = float("inf") if model_p <= 0 else 1.0 / model_p
+            edge = (fair / price - 1.0) * 100 if price > 0 and fair != float("inf") else 0.0
+            fair_str = "∞" if fair == float("inf") else _fmt_decimal(fair)
+            table_rows.append(
+                (
+                    escape(selection),
+                    _fmt_percent(model_p),
+                    _fmt_percent(market_p),
+                    fair_str,
+                    _fmt_decimal(price),
+                    f"{edge:.1f}%",
+                )
+            )
+        lines.append(
+            _render_table(
+                ["Исход", "Model", "Market", "Fair", "Price", "Edge"],
+                table_rows,
+            )
+        )
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def format_league_listing(

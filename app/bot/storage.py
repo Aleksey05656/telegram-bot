@@ -151,6 +151,53 @@ def iter_reports_for_match(match_id: int, *, db_path: str | None = None) -> Iter
             yield dict(row)
 
 
+def get_value_alert(user_id: int, *, db_path: str | None = None) -> dict[str, object]:
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM value_alerts WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return {
+                "user_id": user_id,
+                "enabled": False,
+                "edge_threshold": 5.0,
+                "league": None,
+            }
+        result = dict(row)
+        result["enabled"] = bool(result.get("enabled", 0))
+        return result
+
+
+def upsert_value_alert(
+    user_id: int,
+    *,
+    enabled: bool | None = None,
+    edge_threshold: float | None = None,
+    league: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, object]:
+    current = get_value_alert(user_id, db_path=db_path)
+    enabled_val = int(enabled if enabled is not None else current.get("enabled", False))
+    edge_val = float(edge_threshold if edge_threshold is not None else current.get("edge_threshold", 5.0))
+    league_val = league if league is not None else current.get("league")
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO value_alerts(user_id, enabled, edge_threshold, league, created_at, updated_at)
+            VALUES (?, ?, ?, ?, DATETIME('now'), DATETIME('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                edge_threshold = excluded.edge_threshold,
+                league = excluded.league,
+                updated_at = DATETIME('now')
+            """,
+            (user_id, enabled_val, edge_val, league_val),
+        )
+        conn.commit()
+    return get_value_alert(user_id, db_path=db_path)
+
+
 __all__ = [
     "ensure_schema",
     "get_user_preferences",
@@ -161,4 +208,6 @@ __all__ = [
     "record_report",
     "list_reports",
     "iter_reports_for_match",
+    "get_value_alert",
+    "upsert_value_alert",
 ]

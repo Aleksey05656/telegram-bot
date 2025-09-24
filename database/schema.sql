@@ -96,3 +96,29 @@ CREATE TABLE IF NOT EXISTS map_leagues (
     sm_league_id INTEGER PRIMARY KEY,
     internal_code TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    pulled_at_utc TEXT NOT NULL,
+    match_key TEXT NOT NULL,
+    league TEXT NULL,
+    kickoff_utc TEXT NOT NULL,
+    market TEXT NOT NULL,
+    selection TEXT NOT NULL,
+    price_decimal REAL NOT NULL,
+    extra_json TEXT NULL,
+    UNIQUE(provider, match_key, market, selection)
+);
+
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_match
+    ON odds_snapshots(match_key, market, selection);
+
+CREATE TABLE IF NOT EXISTS value_alerts (
+    user_id INTEGER PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    edge_threshold REAL NOT NULL DEFAULT 5.0,
+    league TEXT NULL,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);

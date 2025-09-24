@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+import os
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -32,6 +33,8 @@ from ..formatting import (
     format_explain,
     format_help,
     format_match_details,
+    format_value_comparison,
+    format_value_picks,
     format_settings,
     format_start,
     format_today_matches,
@@ -39,8 +42,20 @@ from ..formatting import (
 from ..keyboards import match_details_keyboard, noop_keyboard, today_keyboard
 from ..services import Prediction
 from ..state import FACADE, LIST_CACHE, MATCH_CACHE, PAGINATION_CACHE
-from ..storage import get_user_preferences, list_subscriptions, upsert_subscription
+from ..storage import (
+    get_user_preferences,
+    get_value_alert,
+    list_subscriptions,
+    upsert_subscription,
+    upsert_value_alert,
+)
 from diagtools import scheduler as diag_scheduler
+
+from app.lines.mapper import LinesMapper
+from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
+from app.lines.providers.base import LinesProvider
+from app.value_detector import ValueDetector
+from app.value_service import ValueService
 
 commands_router = Router()
 _ADMIN_IDS = {
@@ -60,6 +75,9 @@ _COMMANDS_LIST = [
     "/export",
     "/about",
 ]
+
+if settings.ENABLE_VALUE_FEATURES:
+    _COMMANDS_LIST.extend(["/value", "/compare", "/alerts"])
 
 
 def _hash_query(user_id: int, key: str) -> str:
@@ -188,6 +206,134 @@ def _parse_today_args(raw: str | None) -> TodayArgs:
         elif league is None:
             league = token
     return TodayArgs(league=league, limit=limit)
+
+
+@dataclass
+class ValueArgs:
+    league: str | None = None
+    target_date: date = date.today()
+    limit: int = settings.VALUE_MAX_PICKS
+
+
+def _parse_value_args(raw: str | None) -> ValueArgs:
+    if not raw:
+        return ValueArgs()
+    tokens = [token.strip() for token in raw.split() if token.strip()]
+    league: str | None = None
+    target_date = date.today()
+    limit = settings.VALUE_MAX_PICKS
+    for token in tokens:
+        if token.startswith("date="):
+            _, value = token.split("=", 1)
+            try:
+                target_date = date.fromisoformat(value)
+            except ValueError as exc:
+                raise ValueError("Некорректная дата, ожидается YYYY-MM-DD") from exc
+        elif token.startswith("limit="):
+            try:
+                limit = max(1, min(20, int(token.split("=", 1)[1])))
+            except ValueError as exc:
+                raise ValueError("Некорректное значение limit") from exc
+        elif league is None:
+            league = token
+    return ValueArgs(league=league, target_date=target_date, limit=limit)
+
+
+@dataclass(slots=True)
+class _DummyLinesProvider:
+    mapper: LinesMapper
+
+    async def fetch_odds(
+        self,
+        *,
+        date_from: datetime,
+        date_to: datetime,
+        leagues: Sequence[str] | None = None,
+    ) -> list[Any]:  # pragma: no cover - fallback path
+        return []
+
+
+def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
+    provider_type = (getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy").lower()
+    if provider_type == "csv":
+        fixtures_root = os.getenv("ODDS_FIXTURES_PATH")
+        if fixtures_root:
+            path = Path(fixtures_root)
+        else:
+            base = getattr(settings, "DATA_ROOT", "/data")
+            path = Path(base) / "odds"
+        return CSVLinesProvider(fixtures_dir=path, mapper=mapper)
+    if provider_type == "http":
+        base_url = os.getenv("ODDS_HTTP_BASE_URL", "").strip()
+        if not base_url:
+            raise RuntimeError("ODDS_HTTP_BASE_URL не задан для HTTP-провайдера котировок")
+        return HTTPLinesProvider(
+            base_url=base_url,
+            token=getattr(settings, "ODDS_API_KEY", "") or None,
+            timeout=float(getattr(settings, "ODDS_TIMEOUT_SEC", 8.0)),
+            retry_attempts=int(getattr(settings, "ODDS_RETRY_ATTEMPTS", 4)),
+            backoff_base=float(getattr(settings, "ODDS_BACKOFF_BASE", 0.4)),
+            rps_limit=float(getattr(settings, "ODDS_RPS_LIMIT", 3.0)),
+            mapper=mapper,
+        )
+    return _DummyLinesProvider(mapper=mapper)
+
+
+def _build_value_detector() -> ValueDetector:
+    markets_raw = getattr(settings, "VALUE_MARKETS", "1X2,OU_2_5,BTTS")
+    markets = tuple(item.strip() for item in str(markets_raw).split(",") if item.strip())
+    return ValueDetector(
+        min_edge_pct=float(getattr(settings, "VALUE_MIN_EDGE_PCT", 3.0)),
+        min_confidence=float(getattr(settings, "VALUE_MIN_CONFIDENCE", 0.6)),
+        max_picks=int(getattr(settings, "VALUE_MAX_PICKS", 5)),
+        markets=markets,
+        overround_method=str(getattr(settings, "ODDS_OVERROUND_METHOD", "proportional")),
+    )
+
+
+def _create_value_service() -> tuple[ValueService, LinesProvider]:
+    mapper = LinesMapper()
+    provider = _create_lines_provider(mapper)
+    detector = _build_value_detector()
+    service = ValueService(facade=FACADE, provider=provider, detector=detector, mapper=mapper)
+    return service, provider
+
+
+async def _close_lines_provider(provider: LinesProvider) -> None:
+    close_fn = getattr(provider, "close", None)
+    if close_fn is None:
+        return
+    result = close_fn()
+    if asyncio.iscoroutine(result):
+        await result
+
+
+@dataclass
+class AlertsArgs:
+    enabled: bool | None = None
+    edge_threshold: float | None = None
+    league: str | None = None
+
+
+def _parse_alert_args(raw: str | None) -> AlertsArgs:
+    if not raw:
+        return AlertsArgs()
+    tokens = [token.strip() for token in raw.split() if token.strip()]
+    enabled: bool | None = None
+    edge_threshold: float | None = None
+    league: str | None = None
+    for token in tokens:
+        lowered = token.lower()
+        if lowered in {"on", "off"}:
+            enabled = lowered == "on"
+        elif lowered.startswith("edge="):
+            try:
+                edge_threshold = float(lowered.split("=", 1)[1])
+            except ValueError as exc:
+                raise ValueError("Некорректное значение edge") from exc
+        elif league is None:
+            league = token
+    return AlertsArgs(enabled=enabled, edge_threshold=edge_threshold, league=league)
 
 
 @commands_router.message(Command("start"))
@@ -444,6 +590,133 @@ async def handle_about(message: Message, command: CommandObject) -> None:
     }
     record_command("about")
     await message.answer(format_about(metadata))
+
+
+if settings.ENABLE_VALUE_FEATURES:
+
+    @commands_router.message(Command("value"))
+    async def handle_value(message: Message, command: CommandObject) -> None:
+        try:
+            parsed = _parse_value_args(command.args)
+        except ValueError as exc:
+            await message.answer(str(exc))
+            return
+        service, provider = _create_value_service()
+        try:
+            cards = await service.value_picks(
+                target_date=parsed.target_date,
+                league=parsed.league,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception(
+                "Команда /value упала",  # noqa: TRY400
+                extra={
+                    "user_id": message.from_user.id if message.from_user else 0,
+                    "league": parsed.league,
+                },
+            )
+            await message.answer("Не удалось загрузить value-кейсы, попробуйте позже.")
+            return
+        finally:
+            await _close_lines_provider(provider)
+        cards = cards[: parsed.limit]
+        title = f"Value-кейсы на {parsed.target_date.isoformat()}"
+        if parsed.league:
+            title += f" ({parsed.league})"
+        render_start = monotonic()
+        text = format_value_picks(title=title, cards=cards)
+        observe_render_latency("value", monotonic() - render_start)
+        record_command("value")
+        logger.info(
+            "Команда /value",  # noqa: TRY400
+            extra={
+                "user_id": message.from_user.id if message.from_user else 0,
+                "league": parsed.league,
+                "date": parsed.target_date.isoformat(),
+                "picks": len(cards),
+            },
+        )
+        await message.answer(text, reply_markup=noop_keyboard)
+
+    @commands_router.message(Command("compare"))
+    async def handle_compare(message: Message, command: CommandObject) -> None:
+        query = (command.args or "").strip()
+        if not query:
+            await message.answer("Использование: /compare &lt;match_id или команды&gt;")
+            return
+        service, provider = _create_value_service()
+        try:
+            summary = await service.compare(query=query, target_date=date.today())
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception(
+                "Команда /compare упала",  # noqa: TRY400
+                extra={"user_id": message.from_user.id if message.from_user else 0, "query": query},
+            )
+            await message.answer("Не удалось получить сравнение рынков, попробуйте позже.")
+            return
+        finally:
+            await _close_lines_provider(provider)
+        if not summary:
+            await message.answer("Матч не найден или котировки недоступны.")
+            return
+        render_start = monotonic()
+        text = format_value_comparison(summary)
+        observe_render_latency("compare", monotonic() - render_start)
+        record_command("compare")
+        logger.info(
+            "Команда /compare",  # noqa: TRY400
+            extra={"user_id": message.from_user.id if message.from_user else 0, "query": query},
+        )
+        await message.answer(text, reply_markup=noop_keyboard)
+
+    @commands_router.message(Command("alerts"))
+    async def handle_alerts(message: Message, command: CommandObject) -> None:
+        user_id = message.from_user.id if message.from_user else 0
+        if user_id <= 0:
+            await message.answer("Не удалось определить пользователя.")
+            return
+        try:
+            parsed = _parse_alert_args(command.args)
+        except ValueError as exc:
+            await message.answer(str(exc))
+            return
+        changes = any(
+            value is not None for value in (parsed.enabled, parsed.edge_threshold, parsed.league)
+        )
+        if changes:
+            prefs = upsert_value_alert(
+                user_id,
+                enabled=parsed.enabled,
+                edge_threshold=parsed.edge_threshold,
+                league=parsed.league,
+            )
+        else:
+            prefs = get_value_alert(user_id)
+        status = "включены" if prefs.get("enabled") else "выключены"
+        league = prefs.get("league") or "все лиги"
+        edge_threshold = float(prefs.get("edge_threshold", 5.0))
+        render_start = monotonic()
+        text = (
+            "\n".join(
+                [
+                    f"Value-оповещения {status}.",
+                    f"Порог edge: {edge_threshold:.1f}%.",
+                    f"Лиги: {league}.",
+                ]
+            )
+        )
+        observe_render_latency("alerts", monotonic() - render_start)
+        record_command("alerts")
+        logger.info(
+            "Команда /alerts",  # noqa: TRY400
+            extra={
+                "user_id": user_id,
+                "status": status,
+                "edge": edge_threshold,
+                "league": league,
+            },
+        )
+        await message.answer(text, reply_markup=noop_keyboard)
 
 
 @commands_router.message(Command("diag"))
