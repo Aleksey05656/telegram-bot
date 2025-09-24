@@ -31,6 +31,13 @@ __all__ = [
     "value_backtest_sharpe",
     "value_backtest_samples",
     "value_calibrated_pairs_total",
+    "provider_reliability_score",
+    "provider_fresh_share",
+    "provider_latency_ms",
+    "odds_anomaly_detected_total",
+    "picks_settled_total",
+    "portfolio_roi_rolling",
+    "clv_mean_pct",
     "start_metrics_server",
     "update_db_size",
     "set_queue_depth",
@@ -94,6 +101,41 @@ value_backtest_samples = Gauge(
 )
 value_calibrated_pairs_total = Gauge(
     "value_calibrated_pairs_total", "Total number of calibrated league/market pairs"
+)
+
+provider_reliability_score = Gauge(
+    "provider_reliability_score",
+    "Reliability score per provider/market/league",
+    ["provider", "market", "league"],
+)
+provider_fresh_share = Gauge(
+    "provider_fresh_share",
+    "Share of fresh odds for provider",
+    ["provider", "market", "league"],
+)
+provider_latency_ms = Gauge(
+    "provider_latency_ms",
+    "Average latency of odds snapshots in milliseconds",
+    ["provider", "market", "league"],
+)
+odds_anomaly_detected_total = Counter(
+    "odds_anomaly_detected_total",
+    "Total anomalies detected among provider odds",
+    ["provider", "market"],
+)
+picks_settled_total = Counter(
+    "picks_settled_total",
+    "Number of picks settled by outcome",
+    ["outcome"],
+)
+portfolio_roi_rolling = Gauge(
+    "portfolio_roi_rolling",
+    "Rolling ROI percentage for the picks portfolio",
+    ["window_days"],
+)
+clv_mean_pct = Gauge(
+    "clv_mean_pct",
+    "Mean CLV percentage across settled picks",
 )
 
 

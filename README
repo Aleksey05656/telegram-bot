@@ -106,6 +106,7 @@
 - `PAGINATION_PAGE_SIZE`, `CACHE_TTL_SECONDS`, `DIGEST_DEFAULT_TIME`, `ADMIN_IDS` — новые переменные окружения.
 - Кеширование тяжёлых команд реализовано на in-memory LRU (`app/bot/caching.py`), invalidate — `/admin reload`.
 - Экспорт PNG использует `matplotlib>=3.8` (без GUI, backend Agg).
+- `ODDS_PROVIDERS`, `ODDS_PROVIDER_WEIGHTS`, `RELIABILITY_*`, `ANOMALY_Z_MAX`, `BEST_PRICE_*`, `SETTLEMENT_*`, `PORTFOLIO_ROLLING_DAYS`, `CLV_FAIL_THRESHOLD_PCT` — параметры value/odds пайплайна, best-price роутинга и пост-сеттлмента.
 
 ### SportMonks оффлайн-режим и метрики
 
@@ -113,6 +114,14 @@
 - Для регресса интеграции в CI и локально: `pytest tests/sm tests/model/test_features_ingestion.py tests/bot/test_staleness_badges.py tests/ops/test_freshness_gate.py`.
 - ETag/Last-Modified кешируются в SQLite (`sm_meta`) при включённом `SPORTMONKS_CACHE_TTL_SEC>0`, запросы автоматически шлют `If-None-Match`.
 - Метрики Prometheus: `sm_requests_total{endpoint,status}`, `sm_ratelimit_sleep_seconds_total`, `sm_freshness_hours_max` (пороговые 12/48 ч управляются `SM_FRESHNESS_WARN_HOURS` и `SM_FRESHNESS_FAIL_HOURS`).
+
+### Value & Settlement (v1.5)
+
+- `app/lines/reliability.py` рассчитывает экспоненциальную репутацию провайдера (coverage, fresh_share, lag, stability, bias) и публикует метрики `provider_reliability_score`, `provider_fresh_share`, `provider_latency_ms`.
+- `app/lines/anomaly.py` фильтрует выбросы по z-score и квантилям; best-price роутинг (`LinesAggregator.pick_best_route`) пропускает сигналы с низким скором или аномальными котировками.
+- Карточки `/value` и `/compare` показывают «Best price: <prov> X.XX (score=…)», кнопка «Почему {provider}» объясняет выбор маршрута (скоринг, свежесть, отсутствие аномалий).
+- `app/value_clv.PicksLedgerStore` сохраняет `provider_price_decimal`, `consensus_price_decimal` и `roi`, а `app/settlement/engine.py` автоматизирует сеттлмент (1X2/OU/BTTS), пересчитывает CLV/ROI и обновляет метрики `picks_settled_total`, `portfolio_roi_rolling`, `clv_mean_pct`.
+- Новые диагностики: `python -m diagtools.provider_quality` (качество провайдеров) и `python -m diagtools.settlement_check` (coverage/ROI). Оба CLI прикрепляют артефакты `{json,md}` в `reports/diagnostics/` и используются в CI.
 
 ------------------------------------------------------------------------
 

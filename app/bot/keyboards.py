@@ -21,6 +21,16 @@ def _providers_callback(match_key: str, market: str, selection: str) -> str:
     return "providers:" + ":".join(encoded)
 
 
+def _why_provider_callback(
+    match_key: str,
+    market: str,
+    selection: str,
+    provider: str,
+) -> str:
+    encoded = [quote_plus(str(item)) for item in (match_key, market, selection, provider)]
+    return "whyprov:" + ":".join(encoded)
+
+
 def today_keyboard(
     matches: Iterable[dict[str, object]],
     *,
@@ -89,14 +99,24 @@ def value_providers_keyboard(cards: Iterable[dict[str, object]]) -> InlineKeyboa
             text=f"Провайдеры #{idx}",
             callback_data=_providers_callback(str(match_key), str(market), str(selection)),
         )
+        best = card.get("best_price") or {}
+        provider = best.get("provider")
+        if provider:
+            builder.button(
+                text=f"Почему {provider}",
+                callback_data=_why_provider_callback(
+                    str(match_key), str(market), str(selection), str(provider)
+                ),
+            )
     builder.button(text="OK", callback_data="noop")
-    builder.adjust(1)
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 
 def comparison_providers_keyboard(
     match_key: str,
     consensus_map: Mapping[tuple[str, str], dict[str, object]],
+    best_price: Mapping[tuple[str, str], dict[str, object]] | None = None,
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for market, selection in consensus_map.keys():
@@ -104,8 +124,17 @@ def comparison_providers_keyboard(
             text=f"{market}/{selection}",
             callback_data=_providers_callback(match_key, market, selection),
         )
+        if best_price:
+            payload = best_price.get((market, selection))
+            if payload and payload.get("provider"):
+                builder.button(
+                    text=f"Почему {payload['provider']}",
+                    callback_data=_why_provider_callback(
+                        match_key, market, selection, str(payload["provider"])
+                    ),
+                )
     builder.button(text="OK", callback_data="noop")
-    builder.adjust(1)
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 

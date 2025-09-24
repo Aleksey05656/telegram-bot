@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,23 +45,39 @@ class PicksLedgerStore:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def record_pick(self, user_id: int, pick: ValuePick, consensus: ConsensusMeta) -> None:
+    def record_pick(
+        self,
+        user_id: int,
+        pick: ValuePick,
+        consensus: ConsensusMeta,
+        *,
+        best_price: dict[str, object] | None = None,
+    ) -> None:
+        provider_price = (
+            float(best_price.get("price_decimal"))
+            if isinstance(best_price, dict) and best_price.get("price_decimal") is not None
+            else float(pick.market_price)
+        )
+        consensus_price_decimal = float(consensus.price_decimal)
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO picks_ledger(
                     user_id, match_key, market, selection, stake, price_taken,
+                    provider_price_decimal,
                     model_probability, market_probability, edge_pct, confidence,
-                    pulled_at_utc, kickoff_utc, consensus_price, consensus_method,
+                    pulled_at_utc, kickoff_utc, consensus_price, consensus_price_decimal, consensus_method,
                     consensus_provider_count, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATETIME('now'), DATETIME('now'))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATETIME('now'), DATETIME('now'))
                 ON CONFLICT(user_id, match_key, market, selection, pulled_at_utc) DO UPDATE SET
                     price_taken=excluded.price_taken,
+                    provider_price_decimal=excluded.provider_price_decimal,
                     model_probability=excluded.model_probability,
                     market_probability=excluded.market_probability,
                     edge_pct=excluded.edge_pct,
                     confidence=excluded.confidence,
                     consensus_price=excluded.consensus_price,
+                    consensus_price_decimal=excluded.consensus_price_decimal,
                     consensus_method=excluded.consensus_method,
                     consensus_provider_count=excluded.consensus_provider_count,
                     updated_at=DATETIME('now')
@@ -72,7 +88,8 @@ class PicksLedgerStore:
                     pick.market,
                     pick.selection,
                     1.0,
-                    float(pick.market_price),
+                    provider_price,
+                    provider_price,
                     float(pick.model_probability),
                     float(pick.market_probability),
                     float(pick.edge_pct),
@@ -80,6 +97,7 @@ class PicksLedgerStore:
                     _to_iso(pick.pulled_at),
                     _to_iso(pick.kickoff_utc),
                     float(consensus.price_decimal),
+                    consensus_price_decimal,
                     consensus.method,
                     int(consensus.provider_count),
                 ),
@@ -153,33 +171,88 @@ class PicksLedgerStore:
                 )
             conn.commit()
 
-    def list_user_picks(self, user_id: int, *, limit: int = 20) -> list[dict[str, object]]:
+    def list_user_picks(
+        self,
+        user_id: int,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[dict[str, object]]:
         with self._connect() as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM picks_ledger
                  WHERE user_id = ?
                  ORDER BY created_at DESC
-                 LIMIT ?
+                 LIMIT ? OFFSET ?
                 """,
-                (int(user_id), int(max(limit, 1))),
+                (int(user_id), int(max(limit, 1)), int(max(offset, 0))),
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def user_summary(self, user_id: int) -> dict[str, object]:
-        picks = self.list_user_picks(user_id, limit=200)
-        total = len(picks)
-        clv_values = [float(row["clv_pct"]) for row in picks if row.get("clv_pct") is not None]
-        avg_clv = sum(clv_values) / len(clv_values) if clv_values else 0.0
-        positive_share = (
-            sum(1 for value in clv_values if value >= 0) / len(clv_values)
-            if clv_values
-            else 0.0
-        )
+    def user_summary(
+        self,
+        user_id: int,
+        *,
+        page: int = 1,
+        page_size: int = 5,
+    ) -> dict[str, object]:
+        page_size = max(page_size, 1)
+        page = max(page, 1)
+        offset = (page - 1) * page_size
+        now = datetime.now(UTC)
+        rolling_cutoff = now - timedelta(days=int(getattr(settings, "PORTFOLIO_ROLLING_DAYS", 60)))
+        with self._connect() as conn:
+            totals = conn.execute(
+                """
+                SELECT COUNT(*) AS total,
+                       AVG(clv_pct) AS avg_clv,
+                       SUM(CASE WHEN clv_pct IS NOT NULL THEN 1 ELSE 0 END) AS clv_count,
+                       SUM(CASE WHEN clv_pct IS NOT NULL AND clv_pct >= 0 THEN 1 ELSE 0 END) AS clv_positive,
+                       AVG(edge_pct) AS avg_edge
+                  FROM picks_ledger
+                 WHERE user_id = ?
+                """,
+                (int(user_id),),
+            ).fetchone()
+            roi_row = conn.execute(
+                """
+                SELECT AVG(roi) AS avg_roi
+                  FROM picks_ledger
+                 WHERE user_id = ?
+                   AND outcome IS NOT NULL
+                   AND created_at >= ?
+                """,
+                (int(user_id), _to_iso(rolling_cutoff)),
+            ).fetchone()
+            rows = conn.execute(
+                """
+                SELECT *
+                  FROM picks_ledger
+                 WHERE user_id = ?
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?
+                """,
+                (int(user_id), int(page_size), int(offset)),
+            ).fetchall()
+        total = int(totals["total"] or 0)
+        clv_count = int(totals["clv_count"] or 0)
+        clv_positive = int(totals["clv_positive"] or 0)
+        avg_clv = float(totals["avg_clv"]) if totals["avg_clv"] is not None else 0.0
+        avg_edge = float(totals["avg_edge"]) if totals["avg_edge"] is not None else 0.0
+        positive_share = (clv_positive / clv_count) if clv_count else 0.0
+        avg_roi = float(roi_row["avg_roi"]) if roi_row and roi_row["avg_roi"] is not None else 0.0
+        total_pages = max((total + page_size - 1) // page_size, 1)
+        picks = [dict(row) for row in rows]
         return {
             "total": total,
             "avg_clv": avg_clv,
             "positive_share": positive_share,
+            "avg_edge": avg_edge,
+            "avg_roi": avg_roi,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
             "picks": picks,
         }
 

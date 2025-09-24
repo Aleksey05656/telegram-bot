@@ -3,11 +3,11 @@
 ### Пакет `app.bot`
 - `caching.py` — асинхронный TTL-кеш с LRU-эвикцией и счётчиками hit/miss.
 - `formatting.py` — HTML-рендеры для всех команд (таблицы, объяснимость, дайджесты, consensus-блоки и сводка портфеля).
-- `keyboards.py` — генерация inline-клавиатур (пагинация, детали матча, экспорт, кнопка «Провайдеры» для value-карточек).
+- `keyboards.py` — генерация inline-клавиатур (пагинация, детали матча, экспорт, кнопки «Провайдеры» и «Почему {provider}» для value-карточек).
 - `services.py` — фасад прогнозов: интеграция с SportMonks, вычисление fair-odds, модификаторов, генерация CSV/PNG.
 - `storage.py` — SQLite-схема и операции (`user_prefs`, `subscriptions`, `reports`).
 - `routers/commands.py` — обработчики aiogram-команд с кешированием, пагинацией, логированием и записью value-портфеля (`/portfolio`).
-- `routers/callbacks.py` — обработка inline callback для перелистывания, карточек матча, экспорта и расшифровки провайдеров по кнопке «Провайдеры».
+- `routers/callbacks.py` — обработка inline callback для перелистывания, карточек матча, экспорта и расшифровки провайдеров (включая объяснение best-price маршрута по кнопке «Почему …»).
 - `state.py` — singletons для кешей и PredictionFacade.
 
 ### Поток `/today`
@@ -32,7 +32,9 @@
 - `value_calibration`: результаты калибровки порогов per лига/рынок (`tau_edge`, `gamma_conf`, `samples`, `metric`, `updated_at`).
 - `odds_snapshots`: снимки котировок (поставщик, матч, рынок, выбор, цена, JSON `extra`). Идемпотентный upsert по `(provider, match_key, market, selection)`.
 - `closing_lines`: последний консенсусный коэффициент перед стартом (уникальный индекс по `(match_key, market, selection)`).
-- `picks_ledger`: журнал value-сигналов с коэффициентами, консенсусом и CLV (индексы `picks_ledger_user_idx`, `picks_ledger_match_idx`).
+- `picks_ledger`: журнал value-сигналов с коэффициентами (market/provider/consensus/closing), CLV и ROI (индексы `picks_ledger_user_idx`, `picks_ledger_match_idx`).
+- `provider_stats`: агрегаты надёжности провайдеров (coverage, fresh_share, lag_ms, stability, bias, score) для best-price роутинга.
+- Индекс `odds_snapshots_match_time` по `(match_key, market, selection, pulled_at_utc)` ускоряет выборку последних котировок для best-price маршрута.
 
 ### Метрики и логирование
 - `bot_commands_total{cmd}` — все команды и callbacks (`export_callback`).
@@ -40,12 +42,13 @@
 - `render_latency_seconds{cmd}` — гистограмма времени форматирования (команды и callbacks).
 - Логгер добавляет `user_id`, `cmd`, `cache_hit` и аргументы для ключевых команд.
 - Value-метрики (`app.metrics`): `value_candidates_total`, `value_picks_total`, `value_detector_latency_seconds`, `value_confidence_avg`, `value_edge_weighted_avg`, `value_backtest_last_run_ts`, `value_backtest_sharpe{league,market}`, `value_backtest_samples{league,market}`, `value_calibrated_pairs_total`.
+- Надёжность/сеттлмент: `provider_reliability_score`, `provider_fresh_share`, `provider_latency_ms`, `odds_anomaly_detected_total`, `picks_settled_total{outcome}`, `portfolio_roi_rolling{window_days}`, `clv_mean_pct`.
 
 ### ENV и конфиг
 - `PAGINATION_PAGE_SIZE`, `CACHE_TTL_SECONDS`, `ADMIN_IDS`, `DIGEST_DEFAULT_TIME` — новые параметры в `config.Settings`.
 - `matplotlib>=3.8` добавлена в зависимости для экспорта PNG.
 - `database/schema.sql` содержит `PRAGMA user_version = 1` и DDL таблиц.
-- Value/odds параметры (`ODDS_PROVIDER`, `ODDS_TIMEOUT_SEC`, `VALUE_MIN_EDGE_PCT`, `VALUE_CONFIDENCE_METHOD`, `VALUE_ALERT_COOLDOWN_MIN`, `VALUE_ALERT_QUIET_HOURS`, `VALUE_ALERT_MIN_EDGE_DELTA`, `VALUE_STALENESS_FAIL_MIN`, `BACKTEST_*`, `GATES_VALUE_SHARPE_*`, `ENABLE_VALUE_FEATURES` и т.д.) добавлены в `config.py` и `.env.example`.
+- Value/odds параметры (`ODDS_PROVIDERS`, `ODDS_PROVIDER_WEIGHTS`, `ODDS_PROVIDER`, `ODDS_AGG_METHOD`, `ODDS_TIMEOUT_SEC`, `RELIABILITY_*`, `ANOMALY_Z_MAX`, `BEST_PRICE_*`, `VALUE_MIN_EDGE_PCT`, `VALUE_CONFIDENCE_METHOD`, `VALUE_ALERT_COOLDOWN_MIN`, `VALUE_ALERT_QUIET_HOURS`, `VALUE_ALERT_MIN_EDGE_DELTA`, `VALUE_STALENESS_FAIL_MIN`, `BACKTEST_*`, `GATES_VALUE_SHARPE_*`, `CLV_FAIL_THRESHOLD_PCT`, `SETTLEMENT_*`, `PORTFOLIO_ROLLING_DAYS`, `ENABLE_VALUE_FEATURES` и т.д.) добавлены в `config.py` и `.env.example`.
 - `ODDS_FIXTURES_PATH` — вспомогательная переменная окружения для CSV-фикстур в оффлайн-тестах.
 
 ### Тесты
@@ -55,6 +58,10 @@
 - `tests/odds/` — модульные тесты для overround, CSV-провайдера и мультипровайдерного агрегатора (best/median/weighted, closing line).
 - `tests/diag/test_value_check.py` — проверяет CLI `diagtools.value_check` (корректный exit code и наличие котировок).
 - `tests/diag/test_clv_check.py` — проверяет CLI `diagtools.clv_check` (артефакты и exit-коды 0/1/2).
+- `tests/odds/test_reliability.py`, `tests/odds/test_best_route.py`, `tests/odds/test_anomaly_filter.py` — проверяют скоринг провайдеров, best-price роутинг и фильтр аномалий.
+- `tests/value/test_settlement_engine.py` — сеттлмент рынков 1X2/OU/BTTS и расчёт ROI.
+- `tests/bot/test_portfolio_extended.py` — расширенный рендер `/portfolio` и блок «Best price».
+- `tests/diag/test_provider_quality.py`, `tests/diag/test_settlement_check.py` — гейты качества провайдеров и сеттлмента.
 - `tests/bot/test_value_commands.py` — сценарии `/value`, `/compare`, `/alerts`.
 - `tests/value/` — backtest окна, подбор порогов, вес `edge_w`, антиспам алертов, рендер объяснений и вычисление CLV в `picks_ledger`.
 
@@ -65,7 +72,9 @@
   - `providers.http` — HTTP-клиент с `httpx.AsyncClient`, ETag-кешем и rate limit (token bucket).
   - `mapper` — преобразование `home/away/league/kickoff` в `match_key` на основе `app.mapping.keys`.
   - `storage.OddsSQLiteStore` — хранение последних котировок в SQLite (upsert + индекс `odds_match`).
-  - `aggregator` — консенсусный провайдер (best/median/weighted) с весами из ENV и хранением истории для трендов.
+  - `reliability` — EMA-скоринг покрытия/свежести/лагов/стабильности, сохранение в `provider_stats`, метрики Prometheus.
+  - `anomaly` — фильтрация выбросов по z-score/квантилям и счётчик `odds_anomaly_detected_total`.
+  - `aggregator` — консенсус (best/median/weighted), тренды closing line, best-price роутинг (`pick_best_route`).
   - `movement` — определение тренда и closing line в окне `CLV_WINDOW_BEFORE_KICKOFF_MIN`.
 - Overround-нормализация (`app/pricing/overround.py`):
   - `decimal_to_probabilities` → implied `p`.
@@ -76,8 +85,10 @@
 - `app/value_detector.ValueDetector` вычисляет edge = `(fair/market_price - 1) * 100`, преобразует уверенность `confidence`: при `VALUE_CONFIDENCE_METHOD=mc_var` используется `conf = 1 / (1 + variance)` из дисперсии Монте-Карло. Взвешенный edge `edge_w = edge * conf` участвует в сортировке; калиброванные пороги (`tau_edge`, `gamma_conf`) подтягиваются через `CalibrationService`.
 - `app/value_calibration` содержит `BacktestRunner` (валидация `time_kfold`|`walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`) и `CalibrationService`, который хранит результаты в SQLite (`value_calibration`).
 - `app/value_alerts.AlertHygiene` применяет антиспам-правила: cooldown (`VALUE_ALERT_COOLDOWN_MIN`), quiet hours (`VALUE_ALERT_QUIET_HOURS`), минимальную дельту (`VALUE_ALERT_MIN_EDGE_DELTA`), контроль ста́лости (`VALUE_STALENESS_FAIL_MIN`). Отправки логируются в `value_alerts_sent`.
-- `app/value_clv.PicksLedgerStore` сохраняет value-сигналы, вычисляет CLV (`calculate_clv`) и обновляет closing line (`closing_lines`).
-- `app/value_service.ValueService` объединяет `PredictionFacade` и мультипровайдер `LinesProvider`, формирует карточки (`value_picks`) и сравнительные отчёты (`compare`) с consensus-линией, трендом и блоком объяснения edge.
+- `app/value_clv.PicksLedgerStore` сохраняет value-сигналы, записывает `provider_price_decimal` и `consensus_price_decimal`, вычисляет CLV (`calculate_clv`) и обновляет closing line (`closing_lines`).
+- `app/value_service.ValueService` объединяет `PredictionFacade` и мультипровайдер `LinesProvider`, формирует карточки (`value_picks`) и сравнительные отчёты (`compare`) с consensus-линией, блоком best-price и пояснениями edge.
+- `app/settlement/engine.py` подтягивает финальные счета SportMonks, сеттлит рынки 1X2/OU/BTTS, рассчитывает ROI/CLV и обновляет rolling-метрики портфеля.
 - Команды бота `/value`, `/compare`, `/alerts` используют `ValueService`, выводят `τ/γ`, `edge_w`, историю алертов и сохраняют настройки в `value_alerts` и `value_alerts_sent`.
 - CLI `diagtools.value_check` проверяет провайдера котировок и запускает калибровку (опции `--calibrate`, `--days`). Отчёты сохраняются в `reports/diagnostics/value_calibration.{json,md}` и учитывают гейты `GATES_VALUE_SHARPE_*` и `BACKTEST_MIN_SAMPLES`.
 - CLI `diagtools.clv_check` агрегирует `picks_ledger` (средний CLV, доля положительных записей) и формирует `reports/diagnostics/value_clv.{json,md}`; exit-коды используются CI job `value-agg-clv-gate`.
+- CLI `diagtools.provider_quality` и `diagtools.settlement_check` публикуют `{json,md}`-сводки по надёжности провайдеров и ROI, используются в CI job `value-agg-clv-gate`.

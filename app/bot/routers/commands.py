@@ -32,9 +32,11 @@ from app.lines.aggregator import (
     ProviderQuote,
     parse_provider_weights,
 )
+from app.lines.anomaly import OddsAnomalyDetector
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
 from app.lines.providers.base import LinesProvider
+from app.lines.reliability import ProviderReliabilityTracker
 from app.lines.storage import OddsSQLiteStore
 from app.value_calibration import CalibrationService
 from app.value_clv import ledger_store
@@ -284,12 +286,19 @@ def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
     if not active:
         return next(iter(providers.values()), _DummyLinesProvider(mapper=mapper))
     weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
+    reliability = ProviderReliabilityTracker()
+    anomaly = OddsAnomalyDetector(z_max=float(getattr(settings, "ANOMALY_Z_MAX", 3.0)))
     aggregator = LinesAggregator(
         method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
         provider_weights=weights,
         store=OddsSQLiteStore(),
         retention_days=int(getattr(settings, "ODDS_SNAPSHOT_RETENTION_DAYS", 7)),
         movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+        reliability=reliability,
+        anomaly_detector=anomaly,
+        known_providers=active.keys(),
+        best_price_lookback_min=int(getattr(settings, "BEST_PRICE_LOOKBACK_MIN", 15)),
+        best_price_min_score=float(getattr(settings, "BEST_PRICE_MIN_SCORE", 0.6)),
     )
     return AggregatingLinesProvider(active, aggregator=aggregator)
 
@@ -749,6 +758,7 @@ if settings.ENABLE_VALUE_FEATURES:
         if user_id > 0:
             for card in cards:
                 consensus_payload = card.get("consensus")
+                best_price = card.get("best_price")
                 pick = card.get("pick")
                 if not consensus_payload or pick is None:
                     continue
@@ -756,7 +766,7 @@ if settings.ENABLE_VALUE_FEATURES:
                 if not consensus_meta:
                     continue
                 try:
-                    ledger_store.record_pick(user_id, pick, consensus_meta)
+                    ledger_store.record_pick(user_id, pick, consensus_meta, best_price=best_price)
                     ledger_store.record_closing_line(consensus_meta)
                     ledger_store.apply_closing_to_picks(consensus_meta)
                 except Exception as exc:  # pragma: no cover - ledger errors shouldn't break UX
@@ -811,8 +821,9 @@ if settings.ENABLE_VALUE_FEATURES:
         match_info = summary.get("match", {}) or {}
         match_key = str(match_info.get("match_key", ""))
         consensus_map = summary.get("consensus", {}) or {}
+        best_price_map = summary.get("best_price", {}) or {}
         keyboard = (
-            comparison_providers_keyboard(match_key, consensus_map)
+            comparison_providers_keyboard(match_key, consensus_map, best_price_map)
             if match_key and consensus_map
             else noop_keyboard()
         )
@@ -824,7 +835,19 @@ if settings.ENABLE_VALUE_FEATURES:
         if user_id <= 0:
             await message.answer("Не удалось определить пользователя.")
             return
-        summary = ledger_store.user_summary(user_id)
+        page = 1
+        args = (command.args or "").strip()
+        if args:
+            try:
+                page = max(1, int(args.split()[0]))
+            except ValueError:
+                await message.answer("Страница должна быть числом")
+                return
+        summary = ledger_store.user_summary(
+            user_id,
+            page=page,
+            page_size=int(getattr(settings, "PAGINATION_PAGE_SIZE", 5)),
+        )
         text = format_portfolio(summary)
         await message.answer(text, reply_markup=noop_keyboard())
 

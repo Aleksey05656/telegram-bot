@@ -12,12 +12,15 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from statistics import median
 
+from app.lines.anomaly import OddsAnomalyDetector
 from app.lines.movement import MovementResult, analyze_movement
 from app.lines.providers.base import LinesProvider, OddsSnapshot
+from app.lines.reliability import ProviderReliabilityTracker
 from app.lines.storage import LineHistoryPoint, OddsSQLiteStore
+from config import settings
 
 
 @dataclass(slots=True, frozen=True)
@@ -57,6 +60,11 @@ class LinesAggregator:
         retention_days: int = 7,
         movement_window_minutes: int = 60,
         movement_tolerance_pct: float = 0.5,
+        reliability: ProviderReliabilityTracker | None = None,
+        anomaly_detector: OddsAnomalyDetector | None = None,
+        known_providers: Iterable[str] | None = None,
+        best_price_lookback_min: int | None = None,
+        best_price_min_score: float | None = None,
     ) -> None:
         self.method = method.lower().strip() or "median"
         self._weights = {
@@ -69,6 +77,15 @@ class LinesAggregator:
         self._movement_window = max(int(movement_window_minutes), 0)
         self._movement_tolerance = float(movement_tolerance_pct)
         self._last_meta: MutableMapping[tuple[str, str, str], ConsensusMeta] = {}
+        self._reliability = reliability
+        self._anomaly_detector = anomaly_detector
+        self._known_providers: tuple[str, ...] | None = self._normalize_providers(known_providers)
+        if not self._known_providers and provider_weights:
+            self._known_providers = self._normalize_providers(provider_weights.keys())
+        default_lookback = getattr(settings, "BEST_PRICE_LOOKBACK_MIN", 15)
+        default_score = getattr(settings, "BEST_PRICE_MIN_SCORE", 0.6)
+        self._best_price_lookback_min = int(best_price_lookback_min or default_lookback)
+        self._best_price_min_score = float(best_price_min_score or default_score)
 
     @property
     def last_metadata(self) -> dict[tuple[str, str, str], ConsensusMeta]:
@@ -162,8 +179,106 @@ class LinesAggregator:
                 closing_price=movement.closing_price,
                 closing_pulled_at=movement.closing_pulled_at,
             )
+            if self._reliability:
+                expected = self._known_providers or self._normalize_providers(
+                    quote.provider for quote in items
+                )
+                self._reliability.observe_event(
+                    match_key=latest.match_key,
+                    market=latest.market.upper(),
+                    league=league,
+                    quotes=quotes,
+                    expected_providers=expected,
+                    reference_price=movement.closing_price or price,
+                    observed_at=latest.pulled_at,
+                )
             consensus_rows.append(consensus)
         return consensus_rows
+
+    def pick_best_route(
+        self,
+        *,
+        match_key: str,
+        market: str,
+        selection: str,
+        league: str | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, object] | None:
+        if not self._store:
+            return None
+        now = now or datetime.now(UTC)
+        cutoff = now - timedelta(minutes=max(self._best_price_lookback_min, 1))
+        market_upper = market.upper()
+        latest = self._store.latest_quotes(
+            match_key=match_key,
+            market=market_upper,
+            selection=selection.upper(),
+        )
+        candidates = [quote for quote in latest if quote.pulled_at >= cutoff]
+        if not candidates:
+            return None
+        flagged: set[str] = set()
+        if self._anomaly_detector:
+            flagged = self._anomaly_detector.filter_anomalies(candidates)
+        league_name = league or next((item.league for item in candidates if item.league), None)
+        best_quote: OddsSnapshot | None = None
+        best_score = 0.0
+        for snapshot in candidates:
+            provider_id = snapshot.provider
+            if snapshot.provider.lower() in flagged:
+                continue
+            score = 1.0
+            if self._reliability:
+                if not self._reliability.eligible(
+                    provider_id,
+                    market_upper,
+                    league_name,
+                    min_score=self._best_price_min_score,
+                ):
+                    continue
+                stats = self._reliability.get(provider_id, market_upper, league_name)
+                if not stats:
+                    continue
+                score = float(stats.score)
+            if best_quote is None or snapshot.price_decimal > best_quote.price_decimal:
+                best_quote = snapshot
+                best_score = score
+        if not best_quote:
+            return None
+        return {
+            "provider": best_quote.provider,
+            "price_decimal": float(best_quote.price_decimal),
+            "pulled_at_utc": best_quote.pulled_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "score": float(best_score),
+        }
+
+    @property
+    def reliability_tracker(self) -> ProviderReliabilityTracker | None:
+        return self._reliability
+
+    @property
+    def anomaly_detector(self) -> OddsAnomalyDetector | None:
+        return self._anomaly_detector
+
+    @property
+    def store(self) -> OddsSQLiteStore | None:
+        return self._store
+
+    def register_providers(self, providers: Iterable[str]) -> None:
+        names = self._normalize_providers(providers)
+        if names:
+            self._known_providers = names
+
+    @staticmethod
+    def _normalize_providers(providers: Iterable[str] | None) -> tuple[str, ...] | None:
+        if not providers:
+            return None
+        seen: dict[str, None] = {}
+        for name in providers:
+            if not name:
+                continue
+            seen[str(name)] = None
+        return tuple(seen.keys()) if seen else None
 
     def _latest_per_provider(self, items: Sequence[OddsSnapshot]) -> list[OddsSnapshot]:
         by_provider: dict[str, OddsSnapshot] = {}
@@ -230,6 +345,7 @@ class AggregatingLinesProvider:
     ) -> None:
         self._providers = dict(providers)
         self._aggregator = aggregator
+        self._aggregator.register_providers(self._providers.keys())
 
     async def fetch_odds(
         self,

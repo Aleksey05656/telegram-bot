@@ -26,6 +26,12 @@ diag-drift --reports-dir reports/diagnostics/drift
 
 # Benchmark bot renderers
 python -m diagtools.bench --iterations ${BENCH_ITER}
+
+# Provider reliability gate
+python -m diagtools.provider_quality --reports-dir reports/diagnostics --min-score 0.6 --min-coverage 0.6
+
+# Settlement & ROI gate
+python -m diagtools.settlement_check --reports-dir reports/diagnostics --min-coverage 0.6 --roi-threshold -1.0
 ```
 
 ## Sections overview
@@ -36,6 +42,9 @@ python -m diagtools.bench --iterations ${BENCH_ITER}
 - **Calibration & Coverage** — Expected Calibration Error for 1X2/OU2.5/BTTS plus Monte-Carlo interval checks (80% / 90%).
 - **Backtest & Calibration** — подбор `τ/γ` per лига/рынок на исторических снапшотах (валидация `time_kfold`|`walk_forward`, метрики `Sharpe`, `log_gain`, `samples`, гейты `GATES_VALUE_SHARPE_*`, `BACKTEST_MIN_SAMPLES`). Результаты сохраняются в `value_calibration` и отчётах `value_calibration.{json,md}`; `python -m diagtools.value_check` по умолчанию читает последний отчёт, а флаг `--calibrate` принудительно перезапускает бэктест (используется в CI-гейте).
 - **Odds Aggregation & CLV** — мультипровайдерный консенсус (best/median/weighted), тренды closing line и сводка CLV из `picks_ledger`. CLI `python -m diagtools.clv_check` публикует `value_clv.{json,md}` и возвращает ненулевой код при отсутствии записей или просадке ниже `CLV_FAIL_THRESHOLD_PCT`.
+- **Provider Reliability** — EMA-скоринг coverage/fresh_share/lag/bias; `provider_quality.{json,md}` фиксирует средний/минимальный score, покрытие и список провайдеров ниже `RELIABILITY_MIN_SCORE`.
+- **Best-Price Routing** — анализ свежих котировок в окне `BEST_PRICE_LOOKBACK_MIN`, сравнение с консенсусом, доля аномалий и средний выигрыш по цене.
+- **Settlement & ROI** — автоматический сеттлмент 1X2/OU/BTTS по итоговым счётам SportMonks, rolling ROI по `PORTFOLIO_ROLLING_DAYS`, отчёт `settlement_check.{json,md}`.
 - **Bi-Poisson Invariance** — sanity checks for market swaps and top scorelines when home/away are flipped.
 - **Benchmarks** — latency/memory for `/today`, `/match`, `/explain` rendering paths; default P95 budget from `BENCH_P95_BUDGET_MS`.
 - **Chaos / Ops** — smoke CLI, health endpoints, runtime lock exercise and backup inventory.
@@ -112,6 +121,10 @@ reports/
     ├── value_calibration.json
     ├── value_clv.md
     ├── value_clv.json
+    ├── provider_quality.md
+    ├── provider_quality.json
+    ├── settlement_check.md
+    ├── settlement_check.json
     ├── bench/               # bench.json + summary.md
     ├── site/                # index.html + status.svg (dashboard)
     ├── DIAGNOSTICS.md       # aggregated Markdown report
@@ -138,7 +151,7 @@ reports/
 5. `python -m diagtools.bench --iterations ${BENCH_ITER}`
 6. Дополнительный job `diagnostics-drift` в CI повторно запускает `diag-drift` и публикует `reports/diagnostics/drift` как артефакт.
 7. Job `value-calibration-gate` запускает `python -m diagtools.value_check --calibrate --days ${BACKTEST_DAYS}` и публикует `reports/diagnostics/value_calibration.{json,md}`. Падение происходит при `Sharpe < GATES_VALUE_SHARPE_FAIL` или `samples < BACKTEST_MIN_SAMPLES`.
-8. Job `value-agg-clv-gate` прогоняет `python -m diagtools.clv_check --db-path ${DB_PATH}` и выкладывает `reports/diagnostics/value_clv.{json,md}`. Exit-коды 1/2 фиксируют отсутствие записей или средний CLV ниже `CLV_FAIL_THRESHOLD_PCT`.
+8. Job `value-agg-clv-gate` последовательно запускает `python -m diagtools.provider_quality`, `python -m diagtools.settlement_check` и `python -m diagtools.clv_check --db-path ${DB_PATH}`, публикуя артефакты `provider_quality.{json,md}`, `settlement_check.{json,md}`, `value_clv.{json,md}`. Exit-коды сигнализируют о провайдерах ниже порога, просадке ROI и среднем CLV ниже `CLV_FAIL_THRESHOLD_PCT`.
 9. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
 10. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
 

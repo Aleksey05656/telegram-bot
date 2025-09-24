@@ -1,3 +1,13 @@
+## Задача: Value v1.5 best-price & settlement
+- **Статус**: В процессе (ожидает окружение с numpy/pandas/sqlalchemy/joblib для полного прогона тестов)
+- **Описание**: Завершить best-price роутинг с учётом надёжности/аномалий, внедрить автоматический сеттлмент и обновить диагностику/документацию.
+- **Шаги выполнения**:
+  - [x] Реализованы `app/lines/reliability.py`, `app/lines/anomaly.py`, `app/settlement/engine.py`, обновлены `app/lines/aggregator.py`, `app/value_service.py`, `app/value_clv.py` и леджер (`database/schema.sql`, миграция `20241007_005_value_v1_5.py`).
+  - [x] Расширены бот-UX и форматирование (`app/bot/formatting.py`, `app/bot/keyboards.py`, `app/bot/routers/{commands,callbacks}.py`) блоком «Best price» и пояснением провайдера.
+  - [x] Диагностика (`diagtools/run_diagnostics.py`) и новые CLI (`diagtools/provider_quality.py`, `diagtools/settlement_check.py`) добавлены в CI, обновлены README, docs (`dev_guide.md`, `user_guide.md`, `diagnostics.md`, `Project.md`).
+  - [x] Написать и прогнать тесты (`tests/odds/*`, `tests/value/test_settlement_engine.py`, `tests/bot/test_portfolio_extended.py`, `tests/diag/*`); `pytest -q` падает из-за отсутствия numpy/pandas/sqlalchemy/joblib в оффлайн-окружении.
+- **Зависимости**: app/lines/{aggregator.py,reliability.py,anomaly.py}, app/settlement/engine.py, app/value_{service.py,clv.py}, app/bot/{formatting.py,keyboards.py,routers/commands.py,routers/callbacks.py}, config.py, database/schema.sql, database/migrations/versions/20241007_005_value_v1_5.py, diagtools/{run_diagnostics.py,provider_quality.py,settlement_check.py}, README, docs/{dev_guide.md,user_guide.md,diagnostics.md,Project.md,changelog.md,tasktracker.md}, tests/{odds/test_reliability.py,odds/test_best_route.py,odds/test_anomaly_filter.py,value/test_settlement_engine.py,bot/test_portfolio_extended.py,diag/test_provider_quality.py,diag/test_settlement_check.py}.
+
 ## Задача: Value v1.4 audit & rollout
 - **Статус**: Завершена
 - **Описание**: Внедрить мультипровайдерный агрегатор, расчёт CLV и обновить UX/диагностику согласно Value v1.4.

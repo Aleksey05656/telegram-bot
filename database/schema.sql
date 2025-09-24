@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS picks_ledger (
     selection TEXT NOT NULL,
     stake REAL NOT NULL DEFAULT 1.0,
     price_taken REAL NOT NULL,
+    provider_price_decimal REAL NOT NULL DEFAULT 0.0,
     model_probability REAL NOT NULL,
     market_probability REAL NOT NULL,
     edge_pct REAL NOT NULL,
@@ -184,9 +185,12 @@ CREATE TABLE IF NOT EXISTS picks_ledger (
     pulled_at_utc TEXT NOT NULL,
     kickoff_utc TEXT NOT NULL,
     consensus_price REAL NOT NULL,
+    consensus_price_decimal REAL NOT NULL DEFAULT 0.0,
     consensus_method TEXT NOT NULL,
     consensus_provider_count INTEGER NOT NULL,
     clv_pct REAL NULL,
+    outcome TEXT NULL,
+    roi REAL NULL,
     closing_price REAL NULL,
     closing_pulled_at TEXT NULL,
     closing_method TEXT NULL,
@@ -200,3 +204,18 @@ CREATE INDEX IF NOT EXISTS picks_ledger_user_idx
 
 CREATE INDEX IF NOT EXISTS picks_ledger_match_idx
     ON picks_ledger(match_key, market, selection);
+
+CREATE TABLE IF NOT EXISTS provider_stats (
+    provider TEXT NOT NULL,
+    market TEXT NOT NULL,
+    league TEXT NOT NULL,
+    coverage REAL NOT NULL,
+    fresh_share REAL NOT NULL,
+    lag_ms REAL NOT NULL,
+    stability REAL NOT NULL,
+    bias REAL NOT NULL,
+    score REAL NOT NULL,
+    sample_size INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(provider, market, league)
+);

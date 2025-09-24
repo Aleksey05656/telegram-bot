@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     ODDS_OVERROUND_METHOD: str = "proportional"
     ODDS_AGG_METHOD: str = "median"
     ODDS_SNAPSHOT_RETENTION_DAYS: int = 14
+    RELIABILITY_DECAY: float = 0.9
+    RELIABILITY_MIN_SCORE: float = 0.5
+    RELIABILITY_MIN_COVERAGE: float = 0.6
+    RELIABILITY_MAX_FRESHNESS_SEC: float = 600.0
+    ANOMALY_Z_MAX: float = 3.0
+    BEST_PRICE_MIN_SCORE: float = 0.6
+    BEST_PRICE_LOOKBACK_MIN: int = 15
     VALUE_MIN_EDGE_PCT: float = 3.0
     VALUE_MIN_CONFIDENCE: float = 0.6
     VALUE_MAX_PICKS: int = 5
@@ -49,7 +56,11 @@ class Settings(BaseSettings):
     VALUE_ALERT_MAX_UPDATES: int = 3
     VALUE_STALENESS_FAIL_MIN: int = 30
     CLV_WINDOW_BEFORE_KICKOFF_MIN: int = 120
-    CLV_FAIL_THRESHOLD_PCT: float = -5.0
+    CLV_FAIL_THRESHOLD_PCT: float = -1.0
+    SETTLEMENT_ENABLE: bool = True
+    SETTLEMENT_POLL_MIN: int = 10
+    SETTLEMENT_MAX_LAG_HOURS: int = 24
+    PORTFOLIO_ROLLING_DAYS: int = 60
     BACKTEST_DAYS: int = 120
     BACKTEST_MIN_SAMPLES: int = 300
     BACKTEST_OPTIM_TARGET: str = "sharpe"
