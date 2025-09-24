@@ -1,3 +1,17 @@
+# [2025-10-07] - Value v1.5 best-price & settlement
+### Добавлено
+- Модули `app/lines/reliability.py`, `app/lines/anomaly.py`, `app/settlement/engine.py`, CLI `diagtools/provider_quality.py`, `diagtools/settlement_check.py`, миграция `20241007_005_value_v1_5.py` и таблица `provider_stats`.
+- Best-price роутинг `LinesAggregator.pick_best_route`, сохранение `provider_price_decimal`/`consensus_price_decimal` в `picks_ledger`, новые метрики `provider_reliability_score`, `provider_fresh_share`, `provider_latency_ms`, `odds_anomaly_detected_total`, `picks_settled_total`, `portfolio_roi_rolling`, `clv_mean_pct`.
+- Тесты `tests/odds/test_reliability.py`, `tests/odds/test_best_route.py`, `tests/odds/test_anomaly_filter.py`, `tests/value/test_settlement_engine.py`, `tests/bot/test_portfolio_extended.py`, `tests/diag/test_provider_quality.py`, `tests/diag/test_settlement_check.py`.
+
+### Изменено
+- `app/value_service.py`, `app/bot/{formatting.py,keyboards.py,routers/commands.py,routers/callbacks.py}` выводят блок «Best price», объяснение выбора провайдера и ROI/CLV в `/portfolio`.
+- `diagtools/run_diagnostics.py` расширен секциями Provider Reliability, Best-Price, Settlement & ROI; `config.py`, `.env.example`, README и документация (`docs/{dev_guide.md,user_guide.md,diagnostics.md,Project.md}`) описывают новые параметры и гейты.
+- `database/schema.sql` и миграции добавляют `provider_price_decimal`, `consensus_price_decimal`, `roi`, индекс `odds_snapshots_match_time`; `app/value_service.py` и `app/value_clv.py` сохраняют best-price данные в леджер.
+
+### Исправлено
+- `diagtools/run_diagnostics` корректно использует настройки порогов при подсчёте надёжности/маршрутов и публикует артефакты `provider_quality.{json,md}` и `settlement_check.{json,md}` в CI.
+
 # [2025-10-05] - Value v1.4 audit
 ### Добавлено
 - Мультипровайдерный агрегатор котировок (`app/lines/aggregator.py`, `app/lines/movement.py`), расчёт CLV и леджер (`app/value_clv.py`, `database/schema.sql`, миграция `20241005_004_value_v1_4`).

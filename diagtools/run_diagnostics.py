@@ -28,7 +28,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
@@ -60,16 +60,19 @@ from app.diagnostics import (
     scoreline_symmetry,
 )
 from app.lines.aggregator import AggregatingLinesProvider, LinesAggregator, parse_provider_weights
+from app.lines.anomaly import OddsAnomalyDetector
+from app.lines.reliability import ProviderReliabilityTracker
+from app.lines.storage import OddsSQLiteStore
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
 from app.lines.providers.base import LinesProvider
-from app.lines.storage import OddsSQLiteStore
 from app.value_detector import ValueDetector
 from app.value_service import ValueService
 from diagtools import bench as bench_module
 from diagtools import drift as drift_module
 from diagtools import golden_regression as golden_module
 from diagtools import reports_html
+from diagtools import settlement_check as settlement_module
 from diagtools.freshness import evaluate_sportmonks_freshness
 from diagtools.value_check import run_backtest_calibration
 from metrics.metrics import record_diagnostics_summary
@@ -322,12 +325,24 @@ def _create_lines_provider_diag(settings: Any, mapper: LinesMapper) -> LinesProv
     if not active:
         return next(iter(providers.values()), None)
     weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
+    reliability_tracker = ProviderReliabilityTracker(
+        decay=float(getattr(settings, "RELIABILITY_DECAY", 0.9)),
+        max_freshness_sec=float(getattr(settings, "RELIABILITY_MAX_FRESHNESS_SEC", 600.0)),
+    )
+    anomaly_detector = OddsAnomalyDetector(
+        z_max=float(getattr(settings, "ANOMALY_Z_MAX", 3.0)),
+    )
     aggregator = LinesAggregator(
         method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
         provider_weights=weights,
         store=OddsSQLiteStore(),
         retention_days=int(getattr(settings, "ODDS_SNAPSHOT_RETENTION_DAYS", 14)),
         movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+        reliability=reliability_tracker,
+        anomaly_detector=anomaly_detector,
+        known_providers=active.keys(),
+        best_price_lookback_min=int(getattr(settings, "BEST_PRICE_LOOKBACK_MIN", 15)),
+        best_price_min_score=float(getattr(settings, "BEST_PRICE_MIN_SCORE", 0.6)),
     )
     return AggregatingLinesProvider(active, aggregator=aggregator)
 
@@ -364,6 +379,174 @@ def _instantiate_provider_diag(name: str, settings: Any, mapper: LinesMapper) ->
             mapper=mapper,
         )
     return _DummyDiagProvider(mapper)
+
+
+def _summarize_reliability(
+    aggregator: LinesAggregator, settings: Any
+) -> dict[str, Any]:
+    tracker = aggregator.reliability_tracker
+    if tracker is None:
+        return {}
+    stats = tracker.snapshot()
+    if not stats:
+        return {"entries": 0, "below_threshold": []}
+    min_score_threshold = float(getattr(settings, "RELIABILITY_MIN_SCORE", 0.5))
+    min_coverage_threshold = float(getattr(settings, "RELIABILITY_MIN_COVERAGE", 0.6))
+    avg_score = sum(item.score for item in stats) / len(stats)
+    avg_coverage = sum(item.coverage for item in stats) / len(stats)
+    avg_fresh = sum(item.fresh_share for item in stats) / len(stats)
+    avg_lag = sum(item.lag_ms for item in stats) / len(stats)
+    min_score = min(item.score for item in stats)
+    min_coverage = min(item.coverage for item in stats)
+    failing = [
+        {
+            "provider": item.provider,
+            "market": item.market,
+            "league": item.league,
+            "score": item.score,
+            "coverage": item.coverage,
+            "fresh_share": item.fresh_share,
+        }
+        for item in stats
+        if item.score < min_score_threshold or item.coverage < min_coverage_threshold
+    ]
+    ordered = sorted(stats, key=lambda item: item.score)
+    sample = [
+        {
+            "provider": item.provider,
+            "market": item.market,
+            "league": item.league,
+            "score": item.score,
+            "coverage": item.coverage,
+            "fresh_share": item.fresh_share,
+            "lag_ms": item.lag_ms,
+        }
+        for item in ordered[:5]
+    ]
+    return {
+        "entries": len(stats),
+        "avg_score": avg_score,
+        "avg_coverage": avg_coverage,
+        "avg_fresh_share": avg_fresh,
+        "avg_lag_ms": avg_lag,
+        "min_score": min_score,
+        "min_coverage": min_coverage,
+        "below_threshold": failing,
+        "sample": sample,
+        "thresholds": {
+            "score": min_score_threshold,
+            "coverage": min_coverage_threshold,
+        },
+    }
+
+
+def _summarize_best_price(
+    aggregator: LinesAggregator, settings: Any, now: datetime | None = None
+) -> dict[str, Any]:
+    meta = aggregator.last_metadata
+    available = len(meta)
+    summary: dict[str, Any] = {
+        "routes": 0,
+        "available": available,
+        "skipped": available,
+        "avg_score": 0.0,
+        "avg_improvement_pct": 0.0,
+        "provider_usage": {},
+        "flagged_total": 0,
+        "samples": [],
+    }
+    if not meta:
+        return summary
+    store = aggregator.store
+    if store is None:
+        return summary
+    now = now or datetime.now(UTC)
+    lookback = int(
+        getattr(
+            aggregator,
+            "_best_price_lookback_min",
+            getattr(settings, "BEST_PRICE_LOOKBACK_MIN", 15),
+        )
+    )
+    cutoff = now - timedelta(minutes=max(lookback, 1))
+    anomaly = aggregator.anomaly_detector
+    provider_usage: Counter[str] = Counter()
+    best_routes: list[dict[str, Any]] = []
+    flagged_total = 0
+    for item in meta.values():
+        market_upper = item.market.upper()
+        selection_upper = item.selection.upper()
+        quotes = [
+            quote
+            for quote in store.latest_quotes(
+                match_key=item.match_key,
+                market=market_upper,
+                selection=selection_upper,
+            )
+            if quote.pulled_at >= cutoff
+        ]
+        flagged: set[str] = set()
+        if anomaly and quotes:
+            flagged = anomaly.filter_anomalies(quotes, emit_metrics=False)
+        flagged_total += len(flagged)
+        route = aggregator.pick_best_route(
+            match_key=item.match_key,
+            market=item.market,
+            selection=item.selection,
+            league=item.league,
+            now=now,
+        )
+        if not route:
+            continue
+        improvement_pct = 0.0
+        if item.price_decimal > 0:
+            improvement_pct = (
+                float(route.get("price_decimal", 0.0)) / float(item.price_decimal) - 1.0
+            ) * 100.0
+        best_routes.append(
+            {
+                "match_key": item.match_key,
+                "market": item.market,
+                "selection": item.selection,
+                "provider": route.get("provider"),
+                "score": float(route.get("score", 0.0)),
+                "price_decimal": float(route.get("price_decimal", 0.0)),
+                "consensus_price": float(item.price_decimal),
+                "improvement_pct": improvement_pct,
+                "flagged": sorted(flagged),
+            }
+        )
+        provider = route.get("provider")
+        if provider:
+            provider_usage[str(provider)] += 1
+    routes = len(best_routes)
+    summary.update(
+        {
+            "routes": routes,
+            "available": available,
+            "skipped": max(available - routes, 0),
+            "flagged_total": flagged_total,
+            "provider_usage": dict(provider_usage),
+            "samples": best_routes[:5],
+            "thresholds": {
+                "lookback_min": lookback,
+                "min_score": float(
+                    getattr(
+                        aggregator,
+                        "_best_price_min_score",
+                        getattr(settings, "BEST_PRICE_MIN_SCORE", 0.6),
+                    )
+                ),
+            },
+        }
+    )
+    if not routes:
+        return summary
+    summary["avg_score"] = sum(item["score"] for item in best_routes) / routes
+    summary["avg_improvement_pct"] = (
+        sum(item["improvement_pct"] for item in best_routes) / routes
+    )
+    return summary
 
 
 def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
@@ -434,8 +617,11 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
     status = "✅" if odds_count > 0 else "⚠️"
     note = f"odds={odds_count} predictions={len(predictions)} picks={len(cards)}"
     aggregation_stats: dict[str, object] = {}
+    reliability_stats: dict[str, Any] = {}
+    best_price_stats: dict[str, Any] = {}
     if isinstance(provider, AggregatingLinesProvider):
-        meta = provider.aggregator.last_metadata
+        aggregator = provider.aggregator
+        meta = aggregator.last_metadata
         if meta:
             counts = [item.provider_count for item in meta.values()]
             avg_count = sum(counts) / len(counts)
@@ -444,13 +630,21 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
             avg_count = 0.0
             trend_counts = Counter()
         aggregation_stats = {
-            "method": provider.aggregator.method,
+            "method": aggregator.method,
             "pairs": len(meta),
             "avg_provider_count": avg_count,
             "trend_counts": dict(trend_counts),
         }
+        reliability_stats = _summarize_reliability(aggregator, settings)
+        best_price_stats = _summarize_best_price(aggregator, settings)
         if aggregation_stats["pairs"]:
             note += f" avg_providers={avg_count:.1f}"
+        if best_price_stats.get("available"):
+            note += (
+                " best_price="
+                f"{int(best_price_stats.get('routes', 0))}/"
+                f"{int(best_price_stats.get('available', 0))}"
+            )
     clv_summary = {"entries": 0, "avg_clv": 0.0, "positive_share": 0.0}
     db_path = Path(settings.DB_PATH)
     if db_path.exists():
@@ -480,8 +674,44 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
         "odds_count": odds_count,
         "predictions": len(predictions),
         "aggregation": aggregation_stats,
+        "best_price": best_price_stats,
+        "reliability": reliability_stats,
         "clv": clv_summary,
     }
+
+
+def _run_settlement_section(settings: Any) -> dict[str, Any]:
+    db_path = str(getattr(settings, "DB_PATH", ""))
+    window_days = int(getattr(settings, "PORTFOLIO_ROLLING_DAYS", 60))
+    min_coverage = float(getattr(settings, "RELIABILITY_MIN_COVERAGE", 0.6))
+    roi_threshold = float(getattr(settings, "CLV_FAIL_THRESHOLD_PCT", -1.0))
+    try:
+        summary = settlement_module._load_summary(db_path, window_days)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        return {
+            "status": "⚠️",
+            "note": f"settlement load failed: {exc}",
+            "summary": {},
+        }
+    payload = dataclasses.asdict(summary)
+    payload.update(
+        {
+            "window_days": window_days,
+            "thresholds": {"coverage": min_coverage, "roi": roi_threshold},
+        }
+    )
+    if summary.total == 0:
+        status = "⚠️"
+        note = "нет сигналов"
+    else:
+        status = "✅"
+        if summary.coverage < min_coverage or summary.window_roi < roi_threshold:
+            status = "❌"
+        note = (
+            f"coverage={summary.coverage:.2f}"
+            f" roi={summary.window_roi:.2f}% avg={summary.avg_roi:.2f}%"
+        )
+    return {"status": status, "note": note, "summary": payload}
 
 
 def _run_value_calibration_section(settings: Any) -> dict[str, Any]:
@@ -1606,6 +1836,45 @@ def main() -> None:
         ),
     }
     metrics["odds_aggregation"] = aggregation_diag
+    reliability_diag = value_diag.get("reliability", {}) or {}
+    reliability_entries = int(reliability_diag.get("entries", 0))
+    reliability_failures = reliability_diag.get("below_threshold", []) or []
+    if reliability_entries == 0:
+        reliability_status = "⚠️"
+        reliability_note = "нет данных"
+    else:
+        reliability_status = "✅"
+        reliability_note = (
+            f"avg={reliability_diag.get('avg_score', 0.0):.2f}"
+            f" min={reliability_diag.get('min_score', 0.0):.2f}"
+            f" cov={reliability_diag.get('avg_coverage', 0.0):.2f}"
+        )
+        if reliability_failures:
+            reliability_status = "❌"
+            reliability_note += f" fails={len(reliability_failures)}"
+    statuses["Provider Reliability"] = {
+        "status": reliability_status,
+        "note": reliability_note,
+    }
+    metrics["provider_reliability"] = reliability_diag
+    best_price_diag = value_diag.get("best_price", {}) or {}
+    best_routes = int(best_price_diag.get("routes", 0))
+    best_available = int(best_price_diag.get("available", 0))
+    if best_available == 0:
+        best_status = "⚠️"
+        best_note = "нет матчей"
+    elif best_routes == 0:
+        best_status = "⚠️"
+        best_note = f"routes=0/{best_available}"
+    else:
+        best_status = "✅"
+        best_note = (
+            f"routes={best_routes}/{best_available}"
+            f" avgΔ={best_price_diag.get('avg_improvement_pct', 0.0):.2f}%"
+            f" score={best_price_diag.get('avg_score', 0.0):.2f}"
+        )
+    statuses["Best-Price Routing"] = {"status": best_status, "note": best_note}
+    metrics["best_price_routing"] = best_price_diag
     clv_diag = value_diag.get("clv", {}) or {}
     clv_entries = int(clv_diag.get("entries", 0))
     statuses["CLV"] = {
@@ -1617,6 +1886,12 @@ def main() -> None:
         ),
     }
     metrics["clv"] = clv_diag
+    settlement_diag = _run_settlement_section(settings)
+    statuses["Settlement & ROI"] = {
+        "status": settlement_diag["status"],
+        "note": settlement_diag["note"],
+    }
+    metrics["settlement"] = settlement_diag.get("summary", {})
 
     value_calibration = _run_value_calibration_section(settings)
     statuses["Value Calibration"] = {

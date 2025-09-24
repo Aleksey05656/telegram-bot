@@ -40,6 +40,26 @@ def _fmt_decimal(value: float) -> str:
     return f"{value:.2f}"
 
 
+def _format_best_price(best: dict[str, object] | None) -> str | None:
+    if not isinstance(best, dict):
+        return None
+    provider = best.get("provider")
+    price = best.get("price_decimal")
+    if provider is None or price is None:
+        return None
+    line = f"Best price: {escape(str(provider))} {_fmt_decimal(float(price))}"
+    score = best.get("score")
+    if score is not None:
+        try:
+            line += f" (score={float(score):.2f})"
+        except (TypeError, ValueError):
+            pass
+    pulled = best.get("pulled_at_utc")
+    if isinstance(pulled, str):
+        line += f" @ {escape(pulled)}"
+    return line
+
+
 def _render_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
     widths = [len(header) for header in headers]
     for row in rows:
@@ -300,6 +320,7 @@ def format_value_picks(
         pick: ValuePick = card.get("pick")  # type: ignore[assignment]
         overround_method = str(card.get("overround_method", "proportional"))
         consensus = card.get("consensus") or {}
+        best_price = card.get("best_price") if isinstance(card, dict) else None
         home = escape(str(match.get("home", "?")))
         away = escape(str(match.get("away", "?")))
         league = escape(str(match.get("league", "")))
@@ -346,6 +367,9 @@ def format_value_picks(
         block = [header, market_line]
         if consensus_line:
             block.append(consensus_line)
+        best_line = _format_best_price(best_price)
+        if best_line:
+            block.append(best_line)
         block.extend([price_line, thresholds, explain, f"Источник {escape(pick.provider)}", ""])
         lines.extend(block)
     return "\n".join(lines).strip()
@@ -412,6 +436,10 @@ def format_value_comparison(data: dict[str, object]) -> str:
                 lines.append(
                     f"    Consensus {price} (n={provider_count}) {escape(trend)}{closing_str}"
                 )
+            best_map: dict[tuple[str, str], dict[str, object]] = data.get("best_price", {})  # type: ignore[assignment]
+            best_line = _format_best_price(best_map.get((pick.market.upper(), pick.selection.upper())))
+            if best_line:
+                lines.append(f"    {best_line}")
         lines.append("")
     markets = data.get("markets", {}) or {}
     if not markets:
@@ -542,12 +570,20 @@ def format_providers_breakdown(
 def format_portfolio(summary: dict[str, object]) -> str:
     total = int(summary.get("total", 0))
     avg_clv = float(summary.get("avg_clv", 0.0))
+    avg_edge = float(summary.get("avg_edge", 0.0))
+    avg_roi = float(summary.get("avg_roi", 0.0))
     positive_share = float(summary.get("positive_share", 0.0)) * 100
+    page = int(summary.get("page", 1))
+    total_pages = int(summary.get("total_pages", 1))
+    rolling_days = int(getattr(settings, "PORTFOLIO_ROLLING_DAYS", 60))
     lines = [
         "📈 <b>Портфель</b>",
         f"Всего сигналов: {total}",
+        f"Средний edge: {avg_edge:.2f}%",
         f"Средний CLV: {avg_clv:.2f}%",
         f"Положительный CLV: {positive_share:.1f}%",
+        f"ROI {rolling_days}д: {avg_roi:.2f}%",
+        f"Страница {page}/{total_pages}",
     ]
     picks = summary.get("picks") or []
     if not picks:
@@ -556,17 +592,23 @@ def format_portfolio(summary: dict[str, object]) -> str:
         return "\n".join(lines)
     lines.append("")
     lines.append("Последние записи:")
-    for row in picks[:8]:
+    for row in picks:
         market = escape(str(row.get("market", "")))
         selection = escape(str(row.get("selection", "")))
         match_key = escape(str(row.get("match_key", "N/A")))
-        price_taken = _fmt_decimal(float(row.get("price_taken", 0.0)))
-        closing = row.get("closing_price")
-        closing_part = (
-            f" → {_fmt_decimal(float(closing))}" if closing is not None else ""
-        )
+        provider_price = _fmt_decimal(float(row.get("provider_price_decimal", row.get("price_taken", 0.0))))
+        consensus_price = row.get("consensus_price_decimal")
+        consensus_part = ""
+        if consensus_price is not None:
+            consensus_part = f" vs cons {_fmt_decimal(float(consensus_price))}"
+        closing_price = row.get("closing_price")
+        if closing_price is not None:
+            consensus_part += f" / close {_fmt_decimal(float(closing_price))}"
+        roi = row.get("roi")
+        roi_part = f" ROI {float(roi):+.1f}%" if roi is not None else ""
+        outcome = str(row.get("outcome") or "—").upper()
         clv = row.get("clv_pct")
-        clv_part = f" ({float(clv):+.2f}%)" if clv is not None else " (—)"
+        clv_part = f" CLV {float(clv):+.2f}%" if clv is not None else " CLV —"
         created_raw = row.get("created_at")
         created_str = str(created_raw)
         if isinstance(created_raw, str):
@@ -576,7 +618,14 @@ def format_portfolio(summary: dict[str, object]) -> str:
             except ValueError:
                 created_str = created_raw
         lines.append(
-            f"• {match_key} · {market}/{selection}: {price_taken}{closing_part}{clv_part} [{escape(created_str)}]"
+            " • ".join(
+                [
+                    f"{match_key} · {market}/{selection}",
+                    f"{provider_price}{consensus_part}",
+                    f"{outcome}{roi_part}{clv_part}",
+                    f"{escape(created_str)}",
+                ]
+            )
         )
     return "\n".join(lines)
 

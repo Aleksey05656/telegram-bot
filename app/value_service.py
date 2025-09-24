@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 
 from app.bot.services import Prediction, PredictionFacade
+from app.lines.aggregator import LinesAggregator
 from app.lines.mapper import LinesMapper
 from app.lines.providers.base import LinesProvider, OddsSnapshot
 from app.pricing.overround import normalize_market
@@ -57,12 +58,19 @@ class ValueService:
             consensus = consensus_map.get(
                 (pick.match_key, pick.market.upper(), pick.selection.upper())
             )
+            best_price = self._best_route(
+                match_key=pick.match_key,
+                market=pick.market,
+                selection=pick.selection,
+                league=pick.league,
+            )
             cards.append(
                 {
                     "match": info,
                     "pick": pick,
                     "overround_method": self.detector.overround_method,
                     "consensus": consensus,
+                    "best_price": best_price,
                 }
             )
         return cards
@@ -98,11 +106,20 @@ class ValueService:
             model_outcomes, odds_for_match, consensus_map
         )
         picks_consensus: dict[tuple[str, str], dict[str, object]] = {}
+        best_routes: dict[tuple[str, str], dict[str, object]] = {}
         for pick in detector_results:
             key = (pick.market.upper(), pick.selection.upper())
             consensus = consensus_map.get((match_key, *key))
             if consensus:
                 picks_consensus[key] = consensus
+            route = self._best_route(
+                match_key=match_key,
+                market=pick.market,
+                selection=pick.selection,
+                league=pick.league,
+            )
+            if route:
+                best_routes[key] = route
         return {
             "match": {
                 "home": prediction.home,
@@ -115,6 +132,7 @@ class ValueService:
             "markets": markets_summary,
             "overround_method": self.detector.overround_method,
             "consensus": picks_consensus,
+            "best_price": best_routes,
         }
 
     def _build_model_outcomes(
@@ -299,6 +317,30 @@ class ValueService:
             "pulled_at": payload.get("pulled_at"),
             "kickoff_utc": payload.get("kickoff_utc"),
         }
+
+    def _get_aggregator(self) -> LinesAggregator | None:
+        aggregator = getattr(self.provider, "aggregator", None)
+        if isinstance(aggregator, LinesAggregator):
+            return aggregator
+        return None
+
+    def _best_route(
+        self,
+        *,
+        match_key: str,
+        market: str,
+        selection: str,
+        league: str | None,
+    ) -> dict[str, object] | None:
+        aggregator = self._get_aggregator()
+        if not aggregator:
+            return None
+        return aggregator.pick_best_route(
+            match_key=match_key,
+            market=market,
+            selection=selection,
+            league=league,
+        )
 
 
 __all__ = ["ValueService"]

@@ -38,15 +38,18 @@ telegram-bot/
 │  │  ├─ storage.py          # schema.sql, user_prefs/subscriptions/reports
 │  │  └─ routers/            # commands.py, callbacks.py, state singletons
 │  ├─ lines/                | Нормализация котировок (mapper, providers CSV/HTTP, storage)
-│  │  ├─ aggregator.py      # мультипровайдерный консенсус (best/median/weighted) и тренды
+│  │  ├─ aggregator.py      # мультипровайдерный консенсус (best/median/weighted), best-price роутинг
 │  │  ├─ movement.py        # классификация тренда и поиск closing line
+│  │  ├─ reliability.py     # EMA-скоринг провайдеров, хранение в provider_stats, Prometheus-метрики
+│  │  ├─ anomaly.py         # фильтрация выбросов (z-score/квантили)
 │  │  └─ storage.py         # SQLite-хранилище odds_snapshots, история котировок
 │  ├─ pricing/              | Overround → implied probabilities (`overround.py`)
 │  ├─ value_calibration/    | Бэктест и сервис τ/γ (per лига/рынок)
 │  ├─ value_detector.py     | Фильтрация value-кейсов, edge/метрики
 │  ├─ value_alerts.py       | Антиспам/quiet hours/дельта-порог алертов
 │  ├─ value_clv.py          | Расчёт CLV, ledger picks_ledger и closing_lines
-│  ├─ value_service.py      | Оркестрация прогнозов и котировок для /value,/compare
+│  ├─ value_service.py      | Оркестрация прогнозов и котировок для /value,/compare, best-price блоки
+│  ├─ settlement/engine.py  | Автоматический сеттлмент (1X2/OU/BTTS), ROI и CLV в picks_ledger
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
 │     ├─ validators.py          # Legacy-обёртка на `data_processor.py`
@@ -93,6 +96,8 @@ telegram-bot/
 │  ├─ reports_html.py          # генерация HTML-дэшборда и история запусков
 │  ├─ drift_ref_update.py      # подготовка drift reference + changelog
 │  ├─ clv_check.py             # CLI гейт по среднему CLV и артефактам value_clv
+│  ├─ provider_quality.py      # CLI гейт по надёжности провайдеров (score/coverage)
+│  ├─ settlement_check.py      # CLI гейт по покрытию сеттлмента и ROI
 │  └─ bench.py / drift/ / golden_regression.py
 └─ requirements.txt
 ```
@@ -120,15 +125,16 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 детерминирована seed-ом из настроек (`SIM_SEED`).
 
 - Источник прогнозов: `PredictionFacade.today()` → вероятности рынков (1X2/OU/Btts) + confidence.
-- Источник котировок: мультипровайдер `app.lines` (CSV/HTTP) → `LinesAggregator` (best/median/weighted, веса `ODDS_PROVIDER_WEIGHTS`, метод `ODDS_AGG_METHOD`) с историей в `OddsSQLiteStore` и нормализацией `LinesMapper`.
+- Источник котировок: мультипровайдер `app.lines` (CSV/HTTP) → `LinesAggregator` (best/median/weighted, веса `ODDS_PROVIDER_WEIGHTS`, метод `ODDS_AGG_METHOD`) с историей в `OddsSQLiteStore`, нормализацией `LinesMapper`, EMA-скорингом `reliability` и фильтром `anomaly`.
 - Overround: `app/pricing/overround.normalize_market` (методы `proportional`, `shin` для 1X2) переводит decimal-odds в вероятности рынка.
 - Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по взвешенному edge, считает метрики Prometheus (`value_confidence_avg`, `value_edge_weighted_avg`).
 - Калибровка: `app/value_calibration/backtest.py` подбирает `τ/γ` per лига/рынок (валидация `time_kfold|walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`), результаты сохраняются через `CalibrationService` в SQLite (`value_calibration`).
 - Антиспам алертов: `app/value_alerts.AlertDecision` проверяет cooldown, quiet hours, дельта-порог и старение котировок, опираясь на `value_alerts_sent`.
-- CLV-леджер: `app/value_clv.PicksLedgerStore` записывает сигналы (`picks_ledger`), фиксирует closing line (`closing_lines`) и рассчитывает CLV (`calculate_clv`).
-- Сервис: `app/value_service.ValueService` агрегирует прогнозы, применяет калиброванные пороги и возвращает карточки `/value`, `/compare`, `/alerts` с консенсусной линией, трендом (↗︎/↘︎/→), closing price и кнопкой «Провайдеры».
+- CLV-леджер: `app/value_clv.PicksLedgerStore` записывает сигналы (`picks_ledger`), фиксирует closing line (`closing_lines`), `provider_price_decimal` и `consensus_price_decimal`, рассчитывает CLV/ROI (`calculate_clv`).
+- Сервис: `app/value_service.ValueService` агрегирует прогнозы, применяет калиброванные пороги и возвращает карточки `/value`, `/compare`, `/alerts` с консенсусной линией, блоком best-price, трендом (↗︎/↘︎/→) и кнопкой «Провайдеры»/«Почему {provider}».
+- Settlement: `app/settlement/engine.py` синхронизирует финальные результаты SportMonks, сеттлит рынки 1X2/OU/BTTS, обновляет `picks_ledger.outcome/roi` и rolling-метрики портфеля.
 - Команды бота и алерты: `/value`, `/compare`, `/alerts` (SQLite `value_alerts`) включаются флагом `ENABLE_VALUE_FEATURES`.
-- Диагностика: `diagtools.run_diagnostics` секция «Value & Odds», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`; CLI `python -m diagtools.clv_check` валидирует `picks_ledger` и управляет гейтом `value-agg-clv-gate`.
+- Диагностика: `diagtools.run_diagnostics` секции «Provider Reliability», «Best-Price Routing», «Settlement & ROI», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`; CLI `python -m diagtools.provider_quality`, `python -m diagtools.settlement_check`, `python -m diagtools.clv_check` формируют артефакты и управляют гейтом `value-agg-clv-gate`.
 
 ## 5. Данные и хранилища
 **Охват данных:**

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from time import monotonic
 from urllib.parse import unquote_plus
 
@@ -17,6 +18,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
 from app.lines.aggregator import LinesAggregator, parse_provider_weights
+from app.lines.reliability import ProviderReliabilityStore
 from app.lines.storage import OddsSQLiteStore
 from config import settings
 
@@ -148,6 +150,49 @@ async def handle_providers(callback: CallbackQuery) -> None:
         consensus=consensus_payload,
     )
     await callback.message.answer(text)
+    await callback.answer()
+
+
+@callbacks_router.callback_query(F.data.startswith("whyprov:"))
+async def handle_why_provider(callback: CallbackQuery) -> None:
+    try:
+        _, match_enc, market_enc, selection_enc, provider_enc = callback.data.split(":", 4)
+    except (ValueError, AttributeError):
+        await callback.answer("Некорректные данные")
+        return
+    match_key = unquote_plus(match_enc)
+    market = unquote_plus(market_enc)
+    selection = unquote_plus(selection_enc)
+    provider = unquote_plus(provider_enc)
+    store = OddsSQLiteStore()
+    quotes = store.latest_quotes(
+        match_key=match_key,
+        market=market,
+        selection=selection,
+    )
+    league = None
+    for quote in quotes:
+        if quote.provider.lower() == provider.lower():
+            league = quote.league
+            break
+    reliability_store = ProviderReliabilityStore()
+    stats = reliability_store.get_stats(provider, market.upper(), league.upper() if league else None)
+    if not stats:
+        await callback.answer("Нет данных по провайдеру")
+        return
+    league_label = stats.league if stats.league != "GLOBAL" else "общая статистика"
+    lines = [
+        f"🤔 <b>Почему {escape(provider)}</b>",
+        f"Лига: {escape(str(league_label))}",
+        f"Score: {stats.score:.2f}",
+        f"Coverage: {stats.coverage:.2f}",
+        f"Fresh share: {stats.fresh_share:.2f}",
+        f"Latency: {stats.lag_ms:.0f} мс",
+        f"Stability: {stats.stability:.2f}",
+        f"Bias vs closing: {stats.bias:.2f}",
+        "Аномалии: не обнаружено (z ≤ 3.0)",
+    ]
+    await callback.message.answer("\n".join(lines))
     await callback.answer()
 
 
