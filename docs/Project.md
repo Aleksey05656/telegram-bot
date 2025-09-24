@@ -37,13 +37,17 @@ telegram-bot/
 │  │  ├─ services.py         # фасад прогнозов + экспорт CSV/PNG
 │  │  ├─ storage.py          # schema.sql, user_prefs/subscriptions/reports
 │  │  └─ routers/            # commands.py, callbacks.py, state singletons
+│  ├─ lines/                | Нормализация котировок (mapper, providers CSV/HTTP, storage)
+│  ├─ pricing/              | Overround → implied probabilities (`overround.py`)
+│  ├─ value_detector.py     | Фильтрация value-кейсов, edge/метрики
+│  ├─ value_service.py      | Оркестрация прогнозов и котировок для /value,/compare
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
 │     ├─ validators.py          # Legacy-обёртка на `data_processor.py`
 │     ├─ feature_engineering.py # Legacy-обёртка на `data_processor.py`
 │     ├─ transformers.py        # Legacy-обёртка на `data_processor.py`
 │     └─ io.py                  # Legacy-обёртка на `data_processor.py`
-├─ metrics/                  | ECE/LogLoss метрики
+├─ metrics/                  | ECE/LogLoss и value-метрики (`value_*`)
 │  └─ metrics.py
 ├─ database/                 | PostgreSQL/SQLite router, Redis, миграции
 │  ├─ cache.py
@@ -52,7 +56,7 @@ telegram-bot/
 │  ├─ db_router.py           # Async SQLAlchemy router (read/write, replicas)
 │  └─ migrations/
 │     ├─ env.py              # Alembic async environment
-│     └─ versions/           # Ревизии схемы (predictions и далее)
+│     └─ versions/           # Ревизии схемы (predictions, sportmonks, odds)
 ├─ ml/
 │  ├─ base_poisson_glm.py         # Шаг 1: базовые λ
 │  ├─ modifiers_model.py          # Шаг 2: динамические модификаторы
@@ -108,6 +112,15 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 `RecommendationEngine` нормализует словари 1X2/Totals/BTTS, отбрасывает «грязные» вероятности и сортирует top-k; генерация
 детерминирована seed-ом из настроек (`SIM_SEED`).
 
+### 4.4 Value & Odds
+- Источник прогнозов: `PredictionFacade.today()` → вероятности рынков (1X2/OU/Btts) + confidence.
+- Источник котировок: `app.lines.providers` (`CSVLinesProvider`, `HTTPLinesProvider`) → `OddsSnapshot` через `LinesMapper` (match_key = home|away|ISO kick-off).
+- Overround: `app/pricing/overround.normalize_market` (методы `proportional`, `shin` для 1X2) переводит decimal-odds в вероятности рынка.
+- Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по edge/confidence, считает метрики Prometheus.
+- Сервис: `app/value_service.ValueService` агрегирует прогнозы и котировки → карточки для `/value`, сводки `/compare`, хранит meta для отображения.
+- Команды бота и алерты: `/value`, `/compare`, `/alerts` (SQLite `value_alerts`) включаются флагом `ENABLE_VALUE_FEATURES`.
+- Диагностика: `diagtools.run_diagnostics` секция «Value & Odds», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`.
+
 ## 5. Данные и хранилища
 **Охват данных:**
 - Лиги: Premier League, La Liga, Bundesliga, Serie A, Ligue 1.
@@ -122,6 +135,12 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 - result_probs, totals_probs, btts_probs, score_probs, recommendations JSONB
 - confidence NUMERIC(5,4)
 Индексы: fixture_id, model_version; (опц.) по дате матча; партиции по сезону/месяцу.
+
+**SQLite (бот):**
+- `user_prefs`, `subscriptions`, `reports` — прежний функционал.
+- `value_alerts(user_id, enabled, edge_threshold, league, created_at, updated_at)` — персональные настройки value-уведомлений.
+- `odds_snapshots(provider, pulled_at_utc, match_key, league, kickoff_utc, market, selection, price_decimal, extra_json)` — последняя котировка на матч/рынок/исход. Индекс `odds_match` и upsert по `(provider, match_key, market, selection)`.
+- Управляется `app/lines/storage.OddsSQLiteStore` + `database/schema.sql` (идемпотентный apply).
 
 **Redis (ключи/TTL):**
 - `sm:fixture:{id}:raw` — 5–15 мин

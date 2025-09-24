@@ -1,3 +1,16 @@
+# [2025-09-23] - Value odds integration
+### Добавлено
+- Пакет `app.lines` (интерфейс `LinesProvider`, CSV/HTTP провайдеры, mapper, SQLite-хранилище odds_snapshots).
+- Модули `app/pricing/overround`, `app/value_detector`, `app/value_service` и счетчики Prometheus для value-функций.
+- Команды бота `/value`, `/compare`, `/alerts`, а также CLI `diagtools/value_check` и тесты `tests/odds/*`, `tests/bot/test_value_commands.py`, `tests/diag/test_value_check.py`.
+
+### Изменено
+- `diagtools/run_diagnostics.py` добавил секцию «Value & Odds», создание провайдера и безопасное закрытие клиентов.
+- `app/bot/formatting.py`, `app/bot/routers/commands.py`, `app/bot/storage.py`, `app/metrics.py`, `.env.example`, README и пользовательская/разработческая документация обновлены под value-фичи.
+
+### Исправлено
+- Импорт `time` в `diagtools/run_diagnostics.py` больше не конфликтует с `datetime.time`, `tests/odds/test_provider_csv.py` подключает `Path`.
+
 # [2025-02-16] - Stub isolation & canonical ETag keys
 ### Добавлено
 - Пакет `tests._stubs` с загрузчиком `ensure_stubs` для оффлайн-зависимостей и тестов.

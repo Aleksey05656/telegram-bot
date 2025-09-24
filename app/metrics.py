@@ -22,6 +22,9 @@ __all__ = [
     "queue_depth",
     "handler_latency",
     "render_latency_seconds",
+    "value_candidates_total",
+    "value_picks_total",
+    "value_detector_latency_seconds",
     "start_metrics_server",
     "update_db_size",
     "set_queue_depth",
@@ -31,6 +34,7 @@ __all__ = [
     "record_retrain_success",
     "record_retrain_failure",
     "observe_render_latency",
+    "record_value_detector_latency",
     "periodic_db_size_updater",
 ]
 
@@ -57,6 +61,15 @@ handler_latency = Histogram(
 )
 render_latency_seconds = Histogram(
     "render_latency_seconds", "Rendering latency seconds", ["cmd"]
+)
+value_candidates_total = Counter(
+    "value_candidates_total", "Value betting candidates detected"
+)
+value_picks_total = Counter(
+    "value_picks_total", "Value betting picks emitted"
+)
+value_detector_latency_seconds = Histogram(
+    "value_detector_latency_seconds", "Value detector latency seconds"
 )
 
 
@@ -118,6 +131,12 @@ def observe_render_latency(cmd: str, duration: float) -> None:
     """Publish render latency measurement for a command."""
 
     render_latency_seconds.labels(cmd=cmd or "unknown").observe(duration)
+
+
+def record_value_detector_latency(duration: float) -> None:
+    """Publish latency measurement for the value detector pipeline."""
+
+    value_detector_latency_seconds.observe(duration)
 
 
 async def periodic_db_size_updater(

@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     SPORTMONKS_LEAGUES_ALLOWLIST: str = ""
     SPORTMONKS_CACHE_TTL_SEC: int = 900
     ODDS_API_KEY: str = ""  # Обязательное поле, без значения по умолчанию
+    ODDS_PROVIDER: str = "dummy"
+    ODDS_REFRESH_SEC: int = 300
+    ODDS_RPS_LIMIT: float = 3.0
+    ODDS_TIMEOUT_SEC: float = 8.0
+    ODDS_RETRY_ATTEMPTS: int = 4
+    ODDS_BACKOFF_BASE: float = 0.4
+    ODDS_OVERROUND_METHOD: str = "proportional"
+    VALUE_MIN_EDGE_PCT: float = 3.0
+    VALUE_MIN_CONFIDENCE: float = 0.6
+    VALUE_MAX_PICKS: int = 5
+    VALUE_MARKETS: str = "1X2,OU_2_5,BTTS"
+    ENABLE_VALUE_FEATURES: bool = False
 
     # --- Infrastructure ---
     REDIS_HOST: str = "localhost"

@@ -1,0 +1,15 @@
+provider,pulled_at,kickoff_utc,league,home,away,market,selection,price_decimal
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,1X2,HOME,2.20
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,1X2,DRAW,3.60
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,1X2,AWAY,2.90
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,OU_2_5,OVER,1.95
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,OU_2_5,UNDER,1.95
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,BTTS,YES,1.70
+csv,2024-09-01T10:00:00Z,2024-09-01T18:00:00Z,EPL,Arsenal,Manchester City,BTTS,NO,2.25
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,1X2,HOME,2.10
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,1X2,DRAW,3.75
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,1X2,AWAY,3.10
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,OU_2_5,OVER,1.85
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,OU_2_5,UNDER,2.05
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,BTTS,YES,1.65
+csv,2024-09-02T08:30:00Z,2024-09-02T20:00:00Z,LaLiga,Barcelona,Real Madrid,BTTS,NO,2.35

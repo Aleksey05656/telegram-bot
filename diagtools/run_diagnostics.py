@@ -23,12 +23,12 @@ import subprocess
 import sys
 import textwrap
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, date, time as dt_time
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Sequence
 import importlib.util
 import sqlite3
 
@@ -60,7 +60,12 @@ from app.diagnostics import (
 
 from metrics.metrics import record_diagnostics_summary
 
+from app.bot.services import PredictionFacade
 from app.data_source import SportmonksDataSource
+from app.lines.mapper import LinesMapper
+from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
+from app.value_detector import ValueDetector
+from app.value_service import ValueService
 
 from diagtools import bench as bench_module
 from diagtools import drift as drift_module
@@ -271,6 +276,137 @@ def _run_smoke(diag_dir: Path, env: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def _parse_value_markets(settings: Any) -> tuple[str, ...]:
+    raw = getattr(settings, "VALUE_MARKETS", "1X2,OU_2_5,BTTS")
+    return tuple(item.strip() for item in str(raw).split(",") if item.strip())
+
+
+def _build_value_detector_settings(settings: Any) -> ValueDetector:
+    return ValueDetector(
+        min_edge_pct=float(getattr(settings, "VALUE_MIN_EDGE_PCT", 3.0)),
+        min_confidence=float(getattr(settings, "VALUE_MIN_CONFIDENCE", 0.6)),
+        max_picks=int(getattr(settings, "VALUE_MAX_PICKS", 5)),
+        markets=_parse_value_markets(settings),
+        overround_method=str(getattr(settings, "ODDS_OVERROUND_METHOD", "proportional")),
+    )
+
+
+@dataclass
+class _DummyDiagProvider:
+    mapper: LinesMapper
+
+    async def fetch_odds(
+        self,
+        *,
+        date_from: datetime,
+        date_to: datetime,
+        leagues: Sequence[str] | None = None,
+    ) -> list[Any]:  # pragma: no cover - fallback path
+        return []
+
+
+def _create_lines_provider_diag(settings: Any, mapper: LinesMapper):
+    provider_type = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy").lower()
+    if provider_type == "csv":
+        fixtures_root = os.getenv("ODDS_FIXTURES_PATH")
+        if fixtures_root:
+            path = Path(fixtures_root)
+        else:
+            base = getattr(settings, "DATA_ROOT", "/data")
+            path = Path(base) / "odds"
+        return CSVLinesProvider(fixtures_dir=path, mapper=mapper)
+    if provider_type == "http":
+        base_url = os.getenv("ODDS_HTTP_BASE_URL", "").strip()
+        if not base_url:
+            raise RuntimeError("ODDS_HTTP_BASE_URL не задан для HTTP-провайдера")
+        return HTTPLinesProvider(
+            base_url=base_url,
+            token=getattr(settings, "ODDS_API_KEY", "") or None,
+            timeout=float(getattr(settings, "ODDS_TIMEOUT_SEC", 8.0)),
+            retry_attempts=int(getattr(settings, "ODDS_RETRY_ATTEMPTS", 4)),
+            backoff_base=float(getattr(settings, "ODDS_BACKOFF_BASE", 0.4)),
+            rps_limit=float(getattr(settings, "ODDS_RPS_LIMIT", 3.0)),
+            mapper=mapper,
+        )
+    return None
+
+
+def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
+    mapper = LinesMapper()
+    detector = _build_value_detector_settings(settings)
+    provider = None
+    try:
+        provider = _create_lines_provider_diag(settings, mapper)
+    except Exception as exc:  # pragma: no cover - configuration issues
+        return {"status": "❌", "note": f"provider init failed: {exc}"}
+    facade = PredictionFacade()
+    fallback_provider = _DummyDiagProvider(mapper)
+    service = ValueService(
+        facade=facade,
+        provider=provider or fallback_provider,
+        detector=detector,
+        mapper=mapper,
+    )
+
+    async def _collect() -> tuple[list[Any], list[Any], list[Any], dict[str, dict[str, object]]]:
+        target_date = date.today()
+        predictions = await facade.today(target_date)
+        meta: dict[str, dict[str, object]] = {}
+        outcomes = list(service._build_model_outcomes(predictions, meta))
+        if provider is None:
+            return predictions, [], [], meta
+        date_from = datetime.combine(target_date, dt_time.min, tzinfo=UTC)
+        date_to = datetime.combine(target_date, dt_time.max, tzinfo=UTC)
+        odds = await provider.fetch_odds(date_from=date_from, date_to=date_to)
+        picks = detector.detect(model=outcomes, market=odds)
+        return predictions, odds, picks, meta
+
+    try:
+        predictions, odds, picks, meta = asyncio.run(_collect())
+    except Exception as exc:  # pragma: no cover - unexpected runtime error
+        return {"status": "❌", "note": f"value collect failed: {exc}"}
+    finally:
+        if provider is not None:
+            close_fn = getattr(provider, "close", None)
+            if close_fn:
+                try:
+                    result = close_fn()
+                    if asyncio.iscoroutine(result):
+                        asyncio.run(result)
+                except Exception:
+                    pass
+
+    edges = [float(pick.edge_pct) for pick in picks]
+    edge_stats = {
+        "count": len(edges),
+        "max": max(edges) if edges else 0.0,
+        "min": min(edges) if edges else 0.0,
+        "mean": statistics.mean(edges) if edges else 0.0,
+    }
+    cards = [
+        {
+            "match": meta.get(pick.match_key, {}),
+            "market": pick.market,
+            "selection": pick.selection,
+            "edge_pct": pick.edge_pct,
+            "provider": pick.provider,
+            "market_price": pick.market_price,
+            "fair_price": pick.fair_price,
+        }
+        for pick in picks
+    ]
+    odds_count = len(odds) if provider is not None else 0
+    status = "✅" if odds_count > 0 else "⚠️"
+    note = f"odds={odds_count} predictions={len(predictions)} picks={len(cards)}"
+    return {
+        "status": status,
+        "note": note,
+        "edges": edges,
+        "edge_stats": edge_stats,
+        "picks": cards,
+        "odds_count": odds_count,
+        "predictions": len(predictions),
+    }
 @dataclass
 class LevelAMetrics:
     folds: list[dict[str, float]]
@@ -1352,6 +1488,13 @@ def main() -> None:
     drift = _run_drift(diag_dir, dataset)
     statuses["Drift"] = {"status": drift["status"], "note": drift["note"]}
     metrics["drift"] = drift
+
+    value_diag = _run_value_section(diag_dir, settings)
+    statuses["Value & Odds"] = {
+        "status": value_diag.get("status", "⚠️"),
+        "note": value_diag.get("note", ""),
+    }
+    metrics["value_odds"] = value_diag
 
     level_a = _train_level_a(dataset, diag_dir)
     statuses["Model Level A"] = {

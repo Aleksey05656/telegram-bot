@@ -75,6 +75,15 @@ git push amvera main
 - `BACKUP_DIR` / `BACKUP_KEEP` — каталог и глубина ротации для резервных копий SQLite (`/data/backups`, `10`).
 - `PYTHONUNBUFFERED=1` — отключает буферизацию stdout/stderr.
 - `APP_VERSION` и `GIT_SHA` — метки релиза и коммита для логов/метрик.
+- `ODDS_PROVIDER` / `ODDS_REFRESH_SEC` / `ODDS_TIMEOUT_SEC` / `ODDS_RETRY_ATTEMPTS` / `ODDS_BACKOFF_BASE` / `ODDS_RPS_LIMIT` —
+  настройки поставщика котировок (режимы `dummy`, `csv`, `http`).
+- `ODDS_OVERROUND_METHOD` — метод нормализации маржи (`proportional` или `shin`).
+- `VALUE_MIN_EDGE_PCT` / `VALUE_MIN_CONFIDENCE` / `VALUE_MAX_PICKS` / `VALUE_MARKETS` — пороги value-детектора.
+- `ENABLE_VALUE_FEATURES` — включает команды `/value`, `/compare`, `/alerts` и связанные оповещения.
+- `ODDS_FIXTURES_PATH` (опционально) — путь до CSV-фикстур для оффлайн-провайдера.
+
+Для оффлайн-прогона value-фич установите `ENABLE_VALUE_FEATURES=1`, `ODDS_PROVIDER=csv` и
+`ODDS_FIXTURES_PATH=tests/fixtures/odds`. Так `diagtools.value_check` и тесты будут работать без внешнего API.
 
 ### Хранилище
 
@@ -104,6 +113,9 @@ Telegram-бот регистрирует команды для быстрого 
 | `/predict <Команда 1 — Команда 2>` | Постановка задачи в очередь | `/predict Арсенал — Манчестер Сити` |
 | `/terms` | Условия использования | `/terms` |
 | `/diag [last|drift|link]` | Chat-Ops для диагностики (только админы) | `/diag last` |
+| `/value [league] [date] [limit]` | Топ value-кейсы за выбранный день (требует `ENABLE_VALUE_FEATURES=1`) | `/value EPL date=2024-09-01 limit=3` |
+| `/compare <match>` | Сравнение наших вероятностей с котировками рынка (`ENABLE_VALUE_FEATURES=1`) | `/compare Arsenal` |
+| `/alerts [on|off] [edge=…] [league]` | Настройка персональных value-оповещений (`ENABLE_VALUE_FEATURES=1`) | `/alerts on edge=5 EPL` |
 
 Команда `/predict` принимает названия команд через дефис (поддерживаются символы `-`, `–`, `—`).
 Ответ содержит идентификатор задачи, по которому воркер отправит итоговый прогноз.

@@ -48,6 +48,11 @@ class _GaugeChild(_CounterChild):
         self._value.set(value)
 
 
+class _HistogramChild(_GaugeChild):
+    def observe(self, value: float) -> None:
+        self._value.inc(value)
+
+
 class Counter:
     """Simple counter implementation accumulating values per label set."""
 
@@ -100,11 +105,11 @@ class Gauge(Counter):
 class Histogram(Counter):
     """Simplified histogram supporting observe operations per label set."""
 
-    def labels(self, **labels: str) -> _GaugeChild:  # type: ignore[override]
+    def labels(self, **labels: str) -> _HistogramChild:  # type: ignore[override]
         key = tuple(str(labels.get(name, "")) for name in self._labelnames)
         child = self._children.get(key)
         if child is None:
-            child = _GaugeChild()
+            child = _HistogramChild()
             self._children[key] = child
         return child
 
