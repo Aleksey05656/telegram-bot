@@ -1072,3 +1072,18 @@
 ### Исправлено
 - Синхронизация `.env.example` и `config.Settings` новыми флагами диагностики/алертов.
 - `.gitignore` покрывает runtime-артефакты (`reports/`, `data/`, бинарные форматы).
+
+## [2025-10-20] - Value calibration gate
+### Добавлено
+- GitHub Actions job `value-calibration-gate`, запускающий `python -m diagtools.value_check --calibrate --days ${BACKTEST_DAYS}` и выгружающий `value_calibration.{json,md}` как артефакты.
+- Кэширование результатов калибровки (`value_calibration.json`/`.md`) в `diagtools.value_check` с флагом `--calibrate` для форсированного прогона.
+- Обновление `docs/Project.md`/`docs/diagnostics.md` описанием модулей `app/value_calibration`, `app/value_alerts` и поведения CLI.
+
+### Изменено
+- `diagtools.value_check` использует настройки `BACKTEST_DAYS`, берёт отчёт из кэша и запускает бэктест только по требованию.
+- `diagtools.run_diagnostics` передаёт `BACKTEST_DAYS` в секцию Value Calibration и добавляет отчёт в JSON/Markdown-вывод.
+- README дополнен бейджем «Value calibration gated ✓», `.github/workflows/ci.yml` синхронизирован по env `BACKTEST_DAYS`.
+
+### Исправлено
+- Исключена немотивированная загрузка калибровки в `diagtools.value_check` при наличии актуального отчёта.
+- CI получает детерминированный отчёт value calibration даже в оффлайн-окружении (`ODDS_PROVIDER=csv`).

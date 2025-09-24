@@ -297,6 +297,7 @@ def format_value_picks(
     for card in cards:
         match = card.get("match", {}) or {}
         pick: ValuePick = card.get("pick")  # type: ignore[assignment]
+        overround_method = str(card.get("overround_method", "proportional"))
         home = escape(str(match.get("home", "?")))
         away = escape(str(match.get("away", "?")))
         league = escape(str(match.get("league", "")))
@@ -308,16 +309,29 @@ def format_value_picks(
         market_line = (
             f"{escape(pick.market)} / {escape(pick.selection)}: "
             f"model={_fmt_percent(pick.model_probability)} | "
-            f"market={_fmt_percent(pick.market_probability)}"
+            f"market={_fmt_percent(pick.market_probability)} | "
+            f"edge_w={pick.edge_weighted_pct:.2f}"
         )
         price_line = (
             f"Fair {_fmt_decimal(pick.fair_price)} vs market {_fmt_decimal(pick.market_price)}"
-            f" → edge {pick.edge_pct:.1f}%"
+            f" → edge {pick.edge_pct:.1f}% (conf={pick.confidence:.2f})"
         )
-        confidence_line = (
-            f"Confidence {_fmt_percent(pick.confidence)} • Provider {escape(pick.provider)}"
+        thresholds = (
+            f"🧪 Калибровка активна: τ≥{pick.edge_threshold_pct:.1f}%, γ≥{pick.confidence_threshold:.2f}"
+            if pick.calibrated
+            else f"🧪 Пороги: τ≥{pick.edge_threshold_pct:.1f}%, γ≥{pick.confidence_threshold:.2f}"
         )
-        lines.extend([header, market_line, price_line, confidence_line, ""])
+        explain = (
+            "ℹ️ Объяснение: "
+            f"p_model={_fmt_percent(pick.model_probability)}, "
+            f"p_market_norm={_fmt_percent(pick.market_probability)}, "
+            f"overround={escape(overround_method)}, "
+            f"fair={_fmt_decimal(pick.fair_price)}, "
+            f"edge={pick.edge_pct:.1f}%, conf={pick.confidence:.2f}, "
+            f"edge_w={pick.edge_weighted_pct:.2f}"
+        )
+        provider_line = f"Provider {escape(pick.provider)}"
+        lines.extend([header, market_line, price_line, thresholds, explain, provider_line, ""])
     return "\n".join(lines).strip()
 
 
@@ -330,11 +344,46 @@ def format_value_comparison(data: dict[str, object]) -> str:
     kickoff_str = "N/A"
     if isinstance(kickoff, datetime):
         kickoff_str = kickoff.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+    overround_method = str(data.get("overround_method", "proportional"))
     lines = [
         f"⚖️ <b>{home} vs {away}</b>",
         f"🏟️ {league} — {escape(kickoff_str)}",
         "",
     ]
+    picks: Sequence[ValuePick] = data.get("picks") or []  # type: ignore[assignment]
+    if picks:
+        lines.append("💎 Value сигналы:")
+        for pick in picks:
+            lines.append(
+                "\n".join(
+                    [
+                        f"• {escape(pick.market)} / {escape(pick.selection)}",
+                        (
+                            f"  model={_fmt_percent(pick.model_probability)}"
+                            f" market={_fmt_percent(pick.market_probability)}"
+                            f" edge={pick.edge_pct:.1f}% edge_w={pick.edge_weighted_pct:.2f}"
+                        ),
+                        (
+                            f"  τ≥{pick.edge_threshold_pct:.1f}% γ≥{pick.confidence_threshold:.2f}"
+                            if pick.calibrated
+                            else f"  Пороги τ≥{pick.edge_threshold_pct:.1f}% γ≥{pick.confidence_threshold:.2f}"
+                        ),
+                        (
+                            "  "
+                            + "ℹ️ "
+                            + (
+                                f"p_model={_fmt_percent(pick.model_probability)}, "
+                                f"p_market_norm={_fmt_percent(pick.market_probability)}, "
+                                f"overround={escape(overround_method)}, "
+                                f"fair={_fmt_decimal(pick.fair_price)}, "
+                                f"edge={pick.edge_pct:.1f}%, conf={pick.confidence:.2f}, "
+                                f"edge_w={pick.edge_weighted_pct:.2f}"
+                            )
+                        ),
+                    ]
+                )
+            )
+        lines.append("")
     markets = data.get("markets", {}) or {}
     if not markets:
         lines.append("Для матча нет котировок для сравнения.")

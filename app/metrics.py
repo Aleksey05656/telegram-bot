@@ -25,6 +25,12 @@ __all__ = [
     "value_candidates_total",
     "value_picks_total",
     "value_detector_latency_seconds",
+    "value_confidence_avg",
+    "value_edge_weighted_avg",
+    "value_backtest_last_run_ts",
+    "value_backtest_sharpe",
+    "value_backtest_samples",
+    "value_calibrated_pairs_total",
     "start_metrics_server",
     "update_db_size",
     "set_queue_depth",
@@ -70,6 +76,24 @@ value_picks_total = Counter(
 )
 value_detector_latency_seconds = Histogram(
     "value_detector_latency_seconds", "Value detector latency seconds"
+)
+value_confidence_avg = Gauge(
+    "value_confidence_avg", "Average confidence of emitted value picks"
+)
+value_edge_weighted_avg = Gauge(
+    "value_edge_weighted_avg", "Average weighted edge for emitted value picks"
+)
+value_backtest_last_run_ts = Gauge(
+    "value_backtest_last_run_ts", "Unix timestamp of the last calibration backtest"
+)
+value_backtest_sharpe = Gauge(
+    "value_backtest_sharpe", "Backtest Sharpe ratio per league/market", ["league", "market"]
+)
+value_backtest_samples = Gauge(
+    "value_backtest_samples", "Backtest sample size per league/market", ["league", "market"]
+)
+value_calibrated_pairs_total = Gauge(
+    "value_calibrated_pairs_total", "Total number of calibrated league/market pairs"
 )
 
 

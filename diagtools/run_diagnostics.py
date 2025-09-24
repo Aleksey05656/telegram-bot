@@ -71,6 +71,7 @@ from diagtools import bench as bench_module
 from diagtools import drift as drift_module
 from diagtools import golden_regression as golden_module
 from diagtools import reports_html
+from diagtools.value_check import run_backtest_calibration
 from diagtools.freshness import evaluate_sportmonks_freshness
 
 # Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
@@ -407,6 +408,29 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
         "odds_count": odds_count,
         "predictions": len(predictions),
     }
+
+
+def _run_value_calibration_section(settings: Any) -> dict[str, Any]:
+    raw_days = getattr(settings, "BACKTEST_DAYS", None)
+    try:
+        days = int(raw_days) if raw_days is not None else None
+    except (TypeError, ValueError):  # pragma: no cover - defensive guard
+        days = None
+    if days is not None and days <= 0:
+        days = None
+    report = run_backtest_calibration(days=days)
+    status_map = {"OK": "✅", "WARN": "⚠️", "FAIL": "❌"}
+    status = status_map.get(report.get("status", "WARN"), "⚠️")
+    records = report.get("records", [])
+    if records:
+        top = max(records, key=lambda row: row.get("sharpe", 0.0))
+        note = (
+            f"{len(records)} пар, best {top['league']}/{top['market']} "
+            f"τ={top['tau_edge']:.1f}% γ={top['gamma_conf']:.2f} sharpe={top['sharpe']:.3f}"
+        )
+    else:
+        note = report.get("reason", "нет данных")
+    return {"status": status, "note": note, "report": report}
 @dataclass
 class LevelAMetrics:
     folds: list[dict[str, float]]
@@ -1495,6 +1519,13 @@ def main() -> None:
         "note": value_diag.get("note", ""),
     }
     metrics["value_odds"] = value_diag
+
+    value_calibration = _run_value_calibration_section(settings)
+    statuses["Value Calibration"] = {
+        "status": value_calibration["status"],
+        "note": value_calibration["note"],
+    }
+    metrics["value_calibration"] = value_calibration["report"]
 
     level_a = _train_level_a(dataset, diag_dir)
     statuses["Model Level A"] = {

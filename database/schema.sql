@@ -122,3 +122,32 @@ CREATE TABLE IF NOT EXISTS value_alerts (
     created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
+
+CREATE TABLE IF NOT EXISTS value_calibration (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT NOT NULL,
+    market TEXT NOT NULL,
+    tau_edge REAL NOT NULL,
+    gamma_conf REAL NOT NULL,
+    samples INTEGER NOT NULL,
+    metric REAL NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    UNIQUE(league, market)
+);
+
+CREATE INDEX IF NOT EXISTS value_calibration_idx
+    ON value_calibration(league, market);
+
+CREATE TABLE IF NOT EXISTS value_alerts_sent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    match_key TEXT NOT NULL,
+    market TEXT NOT NULL,
+    selection TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    edge_pct REAL NOT NULL,
+    UNIQUE(user_id, match_key, market, selection, sent_at)
+);
+
+CREATE INDEX IF NOT EXISTS value_alerts_sent_idx
+    ON value_alerts_sent(user_id, match_key, market, selection, sent_at);
