@@ -57,6 +57,7 @@ class ValueService:
                 {
                     "match": info,
                     "pick": pick,
+                    "overround_method": self.detector.overround_method,
                 }
             )
         return cards
@@ -98,6 +99,7 @@ class ValueService:
             },
             "picks": detector_results,
             "markets": markets_summary,
+            "overround_method": self.detector.overround_method,
         }
 
     def _build_model_outcomes(

@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     VALUE_MIN_CONFIDENCE: float = 0.6
     VALUE_MAX_PICKS: int = 5
     VALUE_MARKETS: str = "1X2,OU_2_5,BTTS"
+    VALUE_CONFIDENCE_METHOD: str = "none"
+    VALUE_ALERT_COOLDOWN_MIN: int = 60
+    VALUE_ALERT_QUIET_HOURS: str = "23:00-08:00"
+    VALUE_ALERT_MIN_EDGE_DELTA: float = 0.7
+    VALUE_STALENESS_FAIL_MIN: int = 30
+    BACKTEST_DAYS: int = 120
+    BACKTEST_MIN_SAMPLES: int = 300
+    BACKTEST_OPTIM_TARGET: str = "sharpe"
+    BACKTEST_VALIDATION: str = "time_kfold"
+    GATES_VALUE_SHARPE_WARN: float = 0.1
+    GATES_VALUE_SHARPE_FAIL: float = 0.0
     ENABLE_VALUE_FEATURES: bool = False
 
     # --- Infrastructure ---
@@ -182,6 +193,30 @@ class Settings(BaseSettings):
         allowed_methods = ["platt", "isotonic", "beta"]
         if v not in allowed_methods:
             raise ValueError(f"CALIBRATION_METHOD must be one of {allowed_methods}")
+        return v
+
+    @field_validator("VALUE_CONFIDENCE_METHOD")
+    @classmethod
+    def validate_value_conf_method(cls, v: str) -> str:
+        allowed_methods = {"mc_var", "none"}
+        if v not in allowed_methods:
+            raise ValueError(f"VALUE_CONFIDENCE_METHOD must be one of {sorted(allowed_methods)}")
+        return v
+
+    @field_validator("BACKTEST_VALIDATION")
+    @classmethod
+    def validate_backtest_validation(cls, v: str) -> str:
+        allowed = {"time_kfold", "walk_forward"}
+        if v not in allowed:
+            raise ValueError(f"BACKTEST_VALIDATION must be one of {sorted(allowed)}")
+        return v
+
+    @field_validator("BACKTEST_OPTIM_TARGET")
+    @classmethod
+    def validate_backtest_target(cls, v: str) -> str:
+        allowed = {"sharpe", "hit", "loggain"}
+        if v not in allowed:
+            raise ValueError(f"BACKTEST_OPTIM_TARGET must be one of {sorted(allowed)}")
         return v
 
     @field_validator("HEALTH_PORT")

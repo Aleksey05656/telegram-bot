@@ -45,6 +45,7 @@ from ..state import FACADE, LIST_CACHE, MATCH_CACHE, PAGINATION_CACHE
 from ..storage import (
     get_user_preferences,
     get_value_alert,
+    list_recent_value_alerts,
     list_subscriptions,
     upsert_subscription,
     upsert_value_alert,
@@ -54,6 +55,7 @@ from diagtools import scheduler as diag_scheduler
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
 from app.lines.providers.base import LinesProvider
+from app.value_calibration import CalibrationService
 from app.value_detector import ValueDetector
 from app.value_service import ValueService
 
@@ -279,15 +281,31 @@ def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
     return _DummyLinesProvider(mapper=mapper)
 
 
+_CALIBRATION_SERVICE: CalibrationService | None = None
+
+
+def _get_calibration_service() -> CalibrationService:
+    global _CALIBRATION_SERVICE
+    if _CALIBRATION_SERVICE is None:
+        _CALIBRATION_SERVICE = CalibrationService(
+            default_edge_pct=float(getattr(settings, "VALUE_MIN_EDGE_PCT", 3.0)),
+            default_confidence=float(getattr(settings, "VALUE_MIN_CONFIDENCE", 0.6)),
+        )
+    return _CALIBRATION_SERVICE
+
+
 def _build_value_detector() -> ValueDetector:
     markets_raw = getattr(settings, "VALUE_MARKETS", "1X2,OU_2_5,BTTS")
     markets = tuple(item.strip() for item in str(markets_raw).split(",") if item.strip())
+    confidence_method = str(getattr(settings, "VALUE_CONFIDENCE_METHOD", "none"))
     return ValueDetector(
         min_edge_pct=float(getattr(settings, "VALUE_MIN_EDGE_PCT", 3.0)),
         min_confidence=float(getattr(settings, "VALUE_MIN_CONFIDENCE", 0.6)),
         max_picks=int(getattr(settings, "VALUE_MAX_PICKS", 5)),
         markets=markets,
         overround_method=str(getattr(settings, "ODDS_OVERROUND_METHOD", "proportional")),
+        confidence_method=confidence_method,
+        calibration=_get_calibration_service(),
     )
 
 
@@ -696,14 +714,46 @@ if settings.ENABLE_VALUE_FEATURES:
         league = prefs.get("league") or "все лиги"
         edge_threshold = float(prefs.get("edge_threshold", 5.0))
         render_start = monotonic()
-        text = (
-            "\n".join(
-                [
-                    f"Value-оповещения {status}.",
-                    f"Порог edge: {edge_threshold:.1f}%.",
-                    f"Лиги: {league}.",
-                ]
-            )
+        rules = [
+            "⚙️ Правила рассылки:",
+            f"• Cooldown: {int(getattr(settings, 'VALUE_ALERT_COOLDOWN_MIN', 60))} мин",
+            f"• Quiet hours: {getattr(settings, 'VALUE_ALERT_QUIET_HOURS', '—')}",
+            f"• Δ edge ≥ {float(getattr(settings, 'VALUE_ALERT_MIN_EDGE_DELTA', 0.0)):.1f} п.п.",
+            f"• Ста́лость ≤ {int(getattr(settings, 'VALUE_STALENESS_FAIL_MIN', 30))} мин",
+        ]
+        recent = list_recent_value_alerts(user_id, limit=5)
+        delta_history: dict[tuple[str, str, str], float] = {}
+        deltas: dict[int, float | None] = {}
+        for row in reversed(recent):
+            key = (str(row.get("match_key")), str(row.get("market")), str(row.get("selection")))
+            prev = delta_history.get(key)
+            deltas[int(row.get("id", 0))] = None if prev is None else float(row.get("edge_pct", 0.0)) - prev
+            delta_history[key] = float(row.get("edge_pct", 0.0))
+        recent_lines = ["📝 Последние алерты:"]
+        if recent:
+            for row in recent:
+                sent_at = str(row.get("sent_at", ""))
+                edge_val = float(row.get("edge_pct", 0.0))
+                delta_val = deltas.get(int(row.get("id", 0)))
+                delta_str = "Δ=—" if delta_val is None else f"Δ={delta_val:+.1f} п.п."
+                recent_lines.append(
+                    f"• {row.get('match_key')} {row.get('market')}/{row.get('selection')}"
+                    f" edge={edge_val:.1f}% ({delta_str}) {sent_at}"
+                )
+        else:
+            recent_lines.append("• пока нет истории")
+        text = "\n".join(
+            [
+                f"Value-оповещения {status}.",
+                f"Порог edge: {edge_threshold:.1f}%.",
+                f"Лиги: {league}.",
+                "",
+                *rules,
+                "",
+                *recent_lines,
+                "",
+                "Команды: /alerts on, /alerts off, /alerts edge=5.5",
+            ]
         )
         observe_render_latency("alerts", monotonic() - render_start)
         record_command("alerts")

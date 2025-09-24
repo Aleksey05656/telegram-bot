@@ -1,3 +1,12 @@
+## Задача: Value calibration gate
+- **Статус**: Завершена
+- **Описание**: Добавить CI-гейт для value-калибровки, кеширование отчётов и документацию по новым секциям.
+- **Шаги выполнения**:
+  - [x] Обновлён `diagtools.value_check` (кэш отчёта, `--calibrate`, `BACKTEST_DAYS`).
+  - [x] Обновлён `diagtools.run_diagnostics` и документация (`docs/Project.md`, `docs/diagnostics.md`).
+  - [x] Добавлен job `value-calibration-gate` и бейдж в README.
+- **Зависимости**: diagtools/value_check.py, diagtools/run_diagnostics.py, .github/workflows/ci.yml, README.md, docs/Project.md, docs/diagnostics.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Value odds integration & bot UX
 - **Статус**: Завершена
 - **Описание**: Подключить провайдеры котировок (CSV/HTTP), нормализовать overround, вычислять value-кейсы и отобразить их в боте/диагностике.

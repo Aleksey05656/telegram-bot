@@ -198,6 +198,65 @@ def upsert_value_alert(
     return get_value_alert(user_id, db_path=db_path)
 
 
+def record_value_alert_sent(
+    user_id: int,
+    *,
+    match_key: str,
+    market: str,
+    selection: str,
+    edge_pct: float,
+    db_path: str | None = None,
+) -> None:
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO value_alerts_sent(user_id, match_key, market, selection, edge_pct, sent_at)
+            VALUES (?, ?, ?, ?, ?, DATETIME('now'))
+            """,
+            (user_id, match_key, market, selection, float(edge_pct)),
+        )
+        conn.commit()
+
+
+def get_last_value_alert_sent(
+    user_id: int,
+    *,
+    match_key: str,
+    market: str,
+    selection: str,
+    db_path: str | None = None,
+) -> dict[str, object] | None:
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM value_alerts_sent
+            WHERE user_id = ? AND match_key = ? AND market = ? AND selection = ?
+            ORDER BY sent_at DESC LIMIT 1
+            """,
+            (user_id, match_key, market, selection),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_recent_value_alerts(
+    user_id: int,
+    *,
+    limit: int = 5,
+    db_path: str | None = None,
+) -> list[dict[str, object]]:
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM value_alerts_sent
+            WHERE user_id = ?
+            ORDER BY sent_at DESC
+            LIMIT ?
+            """,
+            (user_id, int(max(limit, 1))),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 __all__ = [
     "ensure_schema",
     "get_user_preferences",
@@ -210,4 +269,7 @@ __all__ = [
     "iter_reports_for_match",
     "get_value_alert",
     "upsert_value_alert",
+    "record_value_alert_sent",
+    "get_last_value_alert_sent",
+    "list_recent_value_alerts",
 ]

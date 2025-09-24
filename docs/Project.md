@@ -39,7 +39,9 @@ telegram-bot/
 │  │  └─ routers/            # commands.py, callbacks.py, state singletons
 │  ├─ lines/                | Нормализация котировок (mapper, providers CSV/HTTP, storage)
 │  ├─ pricing/              | Overround → implied probabilities (`overround.py`)
+│  ├─ value_calibration/    | Бэктест и сервис τ/γ (per лига/рынок)
 │  ├─ value_detector.py     | Фильтрация value-кейсов, edge/метрики
+│  ├─ value_alerts.py       | Антиспам/quiet hours/дельта-порог алертов
 │  ├─ value_service.py      | Оркестрация прогнозов и котировок для /value,/compare
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
@@ -112,12 +114,13 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 `RecommendationEngine` нормализует словари 1X2/Totals/BTTS, отбрасывает «грязные» вероятности и сортирует top-k; генерация
 детерминирована seed-ом из настроек (`SIM_SEED`).
 
-### 4.4 Value & Odds
 - Источник прогнозов: `PredictionFacade.today()` → вероятности рынков (1X2/OU/Btts) + confidence.
 - Источник котировок: `app.lines.providers` (`CSVLinesProvider`, `HTTPLinesProvider`) → `OddsSnapshot` через `LinesMapper` (match_key = home|away|ISO kick-off).
 - Overround: `app/pricing/overround.normalize_market` (методы `proportional`, `shin` для 1X2) переводит decimal-odds в вероятности рынка.
-- Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по edge/confidence, считает метрики Prometheus.
-- Сервис: `app/value_service.ValueService` агрегирует прогнозы и котировки → карточки для `/value`, сводки `/compare`, хранит meta для отображения.
+- Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по взвешенному edge, считает метрики Prometheus (`value_confidence_avg`, `value_edge_weighted_avg`).
+- Калибровка: `app/value_calibration/backtest.py` подбирает `τ/γ` per лига/рынок (валидация `time_kfold|walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`), результаты сохраняются через `CalibrationService` в SQLite (`value_calibration`).
+- Антиспам алертов: `app/value_alerts.AlertDecision` проверяет cooldown, quiet hours, дельта-порог и старение котировок, опираясь на `value_alerts_sent`.
+- Сервис: `app/value_service.ValueService` агрегирует прогнозы, применяет калиброванные пороги и возвращает карточки `/value`, `/compare`, `/alerts`.
 - Команды бота и алерты: `/value`, `/compare`, `/alerts` (SQLite `value_alerts`) включаются флагом `ENABLE_VALUE_FEATURES`.
 - Диагностика: `diagtools.run_diagnostics` секция «Value & Odds», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`.
 
