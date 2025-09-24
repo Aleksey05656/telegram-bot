@@ -35,6 +35,7 @@ python -m diagtools.bench --iterations ${BENCH_ITER}
 - **Drift Detection** — PSI/KS for feature, label and prediction distributions; artefacts in `reports/diagnostics/drift/` (summary Markdown + JSON + PNG).
 - **Calibration & Coverage** — Expected Calibration Error for 1X2/OU2.5/BTTS plus Monte-Carlo interval checks (80% / 90%).
 - **Backtest & Calibration** — подбор `τ/γ` per лига/рынок на исторических снапшотах (валидация `time_kfold`|`walk_forward`, метрики `Sharpe`, `log_gain`, `samples`, гейты `GATES_VALUE_SHARPE_*`, `BACKTEST_MIN_SAMPLES`). Результаты сохраняются в `value_calibration` и отчётах `value_calibration.{json,md}`; `python -m diagtools.value_check` по умолчанию читает последний отчёт, а флаг `--calibrate` принудительно перезапускает бэктест (используется в CI-гейте).
+- **Odds Aggregation & CLV** — мультипровайдерный консенсус (best/median/weighted), тренды closing line и сводка CLV из `picks_ledger`. CLI `python -m diagtools.clv_check` публикует `value_clv.{json,md}` и возвращает ненулевой код при отсутствии записей или просадке ниже `CLV_FAIL_THRESHOLD_PCT`.
 - **Bi-Poisson Invariance** — sanity checks for market swaps and top scorelines when home/away are flipped.
 - **Benchmarks** — latency/memory for `/today`, `/match`, `/explain` rendering paths; default P95 budget from `BENCH_P95_BUDGET_MS`.
 - **Chaos / Ops** — smoke CLI, health endpoints, runtime lock exercise and backup inventory.
@@ -109,6 +110,8 @@ reports/
     ├── calibration/         # reliability_*.png + coverage info
     ├── value_calibration.md
     ├── value_calibration.json
+    ├── value_clv.md
+    ├── value_clv.json
     ├── bench/               # bench.json + summary.md
     ├── site/                # index.html + status.svg (dashboard)
     ├── DIAGNOSTICS.md       # aggregated Markdown report
@@ -135,7 +138,8 @@ reports/
 5. `python -m diagtools.bench --iterations ${BENCH_ITER}`
 6. Дополнительный job `diagnostics-drift` в CI повторно запускает `diag-drift` и публикует `reports/diagnostics/drift` как артефакт.
 7. Job `value-calibration-gate` запускает `python -m diagtools.value_check --calibrate --days ${BACKTEST_DAYS}` и публикует `reports/diagnostics/value_calibration.{json,md}`. Падение происходит при `Sharpe < GATES_VALUE_SHARPE_FAIL` или `samples < BACKTEST_MIN_SAMPLES`.
-8. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
-9. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
+8. Job `value-agg-clv-gate` прогоняет `python -m diagtools.clv_check --db-path ${DB_PATH}` и выкладывает `reports/diagnostics/value_clv.{json,md}`. Exit-коды 1/2 фиксируют отсутствие записей или средний CLV ниже `CLV_FAIL_THRESHOLD_PCT`.
+9. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
+10. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
 
 Failures in any gate (golden deltas, drift PSI fail, benchmark p95 above budget, ❌ data quality) break the build.

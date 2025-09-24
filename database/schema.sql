@@ -108,11 +108,14 @@ CREATE TABLE IF NOT EXISTS odds_snapshots (
     selection TEXT NOT NULL,
     price_decimal REAL NOT NULL,
     extra_json TEXT NULL,
-    UNIQUE(provider, match_key, market, selection)
+    UNIQUE(provider, match_key, market, selection, pulled_at_utc)
 );
 
 CREATE INDEX IF NOT EXISTS idx_odds_snapshots_match
     ON odds_snapshots(match_key, market, selection);
+
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_match_time
+    ON odds_snapshots(match_key, market, selection, pulled_at_utc);
 
 CREATE TABLE IF NOT EXISTS value_alerts (
     user_id INTEGER PRIMARY KEY,
@@ -151,3 +154,49 @@ CREATE TABLE IF NOT EXISTS value_alerts_sent (
 
 CREATE INDEX IF NOT EXISTS value_alerts_sent_idx
     ON value_alerts_sent(user_id, match_key, market, selection, sent_at);
+
+CREATE TABLE IF NOT EXISTS closing_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_key TEXT NOT NULL,
+    market TEXT NOT NULL,
+    selection TEXT NOT NULL,
+    consensus_price REAL NOT NULL,
+    consensus_probability REAL NOT NULL,
+    provider_count INTEGER NOT NULL,
+    method TEXT NOT NULL,
+    pulled_at_utc TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    UNIQUE(match_key, market, selection)
+);
+
+CREATE TABLE IF NOT EXISTS picks_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    match_key TEXT NOT NULL,
+    market TEXT NOT NULL,
+    selection TEXT NOT NULL,
+    stake REAL NOT NULL DEFAULT 1.0,
+    price_taken REAL NOT NULL,
+    model_probability REAL NOT NULL,
+    market_probability REAL NOT NULL,
+    edge_pct REAL NOT NULL,
+    confidence REAL NOT NULL,
+    pulled_at_utc TEXT NOT NULL,
+    kickoff_utc TEXT NOT NULL,
+    consensus_price REAL NOT NULL,
+    consensus_method TEXT NOT NULL,
+    consensus_provider_count INTEGER NOT NULL,
+    clv_pct REAL NULL,
+    closing_price REAL NULL,
+    closing_pulled_at TEXT NULL,
+    closing_method TEXT NULL,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    UNIQUE(user_id, match_key, market, selection, pulled_at_utc)
+);
+
+CREATE INDEX IF NOT EXISTS picks_ledger_user_idx
+    ON picks_ledger(user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS picks_ledger_match_idx
+    ON picks_ledger(match_key, market, selection);

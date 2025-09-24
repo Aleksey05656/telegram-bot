@@ -7,15 +7,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Iterable, Sequence
 
 from app.bot.services import Prediction, PredictionFacade
 from app.lines.mapper import LinesMapper
 from app.lines.providers.base import LinesProvider, OddsSnapshot
 from app.pricing.overround import normalize_market
-from app.value_detector import ModelOutcome, ValueDetector, ValuePick
+from app.value_detector import ModelOutcome, ValueDetector
 
 
 def _start_of_day(value: date) -> datetime:
@@ -49,15 +49,20 @@ class ValueService:
             date_to=_end_of_day(target_date),
             leagues=[league] if league else None,
         )
+        consensus_map = self._build_consensus_map(odds)
         picks = self.detector.detect(model=model, market=odds)
         cards: list[dict[str, object]] = []
         for pick in picks:
             info = meta.get(pick.match_key, {})
+            consensus = consensus_map.get(
+                (pick.match_key, pick.market.upper(), pick.selection.upper())
+            )
             cards.append(
                 {
                     "match": info,
                     "pick": pick,
                     "overround_method": self.detector.overround_method,
+                    "consensus": consensus,
                 }
             )
         return cards
@@ -87,8 +92,17 @@ class ValueService:
         )
         odds_for_match = [item for item in odds if item.match_key == match_key]
         model_outcomes = list(self._build_model_outcomes([prediction]))
+        consensus_map = self._build_consensus_map(odds_for_match)
         detector_results = self.detector.detect(model=model_outcomes, market=odds_for_match)
-        markets_summary = self._build_comparison(model_outcomes, odds_for_match)
+        markets_summary = self._build_comparison(
+            model_outcomes, odds_for_match, consensus_map
+        )
+        picks_consensus: dict[tuple[str, str], dict[str, object]] = {}
+        for pick in detector_results:
+            key = (pick.market.upper(), pick.selection.upper())
+            consensus = consensus_map.get((match_key, *key))
+            if consensus:
+                picks_consensus[key] = consensus
         return {
             "match": {
                 "home": prediction.home,
@@ -100,6 +114,7 @@ class ValueService:
             "picks": detector_results,
             "markets": markets_summary,
             "overround_method": self.detector.overround_method,
+            "consensus": picks_consensus,
         }
 
     def _build_model_outcomes(
@@ -197,7 +212,8 @@ class ValueService:
         self,
         model_outcomes: Sequence[ModelOutcome],
         odds: Sequence[OddsSnapshot],
-    ) -> dict[str, dict[str, dict[str, float]]]:
+        consensus_map: Mapping[tuple[str, str, str], dict[str, object]] | None = None,
+    ) -> dict[str, dict[str, dict[str, float | dict[str, object]]]]:
         grouped: dict[str, dict[str, dict[str, float]]] = {}
         outcomes_by_market: dict[str, dict[str, ModelOutcome]] = {}
         for outcome in model_outcomes:
@@ -224,9 +240,65 @@ class ValueService:
                     "market_p": float(norm.get(selection_key, 0.0)),
                     "price": float(snapshot.price_decimal),
                 }
+                if consensus_map:
+                    consensus = consensus_map.get(
+                        (snapshot.match_key, market_name, selection_key)
+                    )
+                    if consensus:
+                        market_summary[selection_key]["consensus"] = consensus
             if market_summary:
                 grouped[market_name] = market_summary
         return grouped
+
+    def _build_consensus_map(
+        self, odds: Sequence[OddsSnapshot]
+    ) -> dict[tuple[str, str, str], dict[str, object]]:
+        result: dict[tuple[str, str, str], dict[str, object]] = {}
+        for snapshot in odds:
+            consensus = self._extract_consensus(snapshot)
+            if not consensus:
+                continue
+            key = (snapshot.match_key, snapshot.market.upper(), snapshot.selection.upper())
+            result[key] = consensus
+        return result
+
+    @staticmethod
+    def _extract_consensus(snapshot: OddsSnapshot) -> dict[str, object] | None:
+        extra = snapshot.extra or {}
+        payload = extra.get("consensus")
+        if not isinstance(payload, dict):
+            return None
+        try:
+            price = float(payload.get("price_decimal", snapshot.price_decimal))
+            probability = float(payload.get("probability", 0.0))
+            provider_count = int(payload.get("provider_count", 0))
+        except (TypeError, ValueError):
+            return None
+        method = str(payload.get("method", ""))
+        trend = str(payload.get("trend", "→"))
+        providers = payload.get("providers")
+        if not isinstance(providers, list):
+            providers = []
+        closing_raw = payload.get("closing_price")
+        try:
+            closing_price = float(closing_raw) if closing_raw is not None else None
+        except (TypeError, ValueError):
+            closing_price = None
+        return {
+            "match_key": snapshot.match_key,
+            "market": snapshot.market,
+            "selection": snapshot.selection,
+            "price": price,
+            "probability": probability,
+            "provider_count": provider_count,
+            "method": method,
+            "trend": trend,
+            "providers": providers,
+            "closing_price": closing_price,
+            "closing_pulled_at": payload.get("closing_pulled_at"),
+            "pulled_at": payload.get("pulled_at"),
+            "kickoff_utc": payload.get("kickoff_utc"),
+        }
 
 
 __all__ = ["ValueService"]

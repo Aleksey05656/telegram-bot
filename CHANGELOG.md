@@ -1,3 +1,17 @@
+## [2025-10-05] - Value v1.4 audit
+### Added
+- Multi-provider odds aggregation (`app/lines/aggregator.py`, `app/lines/movement.py`) with weighted consensus and closing line tracking.
+- CLV ledger support (`app/value_clv.py`, `database/schema.sql`, migration `20241005_004_value_v1_4.py`) and CLI gate `diagtools/clv_check` with CI job `value-agg-clv-gate` and artefacts `value_clv.{json,md}`.
+- Test coverage for aggregation/CLV (`tests/odds/test_aggregator_basic.py`, `tests/odds/test_movement_closing.py`, `tests/value/test_clv_math.py`, `tests/bot/test_portfolio_and_providers.py`, `tests/diag/test_clv_check.py`) plus text fixtures `tests/fixtures/odds_multi/*.csv`.
+
+### Changed
+- Bot value workflows now surface consensus lines, movement trends, provider breakdowns and `/portfolio` CLV summary (updates in `app/value_service.py`, `app/bot/formatting.py`, `app/bot/keyboards.py`, `app/bot/routers/{commands,callbacks}.py`).
+- Diagnostics extended with Odds Aggregation & CLV sections; `.env.example`, README, docs (`dev_guide`, `user_guide`, `diagnostics`, `Project`, `status/value_v1_4_audit`) and `.github/workflows/ci.yml` reflect new env knobs.
+
+### Fixed
+- `diagtools.run_diagnostics` gracefully handles missing `picks_ledger` tables when aggregating CLV metrics.
+- CI gate now seeds consensus data before running CLV checks, preventing false negatives when the ledger is empty.
+
 ## [2025-10-12] - Diagnostics v2.1 drift packaging
 ### Added
 - `diagtools` package with console scripts `diag-run` and `diag-drift`, reference parquet exports and stratified PSI/KS summaries.

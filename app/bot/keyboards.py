@@ -9,10 +9,16 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable, Mapping
+from urllib.parse import quote_plus
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+
+def _providers_callback(match_key: str, market: str, selection: str) -> str:
+    encoded = [quote_plus(str(item)) for item in (match_key, market, selection)]
+    return "providers:" + ":".join(encoded)
 
 
 def today_keyboard(
@@ -69,4 +75,44 @@ def noop_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-__all__ = ["today_keyboard", "match_details_keyboard", "noop_keyboard"]
+def value_providers_keyboard(cards: Iterable[dict[str, object]]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for idx, card in enumerate(cards, start=1):
+        consensus = card.get("consensus") or {}
+        match_key = consensus.get("match_key") or card.get("match", {}).get("match_key")
+        pick = card.get("pick")
+        market = consensus.get("market") or getattr(pick, "market", None)
+        selection = consensus.get("selection") or getattr(pick, "selection", None)
+        if not match_key or not market or not selection:
+            continue
+        builder.button(
+            text=f"Провайдеры #{idx}",
+            callback_data=_providers_callback(str(match_key), str(market), str(selection)),
+        )
+    builder.button(text="OK", callback_data="noop")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def comparison_providers_keyboard(
+    match_key: str,
+    consensus_map: Mapping[tuple[str, str], dict[str, object]],
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for market, selection in consensus_map.keys():
+        builder.button(
+            text=f"{market}/{selection}",
+            callback_data=_providers_callback(match_key, market, selection),
+        )
+    builder.button(text="OK", callback_data="noop")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+__all__ = [
+    "today_keyboard",
+    "match_details_keyboard",
+    "noop_keyboard",
+    "value_providers_keyboard",
+    "comparison_providers_keyboard",
+]

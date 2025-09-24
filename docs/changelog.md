@@ -1,3 +1,18 @@
+# [2025-10-05] - Value v1.4 audit
+### Добавлено
+- Мультипровайдерный агрегатор котировок (`app/lines/aggregator.py`, `app/lines/movement.py`), расчёт CLV и леджер (`app/value_clv.py`, `database/schema.sql`, миграция `20241005_004_value_v1_4`).
+- CLI `diagtools/clv_check` с артефактами `value_clv.{json,md}`, CI job `value-agg-clv-gate`, документация (`docs/status/value_v1_4_audit.md`, README, docs/dev_guide.md, docs/user_guide.md, docs/diagnostics.md, docs/Project.md`).
+- Тесты: `tests/odds/test_aggregator_basic.py`, `tests/odds/test_movement_closing.py`, `tests/value/test_clv_math.py`, `tests/bot/test_portfolio_and_providers.py`, `tests/diag/test_clv_check.py`, текстовые фикстуры `tests/fixtures/odds_multi/*.csv`.
+
+### Изменено
+- Бот `/value`, `/compare`, `/portfolio` выводит consensus-линию, тренды и сводку CLV; `app/value_service.py`, `app/bot/formatting.py`, `app/bot/keyboards.py`, `app/bot/routers/{commands,callbacks}.py` подключены к новому агрегатору и леджеру.
+- Диагностика (`diagtools/run_diagnostics.py`, `diagtools/value_check.py`) расширена секциями «Odds Aggregation» и «CLV»; `.github/workflows/ci.yml`, `.env.example`, README и профиль CI отражают новые параметры (`ODDS_PROVIDERS`, `ODDS_PROVIDER_WEIGHTS`, `ODDS_AGG_METHOD`, `ODDS_SNAPSHOT_RETENTION_DAYS`, `CLV_*`, `VALUE_ALERT_UPDATE_DELTA/MAX_UPDATES`).
+- Обновлены инструкции (`docs/dev_guide.md`, `docs/user_guide.md`, `docs/diagnostics.md`, `docs/Project.md`, `docs/tasktracker.md`) и статус-аудит (`docs/status/value_v1_4_audit.md`).
+
+### Исправлено
+- `diagtools.run_diagnostics` корректно агрегирует CLV даже при пустой БД/отсутствии таблицы `picks_ledger` (защита от `sqlite3.DatabaseError`).
+- CI гейты падали без записей `picks_ledger` — теперь `value-agg-clv-gate` предварительно прогревает консенсусные котировки и валидирует средний CLV.
+
 # [2025-09-23] - Value odds integration
 ### Добавлено
 - Пакет `app.lines` (интерфейс `LinesProvider`, CSV/HTTP провайдеры, mapper, SQLite-хранилище odds_snapshots).

@@ -38,10 +38,14 @@ telegram-bot/
 │  │  ├─ storage.py          # schema.sql, user_prefs/subscriptions/reports
 │  │  └─ routers/            # commands.py, callbacks.py, state singletons
 │  ├─ lines/                | Нормализация котировок (mapper, providers CSV/HTTP, storage)
+│  │  ├─ aggregator.py      # мультипровайдерный консенсус (best/median/weighted) и тренды
+│  │  ├─ movement.py        # классификация тренда и поиск closing line
+│  │  └─ storage.py         # SQLite-хранилище odds_snapshots, история котировок
 │  ├─ pricing/              | Overround → implied probabilities (`overround.py`)
 │  ├─ value_calibration/    | Бэктест и сервис τ/γ (per лига/рынок)
 │  ├─ value_detector.py     | Фильтрация value-кейсов, edge/метрики
 │  ├─ value_alerts.py       | Антиспам/quiet hours/дельта-порог алертов
+│  ├─ value_clv.py          | Расчёт CLV, ledger picks_ledger и closing_lines
 │  ├─ value_service.py      | Оркестрация прогнозов и котировок для /value,/compare
 │  ├─ integrations/
 │  │  └─ sportmonks_client.py     # STUB-aware SportMonks API client
@@ -88,6 +92,7 @@ telegram-bot/
 │  ├─ scheduler.py             # CRON/ручной запуск, алерты, логи, метрики
 │  ├─ reports_html.py          # генерация HTML-дэшборда и история запусков
 │  ├─ drift_ref_update.py      # подготовка drift reference + changelog
+│  ├─ clv_check.py             # CLI гейт по среднему CLV и артефактам value_clv
 │  └─ bench.py / drift/ / golden_regression.py
 └─ requirements.txt
 ```
@@ -115,14 +120,15 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 детерминирована seed-ом из настроек (`SIM_SEED`).
 
 - Источник прогнозов: `PredictionFacade.today()` → вероятности рынков (1X2/OU/Btts) + confidence.
-- Источник котировок: `app.lines.providers` (`CSVLinesProvider`, `HTTPLinesProvider`) → `OddsSnapshot` через `LinesMapper` (match_key = home|away|ISO kick-off).
+- Источник котировок: мультипровайдер `app.lines` (CSV/HTTP) → `LinesAggregator` (best/median/weighted, веса `ODDS_PROVIDER_WEIGHTS`, метод `ODDS_AGG_METHOD`) с историей в `OddsSQLiteStore` и нормализацией `LinesMapper`.
 - Overround: `app/pricing/overround.normalize_market` (методы `proportional`, `shin` для 1X2) переводит decimal-odds в вероятности рынка.
 - Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по взвешенному edge, считает метрики Prometheus (`value_confidence_avg`, `value_edge_weighted_avg`).
 - Калибровка: `app/value_calibration/backtest.py` подбирает `τ/γ` per лига/рынок (валидация `time_kfold|walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`), результаты сохраняются через `CalibrationService` в SQLite (`value_calibration`).
 - Антиспам алертов: `app/value_alerts.AlertDecision` проверяет cooldown, quiet hours, дельта-порог и старение котировок, опираясь на `value_alerts_sent`.
-- Сервис: `app/value_service.ValueService` агрегирует прогнозы, применяет калиброванные пороги и возвращает карточки `/value`, `/compare`, `/alerts`.
+- CLV-леджер: `app/value_clv.PicksLedgerStore` записывает сигналы (`picks_ledger`), фиксирует closing line (`closing_lines`) и рассчитывает CLV (`calculate_clv`).
+- Сервис: `app/value_service.ValueService` агрегирует прогнозы, применяет калиброванные пороги и возвращает карточки `/value`, `/compare`, `/alerts` с консенсусной линией, трендом (↗︎/↘︎/→), closing price и кнопкой «Провайдеры».
 - Команды бота и алерты: `/value`, `/compare`, `/alerts` (SQLite `value_alerts`) включаются флагом `ENABLE_VALUE_FEATURES`.
-- Диагностика: `diagtools.run_diagnostics` секция «Value & Odds», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`.
+- Диагностика: `diagtools.run_diagnostics` секция «Value & Odds», CLI `python -m diagtools.value_check` → CI-гейт `value-smoke`; CLI `python -m diagtools.clv_check` валидирует `picks_ledger` и управляет гейтом `value-agg-clv-gate`.
 
 ## 5. Данные и хранилища
 **Охват данных:**
@@ -143,6 +149,8 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 - `user_prefs`, `subscriptions`, `reports` — прежний функционал.
 - `value_alerts(user_id, enabled, edge_threshold, league, created_at, updated_at)` — персональные настройки value-уведомлений.
 - `odds_snapshots(provider, pulled_at_utc, match_key, league, kickoff_utc, market, selection, price_decimal, extra_json)` — последняя котировка на матч/рынок/исход. Индекс `odds_match` и upsert по `(provider, match_key, market, selection)`.
+- `closing_lines(match_key, market, selection, consensus_price, consensus_probability, provider_count, method, pulled_at_utc)` — closing line для расчёта CLV (уникальный индекс `uq_closing_lines`).
+- `picks_ledger(user_id, match_key, market, selection, stake, price_taken, model_probability, market_probability, edge_pct, confidence, consensus_price, consensus_method, consensus_provider_count, clv_pct, closing_price, closing_pulled_at, closing_method, created_at, updated_at)` — журнал сигналов пользователей (индексы `picks_ledger_user_idx`, `picks_ledger_match_idx`).
 - Управляется `app/lines/storage.OddsSQLiteStore` + `database/schema.sql` (идемпотентный apply).
 
 **Redis (ключи/TTL):**
