@@ -9,13 +9,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from html import escape
-from typing import Iterable, Sequence
 from zoneinfo import ZoneInfo
 
-from config import settings
+from app.lines.providers.base import OddsSnapshot
 from app.value_detector import ValuePick
+from config import settings
 
 _CONFIDENCE_THRESHOLDS = (
     (0.65, "⬆️"),
@@ -192,7 +193,7 @@ def format_match_details(data: dict[str, object]) -> str:
     body.append(f"Уровень уверенности: {_confidence_indicator(confidence)} {_fmt_percent(confidence)}")
 
     freshness = data.get("freshness_hours")
-    if isinstance(freshness, (int, float)):
+    if isinstance(freshness, int | float):
         body.append(_render_freshness(freshness))
 
     standings = data.get("standings", []) or []
@@ -257,7 +258,7 @@ def format_explain(payload: dict[str, object]) -> str:
     lines.append(f"Итог: {summary}")
     lines.append(f"Уверенность: {_confidence_indicator(confidence)} {_fmt_percent(confidence)}")
     freshness = payload.get("freshness_hours")
-    if isinstance(freshness, (int, float)):
+    if isinstance(freshness, int | float):
         lines.append(_render_freshness(freshness))
     standings = payload.get("standings", []) or []
     if standings:
@@ -298,6 +299,7 @@ def format_value_picks(
         match = card.get("match", {}) or {}
         pick: ValuePick = card.get("pick")  # type: ignore[assignment]
         overround_method = str(card.get("overround_method", "proportional"))
+        consensus = card.get("consensus") or {}
         home = escape(str(match.get("home", "?")))
         away = escape(str(match.get("away", "?")))
         league = escape(str(match.get("league", "")))
@@ -312,6 +314,17 @@ def format_value_picks(
             f"market={_fmt_percent(pick.market_probability)} | "
             f"edge_w={pick.edge_weighted_pct:.2f}"
         )
+        consensus_line = None
+        if consensus:
+            provider_count = int(consensus.get("provider_count", 0))
+            trend = str(consensus.get("trend", "→"))
+            price = _fmt_decimal(float(consensus.get("price", pick.market_price)))
+            consensus_line = (
+                f"Consensus {price} (n={provider_count}) {escape(trend)}"
+            )
+            closing_price = consensus.get("closing_price")
+            if closing_price is not None:
+                consensus_line += f" · closing {_fmt_decimal(float(closing_price))}"
         price_line = (
             f"Fair {_fmt_decimal(pick.fair_price)} vs market {_fmt_decimal(pick.market_price)}"
             f" → edge {pick.edge_pct:.1f}% (conf={pick.confidence:.2f})"
@@ -330,8 +343,11 @@ def format_value_picks(
             f"edge={pick.edge_pct:.1f}%, conf={pick.confidence:.2f}, "
             f"edge_w={pick.edge_weighted_pct:.2f}"
         )
-        provider_line = f"Provider {escape(pick.provider)}"
-        lines.extend([header, market_line, price_line, thresholds, explain, provider_line, ""])
+        block = [header, market_line]
+        if consensus_line:
+            block.append(consensus_line)
+        block.extend([price_line, thresholds, explain, f"Источник {escape(pick.provider)}", ""])
+        lines.extend(block)
     return "\n".join(lines).strip()
 
 
@@ -383,6 +399,19 @@ def format_value_comparison(data: dict[str, object]) -> str:
                     ]
                 )
             )
+            consensus_map: dict[tuple[str, str], dict[str, object]] = data.get("consensus", {})  # type: ignore[assignment]
+            consensus = consensus_map.get((pick.market.upper(), pick.selection.upper()))
+            if consensus:
+                provider_count = int(consensus.get("provider_count", 0))
+                trend = str(consensus.get("trend", "→"))
+                price = _fmt_decimal(float(consensus.get("price", pick.market_price)))
+                closing = consensus.get("closing_price")
+                closing_str = (
+                    f" · closing {_fmt_decimal(float(closing))}" if closing is not None else ""
+                )
+                lines.append(
+                    f"    Consensus {price} (n={provider_count}) {escape(trend)}{closing_str}"
+                )
         lines.append("")
     markets = data.get("markets", {}) or {}
     if not markets:
@@ -477,6 +506,81 @@ def format_export_notice(path: str, kind: str) -> str:
     return f"📁 Отчёт {escape(kind.upper())} сохранён в <code>{escape(path)}</code>"
 
 
+def format_providers_breakdown(
+    *,
+    match_key: str,
+    market: str,
+    selection: str,
+    quotes: Sequence[OddsSnapshot],
+    consensus: dict[str, object] | None,
+) -> str:
+    lines = [
+        f"📊 <b>{escape(market)} / {escape(selection)}</b>",
+        f"Матч: {escape(match_key)}",
+    ]
+    if consensus:
+        provider_count = int(consensus.get("provider_count", 0))
+        trend = str(consensus.get("trend", "→"))
+        price = _fmt_decimal(float(consensus.get("price", 0.0)))
+        closing = consensus.get("closing_price")
+        closing_part = (
+            f" · closing {_fmt_decimal(float(closing))}" if closing is not None else ""
+        )
+        lines.append(f"Consensus {price} (n={provider_count}) {escape(trend)}{closing_part}")
+    if not quotes:
+        lines.append("Нет активных котировок по провайдерам.")
+        return "\n".join(lines)
+    lines.append("Провайдеры:")
+    for quote in quotes:
+        pulled = quote.pulled_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+        lines.append(
+            f"• {escape(quote.provider)} — {_fmt_decimal(quote.price_decimal)} ({pulled} UTC)"
+        )
+    return "\n".join(lines)
+
+
+def format_portfolio(summary: dict[str, object]) -> str:
+    total = int(summary.get("total", 0))
+    avg_clv = float(summary.get("avg_clv", 0.0))
+    positive_share = float(summary.get("positive_share", 0.0)) * 100
+    lines = [
+        "📈 <b>Портфель</b>",
+        f"Всего сигналов: {total}",
+        f"Средний CLV: {avg_clv:.2f}%",
+        f"Положительный CLV: {positive_share:.1f}%",
+    ]
+    picks = summary.get("picks") or []
+    if not picks:
+        lines.append("")
+        lines.append("История пока пуста — используйте /value, чтобы начать.")
+        return "\n".join(lines)
+    lines.append("")
+    lines.append("Последние записи:")
+    for row in picks[:8]:
+        market = escape(str(row.get("market", "")))
+        selection = escape(str(row.get("selection", "")))
+        match_key = escape(str(row.get("match_key", "N/A")))
+        price_taken = _fmt_decimal(float(row.get("price_taken", 0.0)))
+        closing = row.get("closing_price")
+        closing_part = (
+            f" → {_fmt_decimal(float(closing))}" if closing is not None else ""
+        )
+        clv = row.get("clv_pct")
+        clv_part = f" ({float(clv):+.2f}%)" if clv is not None else " (—)"
+        created_raw = row.get("created_at")
+        created_str = str(created_raw)
+        if isinstance(created_raw, str):
+            try:
+                created_dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                created_str = created_dt.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                created_str = created_raw
+        lines.append(
+            f"• {match_key} · {market}/{selection}: {price_taken}{closing_part}{clv_part} [{escape(created_str)}]"
+        )
+    return "\n".join(lines)
+
+
 __all__ = [
     "format_start",
     "format_help",
@@ -488,4 +592,8 @@ __all__ = [
     "format_about",
     "format_digest",
     "format_export_notice",
+    "format_value_picks",
+    "format_value_comparison",
+    "format_providers_breakdown",
+    "format_portfolio",
 ]

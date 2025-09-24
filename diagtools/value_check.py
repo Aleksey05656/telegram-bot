@@ -12,17 +12,18 @@ import asyncio
 import csv
 import json
 import os
-import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
-from typing import Any, Sequence
-
-from config import settings
+from typing import Any
 
 from app.bot.services import PredictionFacade
+from app.lines.aggregator import AggregatingLinesProvider, LinesAggregator, parse_provider_weights
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
+from app.lines.providers.base import LinesProvider
+from app.lines.storage import OddsSQLiteStore
 from app.metrics import (
     value_backtest_last_run_ts,
     value_backtest_samples,
@@ -38,7 +39,7 @@ from app.value_calibration import (
 )
 from app.value_detector import ValueDetector
 from app.value_service import ValueService
-
+from config import settings
 
 _CLI_ARGS: argparse.Namespace | None = None
 
@@ -89,9 +90,40 @@ def _build_detector() -> ValueDetector:
     )
 
 
-def _create_provider(mapper: LinesMapper):
-    provider_type = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy").lower()
-    if provider_type == "csv":
+def _create_provider(mapper: LinesMapper) -> LinesProvider:
+    provider_names = _resolve_provider_names()
+    providers: dict[str, LinesProvider] = {}
+    for name in provider_names:
+        providers[name] = _instantiate_provider(name, mapper)
+    active = {
+        name: provider
+        for name, provider in providers.items()
+        if not isinstance(provider, _DummyProvider)
+    }
+    if not active:
+        return next(iter(providers.values()), _DummyProvider(mapper))
+    weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
+    aggregator = LinesAggregator(
+        method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
+        provider_weights=weights,
+        store=OddsSQLiteStore(),
+        retention_days=int(getattr(settings, "ODDS_SNAPSHOT_RETENTION_DAYS", 14)),
+        movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+    )
+    return AggregatingLinesProvider(active, aggregator=aggregator)
+
+
+def _resolve_provider_names() -> list[str]:
+    raw = str(getattr(settings, "ODDS_PROVIDERS", "") or "").strip()
+    names = [token.strip().lower() for token in raw.split(",") if token.strip()]
+    if not names:
+        fallback = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy")
+        names = [fallback.lower()]
+    return names
+
+
+def _instantiate_provider(name: str, mapper: LinesMapper) -> LinesProvider:
+    if name == "csv":
         fixtures_root = os.getenv("ODDS_FIXTURES_PATH")
         if fixtures_root:
             path = Path(fixtures_root)
@@ -99,7 +131,7 @@ def _create_provider(mapper: LinesMapper):
             base = getattr(settings, "DATA_ROOT", "/data")
             path = Path(base) / "odds"
         return CSVLinesProvider(fixtures_dir=path, mapper=mapper)
-    if provider_type == "http":
+    if name == "http":
         base_url = os.getenv("ODDS_HTTP_BASE_URL", "").strip()
         if not base_url:
             raise RuntimeError("ODDS_HTTP_BASE_URL не задан")
@@ -154,6 +186,15 @@ async def _run_check_async() -> dict[str, Any]:
         result = close_fn()
         if asyncio.iscoroutine(result):
             await result
+    aggregation = {}
+    if isinstance(provider, AggregatingLinesProvider):
+        meta = provider.aggregator.last_metadata
+        avg_count = (
+            sum(item.provider_count for item in meta.values()) / len(meta)
+            if meta
+            else 0.0
+        )
+        aggregation = {"pairs": len(meta), "avg_provider_count": avg_count}
     return {
         "predictions": len(predictions),
         "odds_count": len(odds),
@@ -162,6 +203,7 @@ async def _run_check_async() -> dict[str, Any]:
         "invalid_prices": invalid_prices,
         "cards": cards[:5],
         "backtest": summary_backtest,
+        "aggregation": aggregation,
     }
 
 
@@ -365,7 +407,7 @@ def main() -> None:
         summary = asyncio.run(_run_check_async())
     except Exception as exc:  # pragma: no cover - unexpected runtime failure
         print(f"value_check failed: {exc}")
-        raise SystemExit(2)
+        raise SystemExit(2) from exc
     print("Value & Odds summary:")
     for key in ("predictions", "odds_count", "picks"):
         print(f"  {key}: {summary.get(key)}")

@@ -13,18 +13,35 @@ import asyncio
 import hashlib
 import math
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Any, Sequence
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import FSInputFile, Message
 
+from app.lines.aggregator import (
+    AggregatingLinesProvider,
+    ConsensusMeta,
+    LinesAggregator,
+    ProviderQuote,
+    parse_provider_weights,
+)
+from app.lines.mapper import LinesMapper
+from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
+from app.lines.providers.base import LinesProvider
+from app.lines.storage import OddsSQLiteStore
+from app.value_calibration import CalibrationService
+from app.value_clv import ledger_store
+from app.value_detector import ValueDetector
+from app.value_service import ValueService
 from config import settings
+from diagtools import scheduler as diag_scheduler
 from logger import logger
 
 from ...metrics import observe_render_latency, record_command
@@ -33,13 +50,20 @@ from ..formatting import (
     format_explain,
     format_help,
     format_match_details,
-    format_value_comparison,
-    format_value_picks,
+    format_portfolio,
     format_settings,
     format_start,
     format_today_matches,
+    format_value_comparison,
+    format_value_picks,
 )
-from ..keyboards import match_details_keyboard, noop_keyboard, today_keyboard
+from ..keyboards import (
+    comparison_providers_keyboard,
+    match_details_keyboard,
+    noop_keyboard,
+    today_keyboard,
+    value_providers_keyboard,
+)
 from ..services import Prediction
 from ..state import FACADE, LIST_CACHE, MATCH_CACHE, PAGINATION_CACHE
 from ..storage import (
@@ -50,14 +74,6 @@ from ..storage import (
     upsert_subscription,
     upsert_value_alert,
 )
-from diagtools import scheduler as diag_scheduler
-
-from app.lines.mapper import LinesMapper
-from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
-from app.lines.providers.base import LinesProvider
-from app.value_calibration import CalibrationService
-from app.value_detector import ValueDetector
-from app.value_service import ValueService
 
 commands_router = Router()
 _ADMIN_IDS = {
@@ -79,11 +95,11 @@ _COMMANDS_LIST = [
 ]
 
 if settings.ENABLE_VALUE_FEATURES:
-    _COMMANDS_LIST.extend(["/value", "/compare", "/alerts"])
+    _COMMANDS_LIST.extend(["/value", "/compare", "/portfolio", "/alerts"])
 
 
 def _hash_query(user_id: int, key: str) -> str:
-    digest = hashlib.sha1(f"{user_id}:{key}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(f"{user_id}:{key}".encode()).hexdigest()
     return digest[:12]
 
 
@@ -168,7 +184,7 @@ def _freshness_note(predictions: Sequence[Prediction]) -> str | None:
     hours = [
         float(p.freshness_hours)
         for p in predictions
-        if isinstance(p.freshness_hours, (int, float))
+        if isinstance(p.freshness_hours, int | float)
     ]
     if not hours:
         return None
@@ -203,8 +219,8 @@ def _parse_today_args(raw: str | None) -> TodayArgs:
         if token.startswith("limit="):
             try:
                 limit = max(1, min(20, int(token.split("=", 1)[1])))
-            except ValueError:
-                raise ValueError("Некорректное значение limit")
+            except ValueError as exc:
+                raise ValueError("Некорректное значение limit") from exc
         elif league is None:
             league = token
     return TodayArgs(league=league, limit=limit)
@@ -256,8 +272,39 @@ class _DummyLinesProvider:
 
 
 def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
-    provider_type = (getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy").lower()
-    if provider_type == "csv":
+    provider_names = _resolve_provider_names()
+    providers: dict[str, LinesProvider] = {}
+    for name in provider_names:
+        providers[name] = _instantiate_provider(name, mapper)
+    active = {
+        name: provider
+        for name, provider in providers.items()
+        if not isinstance(provider, _DummyLinesProvider)
+    }
+    if not active:
+        return next(iter(providers.values()), _DummyLinesProvider(mapper=mapper))
+    weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
+    aggregator = LinesAggregator(
+        method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
+        provider_weights=weights,
+        store=OddsSQLiteStore(),
+        retention_days=int(getattr(settings, "ODDS_SNAPSHOT_RETENTION_DAYS", 7)),
+        movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+    )
+    return AggregatingLinesProvider(active, aggregator=aggregator)
+
+
+def _resolve_provider_names() -> list[str]:
+    raw = str(getattr(settings, "ODDS_PROVIDERS", "") or "").strip()
+    names = [token.strip().lower() for token in raw.split(",") if token.strip()]
+    if not names:
+        fallback = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy")
+        names = [fallback.lower()]
+    return names
+
+
+def _instantiate_provider(name: str, mapper: LinesMapper) -> LinesProvider:
+    if name == "csv":
         fixtures_root = os.getenv("ODDS_FIXTURES_PATH")
         if fixtures_root:
             path = Path(fixtures_root)
@@ -265,7 +312,7 @@ def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
             base = getattr(settings, "DATA_ROOT", "/data")
             path = Path(base) / "odds"
         return CSVLinesProvider(fixtures_dir=path, mapper=mapper)
-    if provider_type == "http":
+    if name == "http":
         base_url = os.getenv("ODDS_HTTP_BASE_URL", "").strip()
         if not base_url:
             raise RuntimeError("ODDS_HTTP_BASE_URL не задан для HTTP-провайдера котировок")
@@ -279,6 +326,66 @@ def _create_lines_provider(mapper: LinesMapper) -> LinesProvider:
             mapper=mapper,
         )
     return _DummyLinesProvider(mapper=mapper)
+
+
+def _parse_iso(value: object) -> datetime:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("timestamp is required")
+    return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _consensus_from_payload(payload: Mapping[str, object]) -> ConsensusMeta | None:
+    try:
+        match_key = str(payload["match_key"])
+        market = str(payload["market"])
+        selection = str(payload["selection"])
+        price = float(payload.get("price", payload.get("price_decimal", 0.0)))
+        probability = float(payload.get("probability", 0.0))
+        method = str(payload.get("method", ""))
+        provider_count = int(payload.get("provider_count", 0))
+        pulled_at = _parse_iso(payload.get("pulled_at", datetime.now(UTC)))
+        kickoff = _parse_iso(payload.get("kickoff_utc", pulled_at))
+    except (KeyError, TypeError, ValueError):
+        return None
+    providers: list[ProviderQuote] = []
+    for item in payload.get("providers", []):
+        if not isinstance(item, Mapping):
+            continue
+        try:
+            providers.append(
+                ProviderQuote(
+                    provider=str(item.get("name", "")),
+                    price_decimal=float(item.get("price_decimal", 0.0)),
+                    pulled_at=_parse_iso(item.get("pulled_at", pulled_at)),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    closing_price = payload.get("closing_price")
+    closing_ts = payload.get("closing_pulled_at")
+    closing_value = (
+        float(closing_price) if closing_price is not None else None
+    )
+    closing_time = _parse_iso(closing_ts) if closing_ts else None
+    return ConsensusMeta(
+        match_key=match_key,
+        market=market,
+        selection=selection,
+        price_decimal=price,
+        probability=probability,
+        method=method,
+        provider_count=provider_count,
+        providers=tuple(providers),
+        trend=str(payload.get("trend", "→")),
+        pulled_at=pulled_at,
+        league=str(payload.get("league")) if payload.get("league") else None,
+        kickoff_utc=kickoff,
+        closing_price=closing_value,
+        closing_pulled_at=closing_time,
+    )
 
 
 _CALIBRATION_SERVICE: CalibrationService | None = None
@@ -625,7 +732,7 @@ if settings.ENABLE_VALUE_FEATURES:
                 target_date=parsed.target_date,
                 league=parsed.league,
             )
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception:  # pragma: no cover - defensive logging
             logger.exception(
                 "Команда /value упала",  # noqa: TRY400
                 extra={
@@ -638,6 +745,22 @@ if settings.ENABLE_VALUE_FEATURES:
         finally:
             await _close_lines_provider(provider)
         cards = cards[: parsed.limit]
+        user_id = message.from_user.id if message.from_user else 0
+        if user_id > 0:
+            for card in cards:
+                consensus_payload = card.get("consensus")
+                pick = card.get("pick")
+                if not consensus_payload or pick is None:
+                    continue
+                consensus_meta = _consensus_from_payload(consensus_payload)
+                if not consensus_meta:
+                    continue
+                try:
+                    ledger_store.record_pick(user_id, pick, consensus_meta)
+                    ledger_store.record_closing_line(consensus_meta)
+                    ledger_store.apply_closing_to_picks(consensus_meta)
+                except Exception as exc:  # pragma: no cover - ledger errors shouldn't break UX
+                    logger.debug("ledger_record_failed", extra={"error": str(exc)})
         title = f"Value-кейсы на {parsed.target_date.isoformat()}"
         if parsed.league:
             title += f" ({parsed.league})"
@@ -654,7 +777,7 @@ if settings.ENABLE_VALUE_FEATURES:
                 "picks": len(cards),
             },
         )
-        await message.answer(text, reply_markup=noop_keyboard)
+        await message.answer(text, reply_markup=value_providers_keyboard(cards))
 
     @commands_router.message(Command("compare"))
     async def handle_compare(message: Message, command: CommandObject) -> None:
@@ -665,7 +788,7 @@ if settings.ENABLE_VALUE_FEATURES:
         service, provider = _create_value_service()
         try:
             summary = await service.compare(query=query, target_date=date.today())
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception:  # pragma: no cover - defensive logging
             logger.exception(
                 "Команда /compare упала",  # noqa: TRY400
                 extra={"user_id": message.from_user.id if message.from_user else 0, "query": query},
@@ -685,7 +808,25 @@ if settings.ENABLE_VALUE_FEATURES:
             "Команда /compare",  # noqa: TRY400
             extra={"user_id": message.from_user.id if message.from_user else 0, "query": query},
         )
-        await message.answer(text, reply_markup=noop_keyboard)
+        match_info = summary.get("match", {}) or {}
+        match_key = str(match_info.get("match_key", ""))
+        consensus_map = summary.get("consensus", {}) or {}
+        keyboard = (
+            comparison_providers_keyboard(match_key, consensus_map)
+            if match_key and consensus_map
+            else noop_keyboard()
+        )
+        await message.answer(text, reply_markup=keyboard)
+
+    @commands_router.message(Command("portfolio"))
+    async def handle_portfolio(message: Message, command: CommandObject) -> None:
+        user_id = message.from_user.id if message.from_user else 0
+        if user_id <= 0:
+            await message.answer("Не удалось определить пользователя.")
+            return
+        summary = ledger_store.user_summary(user_id)
+        text = format_portfolio(summary)
+        await message.answer(text, reply_markup=noop_keyboard())
 
     @commands_router.message(Command("alerts"))
     async def handle_alerts(message: Message, command: CommandObject) -> None:
@@ -861,7 +1002,7 @@ async def handle_admin(message: Message, command: CommandObject) -> None:
         subscriptions = list_subscriptions()
         payload = {
             "subscribers": len(subscriptions),
-            "cache_size": _PREDICTION_CACHE.stats()["size"],
+            "cache_size": MATCH_CACHE.stats()["size"],
         }
         await message.answer(str(payload))
     elif subcommand == "reload":

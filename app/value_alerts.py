@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta, time
+from datetime import UTC, datetime, time, timedelta
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
@@ -48,11 +48,15 @@ class AlertHygiene:
         min_edge_delta: float,
         staleness_fail_minutes: int,
         quiet_hours: str | None = None,
+        update_delta: float = 1.0,
+        max_updates: int = 3,
     ) -> None:
         self._cooldown = max(int(cooldown_minutes), 0)
         self._min_edge_delta = float(min_edge_delta)
         self._staleness = max(int(staleness_fail_minutes), 0)
         self._quiet_hours = _parse_quiet_hours(quiet_hours)
+        self._update_delta = max(float(update_delta), 0.0)
+        self._max_updates = max(int(max_updates), 0)
 
     def evaluate(self, candidate: AlertCandidate, *, now: datetime) -> AlertDecision:
         now = now.astimezone(UTC)
@@ -66,12 +70,25 @@ class AlertHygiene:
             market=candidate.market,
             selection=candidate.selection,
         )
+        if self._max_updates:
+            history = [
+                row
+                for row in list_recent_value_alerts(
+                    candidate.user_id, limit=self._max_updates
+                )
+                if row.get("match_key") == candidate.match_key
+                and row.get("market") == candidate.market
+                and row.get("selection") == candidate.selection
+            ]
+            if len(history) >= self._max_updates:
+                return AlertDecision(False, "max_updates")
         if last:
             last_sent = _coerce_datetime(last.get("sent_at"))
             if self._cooldown and now - last_sent < timedelta(minutes=self._cooldown):
                 return AlertDecision(False, "cooldown")
             last_edge = float(last.get("edge_pct", 0.0))
-            if candidate.edge_pct - last_edge < self._min_edge_delta:
+            required_delta = max(self._min_edge_delta, self._update_delta)
+            if candidate.edge_pct - last_edge < required_delta:
                 return AlertDecision(False, "edge_delta")
         return AlertDecision(True, "ok")
 

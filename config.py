@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pydantic import Field, computed_field, field_validator
+
 from pydantic_settings import BaseSettings
 
 
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     SPORTMONKS_LEAGUES_ALLOWLIST: str = ""
     SPORTMONKS_CACHE_TTL_SEC: int = 900
     ODDS_API_KEY: str = ""  # Обязательное поле, без значения по умолчанию
+    ODDS_PROVIDERS: str = ""
+    ODDS_PROVIDER_WEIGHTS: str = ""
     ODDS_PROVIDER: str = "dummy"
     ODDS_REFRESH_SEC: int = 300
     ODDS_RPS_LIMIT: float = 3.0
@@ -32,6 +35,8 @@ class Settings(BaseSettings):
     ODDS_RETRY_ATTEMPTS: int = 4
     ODDS_BACKOFF_BASE: float = 0.4
     ODDS_OVERROUND_METHOD: str = "proportional"
+    ODDS_AGG_METHOD: str = "median"
+    ODDS_SNAPSHOT_RETENTION_DAYS: int = 14
     VALUE_MIN_EDGE_PCT: float = 3.0
     VALUE_MIN_CONFIDENCE: float = 0.6
     VALUE_MAX_PICKS: int = 5
@@ -40,7 +45,11 @@ class Settings(BaseSettings):
     VALUE_ALERT_COOLDOWN_MIN: int = 60
     VALUE_ALERT_QUIET_HOURS: str = "23:00-08:00"
     VALUE_ALERT_MIN_EDGE_DELTA: float = 0.7
+    VALUE_ALERT_UPDATE_DELTA: float = 1.5
+    VALUE_ALERT_MAX_UPDATES: int = 3
     VALUE_STALENESS_FAIL_MIN: int = 30
+    CLV_WINDOW_BEFORE_KICKOFF_MIN: int = 120
+    CLV_FAIL_THRESHOLD_PCT: float = -5.0
     BACKTEST_DAYS: int = 120
     BACKTEST_MIN_SAMPLES: int = 300
     BACKTEST_OPTIM_TARGET: str = "sharpe"

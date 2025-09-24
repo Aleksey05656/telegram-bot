@@ -128,6 +128,143 @@ jobs:
             ${{ env.REPORTS_DIR }}/diagnostics/value_calibration.md
           retention-days: 7
 
+  value-agg-clv-gate:
+    runs-on: ubuntu-latest
+    needs: pipeline
+    env:
+      SPORTMONKS_STUB: "1"
+      SPORTMONKS_API_KEY: dummy
+      REPORTS_DIR: ${{ runner.temp }}/value-agg-clv/diagnostics
+      DB_PATH: ${{ runner.temp }}/value-agg-clv/bot.sqlite3
+      DATA_ROOT: ${{ runner.temp }}/value-agg-clv/data
+      ENABLE_VALUE_FEATURES: "1"
+      ODDS_PROVIDERS: csv
+      ODDS_PROVIDER_WEIGHTS: csv:1.0
+      ODDS_PROVIDER: csv
+      ODDS_AGG_METHOD: median
+      ODDS_SNAPSHOT_RETENTION_DAYS: 14
+      CLV_WINDOW_BEFORE_KICKOFF_MIN: 120
+      CLV_FAIL_THRESHOLD_PCT: -5.0
+      FIXTURES_ROOT: tests/fixtures/odds_multi
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+
+      - name: Prepare SQLite schema
+        run: |
+          mkdir -p "$(dirname "$DB_PATH")" "$REPORTS_DIR" "$DATA_ROOT"
+          sqlite3 "$DB_PATH" < database/schema.sql
+
+      - name: Seed consensus ledger
+        env:
+          DB_PATH: ${{ env.DB_PATH }}
+          FIXTURES_ROOT: ${{ env.FIXTURES_ROOT }}
+          ODDS_AGG_METHOD: ${{ env.ODDS_AGG_METHOD }}
+          ODDS_SNAPSHOT_RETENTION_DAYS: ${{ env.ODDS_SNAPSHOT_RETENTION_DAYS }}
+          CLV_WINDOW_BEFORE_KICKOFF_MIN: ${{ env.CLV_WINDOW_BEFORE_KICKOFF_MIN }}
+        run: |
+          python - <<'PY'
+          import csv
+          import os
+          from datetime import UTC, datetime, timedelta
+          from pathlib import Path
+
+          from app.lines.aggregator import LinesAggregator
+          from app.lines.providers.base import OddsSnapshot
+          from app.lines.storage import OddsSQLiteStore
+          from app.value_clv import PicksLedgerStore
+          from app.value_detector import ValuePick
+
+          db_path = Path(os.environ["DB_PATH"]).resolve()
+          fixtures_root = Path(os.environ.get("FIXTURES_ROOT", "tests/fixtures/odds_multi")).resolve()
+          store = OddsSQLiteStore(db_path=str(db_path))
+          aggregator = LinesAggregator(
+              method=os.environ.get("ODDS_AGG_METHOD", "median"),
+              provider_weights=None,
+              store=store,
+              retention_days=int(os.environ.get("ODDS_SNAPSHOT_RETENTION_DAYS", "14")),
+              movement_window_minutes=int(os.environ.get("CLV_WINDOW_BEFORE_KICKOFF_MIN", "120")),
+          )
+
+          kickoff = datetime(2025, 10, 10, 20, 0, tzinfo=UTC)
+          path = fixtures_root / "movement_closing.csv"
+
+          def build_snapshot(row: dict[str, str]) -> OddsSnapshot:
+              pulled = kickoff - timedelta(minutes=int(row["minutes_before"]))
+              return OddsSnapshot(
+                  provider=str(row["provider"]),
+                  pulled_at=pulled,
+                  match_key="m-agg",
+                  league="EPL",
+                  kickoff_utc=kickoff,
+                  market="1X2",
+                  selection="HOME",
+                  price_decimal=float(row["price_decimal"]),
+                  extra=None,
+              )
+
+          with path.open(encoding="utf-8") as fh:
+              reader = csv.DictReader(fh)
+              early_quotes = [build_snapshot(row) for row in reader if row["stage"] == "early"]
+          aggregator.aggregate(early_quotes)
+          with path.open(encoding="utf-8") as fh:
+              reader = csv.DictReader(fh)
+              closing_quotes = [build_snapshot(row) for row in reader if row["stage"] == "closing"]
+          aggregator.aggregate(closing_quotes)
+
+          ledger = PicksLedgerStore(db_path=str(db_path))
+          for consensus in aggregator.last_metadata.values():
+              pick = ValuePick(
+                  match_key=consensus.match_key,
+                  market=consensus.market,
+                  selection=consensus.selection,
+                  league=consensus.league or "EPL",
+                  fair_price=float(consensus.price_decimal) * 0.95,
+                  market_price=float(consensus.price_decimal) * 1.05,
+                  edge_pct=7.0,
+                  model_probability=0.55,
+                  market_probability=float(consensus.probability),
+                  confidence=0.8,
+                  edge_weighted_pct=5.6,
+                  edge_threshold_pct=3.0,
+                  confidence_threshold=0.6,
+                  calibrated=True,
+                  provider="consensus",
+                  pulled_at=consensus.pulled_at,
+                  kickoff_utc=consensus.kickoff_utc,
+              )
+              ledger.record_pick(1, pick, consensus)
+              ledger.record_closing_line(consensus)
+              ledger.apply_closing_to_picks(consensus)
+          PY
+
+      - name: Run CLV gate
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m diagtools.clv_check --db-path "$DB_PATH" --reports-dir "$REPORTS_DIR" --threshold "${CLV_FAIL_THRESHOLD_PCT}"
+
+      - name: Upload CLV artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: value-agg-clv
+          path: |
+            ${{ env.REPORTS_DIR }}/value_clv.json
+            ${{ env.REPORTS_DIR }}/value_clv.md
+          retention-days: 7
+
   amvera-smoke:
     name: amvera-smoke
     runs-on: ubuntu-latest

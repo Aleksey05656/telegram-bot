@@ -25,6 +25,7 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - Админ-команды бота: `/diag`, `/diag last`, `/diag drift`, `/diag link` (результаты уходят только в чаты из `ADMIN_IDS`).
 - Политика «no-binaries-in-git»: отчёты (`reports/**`), данные (`data/**`) и любые `*.png/*.parquet/*.zip/*.sqlite` не коммитятся. CI job `assert-no-binaries` падает при попытке добавить такие файлы.
 - CI job `diagnostics-scheduled` публикует артефакты HTML/истории; за ревью drift-референсов отвечает `diagtools.drift_ref_update` (с флагом `AUTO_REF_UPDATE`).
+- CI job `value-agg-clv-gate` прогоняет `python -m diagtools.clv_check` и падает, если средний CLV опускается ниже `CLV_FAIL_THRESHOLD_PCT`. Артефакты `reports/diagnostics/value_clv.{json,md}` прикладываются к сборке.
 
 ## Reliability snapshot
 
@@ -76,12 +77,14 @@ git push amvera main
 - `BACKUP_DIR` / `BACKUP_KEEP` — каталог и глубина ротации для резервных копий SQLite (`/data/backups`, `10`).
 - `PYTHONUNBUFFERED=1` — отключает буферизацию stdout/stderr.
 - `APP_VERSION` и `GIT_SHA` — метки релиза и коммита для логов/метрик.
-- `ODDS_PROVIDER` / `ODDS_REFRESH_SEC` / `ODDS_TIMEOUT_SEC` / `ODDS_RETRY_ATTEMPTS` / `ODDS_BACKOFF_BASE` / `ODDS_RPS_LIMIT` —
-  настройки поставщика котировок (режимы `dummy`, `csv`, `http`).
+- `ODDS_PROVIDERS` / `ODDS_PROVIDER_WEIGHTS` / `ODDS_PROVIDER` / `ODDS_AGG_METHOD` / `ODDS_SNAPSHOT_RETENTION_DAYS` / `ODDS_REFRESH_SEC` / `ODDS_TIMEOUT_SEC` / `ODDS_RETRY_ATTEMPTS` / `ODDS_BACKOFF_BASE` / `ODDS_RPS_LIMIT` —
+  настройки мультипровайдерной агрегации и частоты обновления котировок (режимы `dummy`, `csv`, `http`).
 - `ODDS_OVERROUND_METHOD` — метод нормализации маржи (`proportional` или `shin`).
 - `VALUE_MIN_EDGE_PCT` / `VALUE_MIN_CONFIDENCE` / `VALUE_MAX_PICKS` / `VALUE_MARKETS` — пороги value-детектора.
+- `VALUE_ALERT_MIN_EDGE_DELTA` / `VALUE_ALERT_UPDATE_DELTA` / `VALUE_ALERT_MAX_UPDATES` — антиспам правила для value-оповещений.
 - `ENABLE_VALUE_FEATURES` — включает команды `/value`, `/compare`, `/alerts` и связанные оповещения.
 - `ODDS_FIXTURES_PATH` (опционально) — путь до CSV-фикстур для оффлайн-провайдера.
+- `CLV_WINDOW_BEFORE_KICKOFF_MIN` / `CLV_FAIL_THRESHOLD_PCT` — окно поиска closing line и порог гейта CLV для CI.
 
 Для оффлайн-прогона value-фич установите `ENABLE_VALUE_FEATURES=1`, `ODDS_PROVIDER=csv` и
 `ODDS_FIXTURES_PATH=tests/fixtures/odds`. Так `diagtools.value_check` и тесты будут работать без внешнего API.
@@ -115,7 +118,8 @@ Telegram-бот регистрирует команды для быстрого 
 | `/terms` | Условия использования | `/terms` |
 | `/diag [last|drift|link]` | Chat-Ops для диагностики (только админы) | `/diag last` |
 | `/value [league] [date] [limit]` | Топ value-кейсы за выбранный день (требует `ENABLE_VALUE_FEATURES=1`) | `/value EPL date=2024-09-01 limit=3` |
-| `/compare <match>` | Сравнение наших вероятностей с котировками рынка (`ENABLE_VALUE_FEATURES=1`) | `/compare Arsenal` |
+| `/compare <match>` | Сравнение наших вероятностей с консенсусными котировками и кнопкой «Провайдеры» (`ENABLE_VALUE_FEATURES=1`) | `/compare Arsenal` |
+| `/portfolio` | Личная сводка CLV и последние сигналы (`ENABLE_VALUE_FEATURES=1`) | `/portfolio` |
 | `/alerts [on|off] [edge=…] [league]` | Настройка персональных value-оповещений (`ENABLE_VALUE_FEATURES=1`) | `/alerts on edge=5 EPL` |
 
 Команда `/predict` принимает названия команд через дефис (поддерживаются символы `-`, `–`, `—`).

@@ -1,0 +1,5 @@
+stage,provider,minutes_before,price_decimal
+early,a,240,2.1
+early,b,210,2.05
+closing,a,45,1.9
+closing,b,30,1.85

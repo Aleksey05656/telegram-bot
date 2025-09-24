@@ -2,12 +2,12 @@
 
 ### Пакет `app.bot`
 - `caching.py` — асинхронный TTL-кеш с LRU-эвикцией и счётчиками hit/miss.
-- `formatting.py` — HTML-рендеры для всех команд (таблицы, объяснимость, дайджесты).
-- `keyboards.py` — генерация inline-клавиатур (пагинация, детали матча, экспорт).
+- `formatting.py` — HTML-рендеры для всех команд (таблицы, объяснимость, дайджесты, consensus-блоки и сводка портфеля).
+- `keyboards.py` — генерация inline-клавиатур (пагинация, детали матча, экспорт, кнопка «Провайдеры» для value-карточек).
 - `services.py` — фасад прогнозов: интеграция с SportMonks, вычисление fair-odds, модификаторов, генерация CSV/PNG.
 - `storage.py` — SQLite-схема и операции (`user_prefs`, `subscriptions`, `reports`).
-- `routers/commands.py` — обработчики aiogram-команд с кешированием, пагинацией и логированием.
-- `routers/callbacks.py` — обработка inline callback для перелистывания, карточек матча, экспорта.
+- `routers/commands.py` — обработчики aiogram-команд с кешированием, пагинацией, логированием и записью value-портфеля (`/portfolio`).
+- `routers/callbacks.py` — обработка inline callback для перелистывания, карточек матча, экспорта и расшифровки провайдеров по кнопке «Провайдеры».
 - `state.py` — singletons для кешей и PredictionFacade.
 
 ### Поток `/today`
@@ -31,6 +31,8 @@
 - `value_alerts_sent`: история отправленных алертов (user_id, match_key, market, selection, sent_at, edge_pct).
 - `value_calibration`: результаты калибровки порогов per лига/рынок (`tau_edge`, `gamma_conf`, `samples`, `metric`, `updated_at`).
 - `odds_snapshots`: снимки котировок (поставщик, матч, рынок, выбор, цена, JSON `extra`). Идемпотентный upsert по `(provider, match_key, market, selection)`.
+- `closing_lines`: последний консенсусный коэффициент перед стартом (уникальный индекс по `(match_key, market, selection)`).
+- `picks_ledger`: журнал value-сигналов с коэффициентами, консенсусом и CLV (индексы `picks_ledger_user_idx`, `picks_ledger_match_idx`).
 
 ### Метрики и логирование
 - `bot_commands_total{cmd}` — все команды и callbacks (`export_callback`).
@@ -47,13 +49,14 @@
 - `ODDS_FIXTURES_PATH` — вспомогательная переменная окружения для CSV-фикстур в оффлайн-тестах.
 
 ### Тесты
-- `tests/bot/` покрывает форматирование, клавиатуры, кеш, экспорт, SQLite.
+- `tests/bot/` покрывает форматирование, клавиатуры, кеш, экспорт, SQLite (включая `/portfolio` и блок «Провайдеры»).
 - `test_env_contract.py` гарантирует актуальность `.env.example`.
 - Для асинхронных тестов используется `pytest.mark.asyncio`.
-- `tests/odds/` — модульные тесты для overround и CSV-провайдера котировок.
+- `tests/odds/` — модульные тесты для overround, CSV-провайдера и мультипровайдерного агрегатора (best/median/weighted, closing line).
 - `tests/diag/test_value_check.py` — проверяет CLI `diagtools.value_check` (корректный exit code и наличие котировок).
+- `tests/diag/test_clv_check.py` — проверяет CLI `diagtools.clv_check` (артефакты и exit-коды 0/1/2).
 - `tests/bot/test_value_commands.py` — сценарии `/value`, `/compare`, `/alerts`.
-- `tests/value/` — backtest окна, подбор порогов, вес `edge_w`, антиспам алертов, рендер объяснений.
+- `tests/value/` — backtest окна, подбор порогов, вес `edge_w`, антиспам алертов, рендер объяснений и вычисление CLV в `picks_ledger`.
 
 ### Поставщики котировок и нормализация
 - Пакет `app.lines` содержит:
@@ -62,6 +65,8 @@
   - `providers.http` — HTTP-клиент с `httpx.AsyncClient`, ETag-кешем и rate limit (token bucket).
   - `mapper` — преобразование `home/away/league/kickoff` в `match_key` на основе `app.mapping.keys`.
   - `storage.OddsSQLiteStore` — хранение последних котировок в SQLite (upsert + индекс `odds_match`).
+  - `aggregator` — консенсусный провайдер (best/median/weighted) с весами из ENV и хранением истории для трендов.
+  - `movement` — определение тренда и closing line в окне `CLV_WINDOW_BEFORE_KICKOFF_MIN`.
 - Overround-нормализация (`app/pricing/overround.py`):
   - `decimal_to_probabilities` → implied `p`.
   - `normalize_market(..., method="proportional"|"shin")` — приводим сумму вероятностей к 1; Shin доступен для 1X2.
@@ -71,6 +76,8 @@
 - `app/value_detector.ValueDetector` вычисляет edge = `(fair/market_price - 1) * 100`, преобразует уверенность `confidence`: при `VALUE_CONFIDENCE_METHOD=mc_var` используется `conf = 1 / (1 + variance)` из дисперсии Монте-Карло. Взвешенный edge `edge_w = edge * conf` участвует в сортировке; калиброванные пороги (`tau_edge`, `gamma_conf`) подтягиваются через `CalibrationService`.
 - `app/value_calibration` содержит `BacktestRunner` (валидация `time_kfold`|`walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`) и `CalibrationService`, который хранит результаты в SQLite (`value_calibration`).
 - `app/value_alerts.AlertHygiene` применяет антиспам-правила: cooldown (`VALUE_ALERT_COOLDOWN_MIN`), quiet hours (`VALUE_ALERT_QUIET_HOURS`), минимальную дельту (`VALUE_ALERT_MIN_EDGE_DELTA`), контроль ста́лости (`VALUE_STALENESS_FAIL_MIN`). Отправки логируются в `value_alerts_sent`.
-- `app/value_service.ValueService` объединяет `PredictionFacade` и `LinesProvider`, формирует карточки (`value_picks`) и сравнительные отчёты (`compare`) с отображением калибровки и блока объяснения расчёта edge.
+- `app/value_clv.PicksLedgerStore` сохраняет value-сигналы, вычисляет CLV (`calculate_clv`) и обновляет closing line (`closing_lines`).
+- `app/value_service.ValueService` объединяет `PredictionFacade` и мультипровайдер `LinesProvider`, формирует карточки (`value_picks`) и сравнительные отчёты (`compare`) с consensus-линией, трендом и блоком объяснения edge.
 - Команды бота `/value`, `/compare`, `/alerts` используют `ValueService`, выводят `τ/γ`, `edge_w`, историю алертов и сохраняют настройки в `value_alerts` и `value_alerts_sent`.
 - CLI `diagtools.value_check` проверяет провайдера котировок и запускает калибровку (опции `--calibrate`, `--days`). Отчёты сохраняются в `reports/diagnostics/value_calibration.{json,md}` и учитывают гейты `GATES_VALUE_SHARPE_*` и `BACKTEST_MIN_SAMPLES`.
+- CLI `diagtools.clv_check` агрегирует `picks_ledger` (средний CLV, доля положительных записей) и формирует `reports/diagnostics/value_clv.{json,md}`; exit-коды используются CI job `value-agg-clv-gate`.

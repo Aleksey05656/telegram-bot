@@ -14,26 +14,28 @@ import argparse
 import asyncio
 import dataclasses
 import hashlib
+import importlib.util
 import json
 import math
 import os
 import re
+import sqlite3
 import statistics
 import subprocess
 import sys
-import textwrap
 import time
-from datetime import UTC, datetime, date, time as dt_time
-from collections import Counter, defaultdict
+from collections import Counter
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from datetime import time as dt_time
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
-import importlib.util
-import sqlite3
+from typing import Any
 
 import numpy as np
 import pandas as pd
+
 try:
     from matplotlib import pyplot as plt
     from matplotlib.ticker import PercentFormatter
@@ -49,30 +51,28 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
+from app.bot.services import PredictionFacade
 from app.data_quality import run_quality_suite
 from app.diagnostics import (
     bipoisson_swap_check,
-    expected_calibration_error,
     monte_carlo_coverage,
     reliability_table,
     scoreline_symmetry,
 )
-
-from metrics.metrics import record_diagnostics_summary
-
-from app.bot.services import PredictionFacade
-from app.data_source import SportmonksDataSource
+from app.lines.aggregator import AggregatingLinesProvider, LinesAggregator, parse_provider_weights
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
+from app.lines.providers.base import LinesProvider
+from app.lines.storage import OddsSQLiteStore
 from app.value_detector import ValueDetector
 from app.value_service import ValueService
-
 from diagtools import bench as bench_module
 from diagtools import drift as drift_module
 from diagtools import golden_regression as golden_module
 from diagtools import reports_html
-from diagtools.value_check import run_backtest_calibration
 from diagtools.freshness import evaluate_sportmonks_freshness
+from diagtools.value_check import run_backtest_calibration
+from metrics.metrics import record_diagnostics_summary
 
 # Ленивая загрузка heavy-модулей проекта, чтобы избежать побочных эффектов до настройки окружения.
 
@@ -140,6 +140,7 @@ def _parse_args() -> argparse.Namespace:
 
 def _collect_entry_flags() -> dict[str, Any]:
     import inspect
+
     import main as main_module
 
     source = inspect.getsource(main_module.parse_args)
@@ -179,7 +180,7 @@ def _collect_env_contract(root: Path) -> dict[str, Any]:
                         if node.args and isinstance(node.args[0], ast.Constant):
                             getenv_keys.add(str(node.args[0].value))
                     if func.value.id == "os" and func.attr == "environ":
-                        # os.environ.get("FOO")
+                        # Handle os.environ.get(...) pattern
                         if node.attr == "get" and node.args and isinstance(node.args[0], ast.Constant):
                             getenv_keys.add(str(node.args[0].value))
                 if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Call):
@@ -306,9 +307,42 @@ class _DummyDiagProvider:
         return []
 
 
-def _create_lines_provider_diag(settings: Any, mapper: LinesMapper):
-    provider_type = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy").lower()
-    if provider_type == "csv":
+def _create_lines_provider_diag(settings: Any, mapper: LinesMapper) -> LinesProvider | None:
+    provider_names = _resolve_provider_names(settings)
+    providers: dict[str, LinesProvider] = {}
+    for name in provider_names:
+        instance = _instantiate_provider_diag(name, settings, mapper)
+        if instance:
+            providers[name] = instance
+    active = {
+        name: provider
+        for name, provider in providers.items()
+        if not isinstance(provider, _DummyDiagProvider)
+    }
+    if not active:
+        return next(iter(providers.values()), None)
+    weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
+    aggregator = LinesAggregator(
+        method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
+        provider_weights=weights,
+        store=OddsSQLiteStore(),
+        retention_days=int(getattr(settings, "ODDS_SNAPSHOT_RETENTION_DAYS", 14)),
+        movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+    )
+    return AggregatingLinesProvider(active, aggregator=aggregator)
+
+
+def _resolve_provider_names(settings: Any) -> list[str]:
+    raw = str(getattr(settings, "ODDS_PROVIDERS", "") or "").strip()
+    names = [token.strip().lower() for token in raw.split(",") if token.strip()]
+    if not names:
+        fallback = str(getattr(settings, "ODDS_PROVIDER", "dummy") or "dummy")
+        names = [fallback.lower()]
+    return names
+
+
+def _instantiate_provider_diag(name: str, settings: Any, mapper: LinesMapper) -> LinesProvider | None:
+    if name == "csv":
         fixtures_root = os.getenv("ODDS_FIXTURES_PATH")
         if fixtures_root:
             path = Path(fixtures_root)
@@ -316,7 +350,7 @@ def _create_lines_provider_diag(settings: Any, mapper: LinesMapper):
             base = getattr(settings, "DATA_ROOT", "/data")
             path = Path(base) / "odds"
         return CSVLinesProvider(fixtures_dir=path, mapper=mapper)
-    if provider_type == "http":
+    if name == "http":
         base_url = os.getenv("ODDS_HTTP_BASE_URL", "").strip()
         if not base_url:
             raise RuntimeError("ODDS_HTTP_BASE_URL не задан для HTTP-провайдера")
@@ -329,7 +363,7 @@ def _create_lines_provider_diag(settings: Any, mapper: LinesMapper):
             rps_limit=float(getattr(settings, "ODDS_RPS_LIMIT", 3.0)),
             mapper=mapper,
         )
-    return None
+    return _DummyDiagProvider(mapper)
 
 
 def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
@@ -399,6 +433,44 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
     odds_count = len(odds) if provider is not None else 0
     status = "✅" if odds_count > 0 else "⚠️"
     note = f"odds={odds_count} predictions={len(predictions)} picks={len(cards)}"
+    aggregation_stats: dict[str, object] = {}
+    if isinstance(provider, AggregatingLinesProvider):
+        meta = provider.aggregator.last_metadata
+        if meta:
+            counts = [item.provider_count for item in meta.values()]
+            avg_count = sum(counts) / len(counts)
+            trend_counts = Counter(item.trend for item in meta.values())
+        else:
+            avg_count = 0.0
+            trend_counts = Counter()
+        aggregation_stats = {
+            "method": provider.aggregator.method,
+            "pairs": len(meta),
+            "avg_provider_count": avg_count,
+            "trend_counts": dict(trend_counts),
+        }
+        if aggregation_stats["pairs"]:
+            note += f" avg_providers={avg_count:.1f}"
+    clv_summary = {"entries": 0, "avg_clv": 0.0, "positive_share": 0.0}
+    db_path = Path(settings.DB_PATH)
+    if db_path.exists():
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT clv_pct FROM picks_ledger WHERE clv_pct IS NOT NULL"
+                ).fetchall()
+        except sqlite3.DatabaseError:  # pragma: no cover - defensive guard
+            rows = []
+        values = [float(row["clv_pct"]) for row in rows]
+        if values:
+            avg = sum(values) / len(values)
+            positive = sum(1 for value in values if value >= 0.0) / len(values)
+            clv_summary = {
+                "entries": len(values),
+                "avg_clv": avg,
+                "positive_share": positive,
+            }
     return {
         "status": status,
         "note": note,
@@ -407,6 +479,8 @@ def _run_value_section(diag_dir: Path, settings: Any) -> dict[str, Any]:
         "picks": cards,
         "odds_count": odds_count,
         "predictions": len(predictions),
+        "aggregation": aggregation_stats,
+        "clv": clv_summary,
     }
 
 
@@ -556,7 +630,7 @@ def _to_quality_frame(df: pd.DataFrame) -> pd.DataFrame:
 def _poisson_1x2_prob(lambda_home: np.ndarray, lambda_away: np.ndarray) -> np.ndarray:
     max_goals = 10
     probs = np.zeros((lambda_home.size, 3))
-    for idx, (lam_h, lam_a) in enumerate(zip(lambda_home, lambda_away)):
+    for idx, (lam_h, lam_a) in enumerate(zip(lambda_home, lambda_away, strict=False)):
         pmf_cache: dict[int, float] = {}
         total_prob = 0.0
         home = 0.0
@@ -878,7 +952,7 @@ def _train_level_a(df: pd.DataFrame, diag_dir: Path) -> LevelAMetrics:
         cv_scores = []
         lambda_cv_home = np.zeros_like(y_home, dtype=float)
         lambda_cv_away = np.zeros_like(y_away, dtype=float)
-        for fold_id, (train_idx, test_idx) in enumerate(tscv.split(X)):
+        for _fold_id, (train_idx, test_idx) in enumerate(tscv.split(X)):
             model_home = Ridge(alpha=alpha)
             model_away = Ridge(alpha=alpha)
             model_home.fit(X[train_idx], log_y_home[train_idx])
@@ -922,7 +996,9 @@ def _train_level_a(df: pd.DataFrame, diag_dir: Path) -> LevelAMetrics:
         coefs_away.append(model_away.coef_)
 
     coef_mean = (np.mean(coefs_home, axis=0) + np.mean(coefs_away, axis=0)) / 2
-    feature_ranking = sorted(zip(features, np.abs(coef_mean)), key=lambda item: item[1], reverse=True)
+    feature_ranking = sorted(
+        zip(features, np.abs(coef_mean), strict=False), key=lambda item: item[1], reverse=True
+    )
     lambda_stats = {
         "lambda_home_mean": float(np.mean(lambda_preds_home)),
         "lambda_away_mean": float(np.mean(lambda_preds_away)),
@@ -1093,7 +1169,7 @@ def _simulate_level_c(df: pd.DataFrame, diag_dir: Path) -> LevelCMetrics:
         plt.close()
         artifacts["gain"] = str(gain_path)
     else:
-        artifacts = {key: "" for key in ("reliability", "totals", "scorelines", "gain")}
+        artifacts = dict.fromkeys(("reliability", "totals", "scorelines", "gain"), "")
 
     fair_prices = {k: round(1.0 / v, 2) if v > 0 else float("inf") for k, v in {
         "1": sim_result.home_win,
@@ -1519,6 +1595,28 @@ def main() -> None:
         "note": value_diag.get("note", ""),
     }
     metrics["value_odds"] = value_diag
+    aggregation_diag = value_diag.get("aggregation", {}) or {}
+    aggregation_pairs = int(aggregation_diag.get("pairs", 0))
+    statuses["Odds Aggregation"] = {
+        "status": "✅" if aggregation_pairs else "⚠️",
+        "note": (
+            f"pairs={aggregation_pairs} avg={aggregation_diag.get('avg_provider_count', 0.0):.1f}"
+            if aggregation_pairs
+            else "нет данных"
+        ),
+    }
+    metrics["odds_aggregation"] = aggregation_diag
+    clv_diag = value_diag.get("clv", {}) or {}
+    clv_entries = int(clv_diag.get("entries", 0))
+    statuses["CLV"] = {
+        "status": "✅" if clv_entries else "⚠️",
+        "note": (
+            f"entries={clv_entries} avg={clv_diag.get('avg_clv', 0.0):.2f}%"
+            if clv_entries
+            else "нет записей"
+        ),
+    }
+    metrics["clv"] = clv_diag
 
     value_calibration = _run_value_calibration_section(settings)
     statuses["Value Calibration"] = {

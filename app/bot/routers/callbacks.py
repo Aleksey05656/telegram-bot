@@ -10,18 +10,32 @@
 from __future__ import annotations
 
 from time import monotonic
+from urllib.parse import unquote_plus
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
+from app.lines.aggregator import LinesAggregator, parse_provider_weights
+from app.lines.storage import OddsSQLiteStore
 from config import settings
 
 from ...metrics import observe_render_latency, record_command
-from ..formatting import format_explain, format_match_details, format_today_matches
+from ..formatting import (
+    format_explain,
+    format_match_details,
+    format_providers_breakdown,
+    format_today_matches,
+)
 from ..keyboards import match_details_keyboard, today_keyboard
 from ..state import FACADE, MATCH_CACHE, PAGINATION_CACHE
-from .commands import _calculate_total_pages, _paginate, _prediction_to_detail, _prediction_to_explain, _prediction_to_item
+from .commands import (
+    _calculate_total_pages,
+    _paginate,
+    _prediction_to_detail,
+    _prediction_to_explain,
+    _prediction_to_item,
+)
 
 callbacks_router = Router()
 
@@ -99,6 +113,41 @@ async def handle_match(callback: CallbackQuery) -> None:
         await callback.message.edit_text(text, reply_markup=keyboard)
     except TelegramBadRequest:
         await callback.message.answer(text, reply_markup=keyboard)
+    await callback.answer()
+
+
+@callbacks_router.callback_query(F.data.startswith("providers:"))
+async def handle_providers(callback: CallbackQuery) -> None:
+    try:
+        _, match_enc, market_enc, selection_enc = callback.data.split(":", 3)
+        match_key = unquote_plus(match_enc)
+        market = unquote_plus(market_enc)
+        selection = unquote_plus(selection_enc)
+    except (ValueError, AttributeError):
+        await callback.answer("Некорректные данные")
+        return
+    store = OddsSQLiteStore()
+    quotes = store.latest_quotes(match_key=match_key, market=market, selection=selection)
+    aggregator = LinesAggregator(
+        method=str(getattr(settings, "ODDS_AGG_METHOD", "median")),
+        provider_weights=parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None)),
+        store=None,
+        retention_days=0,
+        movement_window_minutes=int(getattr(settings, "CLV_WINDOW_BEFORE_KICKOFF_MIN", 120)),
+    )
+    consensus_payload = None
+    if quotes:
+        aggregated = aggregator.aggregate(quotes)
+        if aggregated:
+            consensus_payload = aggregated[0].extra.get("consensus")
+    text = format_providers_breakdown(
+        match_key=match_key,
+        market=market,
+        selection=selection,
+        quotes=quotes,
+        consensus=consensus_payload,
+    )
+    await callback.message.answer(text)
     await callback.answer()
 
 

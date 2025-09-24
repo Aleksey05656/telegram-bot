@@ -1,3 +1,14 @@
+## Задача: Value v1.4 audit & rollout
+- **Статус**: Завершена
+- **Описание**: Внедрить мультипровайдерный агрегатор, расчёт CLV и обновить UX/диагностику согласно Value v1.4.
+- **Шаги выполнения**:
+  - [x] Реализованы `app/lines/aggregator.py`, `app/lines/movement.py`, `app/value_clv.py`, миграция `20241005_004_value_v1_4` и обновление `database/schema.sql`.
+  - [x] Обновлены `app/value_service.py`, `app/bot/{formatting.py,keyboards.py,routers/commands.py,routers/callbacks.py}` для consensus-трендов, кнопки «Провайдеры» и `/portfolio`.
+  - [x] Добавлены CLI/диагностика (`diagtools/clv_check.py`, расширение `diagtools/run_diagnostics.py`, job `value-agg-clv-gate` в `.github/workflows/ci.yml`).
+  - [x] Созданы тесты (`tests/odds/test_aggregator_basic.py`, `tests/odds/test_movement_closing.py`, `tests/value/test_clv_math.py`, `tests/bot/test_portfolio_and_providers.py`, `tests/diag/test_clv_check.py`) и фикстуры `tests/fixtures/odds_multi/*.csv`.
+  - [x] Обновлены `.env.example`, README, docs (`dev_guide.md`, `user_guide.md`, `diagnostics.md`, `Project.md`), changelog и статус `docs/status/value_v1_4_audit.md`.
+- **Зависимости**: app/lines/{aggregator.py,movement.py,storage.py}, app/value_{service.py,clv.py}, app/bot/{formatting.py,keyboards.py,routers/commands.py,routers/callbacks.py}, config.py, database/schema.sql, database/migrations/versions/20241005_004_value_v1_4.py, diagtools/{run_diagnostics.py,value_check.py,clv_check.py}, .github/workflows/ci.yml, .env.example, README.md, docs/{dev_guide.md,user_guide.md,diagnostics.md,Project.md,changelog.md,status/value_v1_4_audit.md,tasktracker.md}, tests/{odds/test_aggregator_basic.py,odds/test_movement_closing.py,value/test_clv_math.py,bot/test_portfolio_and_providers.py,diag/test_clv_check.py}, tests/fixtures/odds_multi/*.csv.
+
 ## Задача: Value calibration gate
 - **Статус**: Завершена
 - **Описание**: Добавить CI-гейт для value-калибровки, кеширование отчётов и документацию по новым секциям.
