@@ -68,6 +68,16 @@ async def test_handle_value_renders_picks(monkeypatch: pytest.MonkeyPatch) -> No
             return cards
 
     monkeypatch.setattr(commands, "_create_value_service", lambda: (FakeService(), FakeProvider()))
+    monkeypatch.setattr(
+        commands,
+        "reliability_v2",
+        SimpleNamespace(
+            get_provider_scores=lambda league, market: [
+                {"provider": "csv", "score": 0.73, "trend": "↗"}
+            ],
+            explain_components=lambda provider, league, market: {},
+        ),
+    )
     message = DummyMessage()
     await commands.handle_value(message, SimpleNamespace(args="limit=1"))
     assert message.responses
@@ -93,6 +103,16 @@ async def test_handle_compare_outputs_table(monkeypatch: pytest.MonkeyPatch) -> 
             }
 
     monkeypatch.setattr(commands, "_create_value_service", lambda: (FakeService(), FakeProvider()))
+    monkeypatch.setattr(
+        commands,
+        "reliability_v2",
+        SimpleNamespace(
+            get_provider_scores=lambda league, market: [
+                {"provider": "http", "score": 0.65}
+            ],
+            explain_components=lambda provider, league, market: {},
+        ),
+    )
     message = DummyMessage()
     await commands.handle_compare(message, SimpleNamespace(args="Arsenal"))
     assert message.responses

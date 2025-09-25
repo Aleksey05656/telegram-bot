@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from html import escape
 from zoneinfo import ZoneInfo
@@ -58,6 +58,40 @@ def _format_best_price(best: dict[str, object] | None) -> str | None:
     if isinstance(pulled, str):
         line += f" @ {escape(pulled)}"
     return line
+
+
+def _format_reliability_badge(
+    payload: Iterable[Mapping[str, object]] | None,
+) -> str | None:
+    if not payload:
+        return None
+    entries = list(payload)
+    if not entries:
+        return None
+    items: list[str] = []
+    trends: list[str] = []
+    for entry in entries:
+        provider = entry.get("provider") or entry.get("source")
+        score = entry.get("score")
+        if provider and score is not None:
+            try:
+                score_val = float(score)
+            except (TypeError, ValueError):
+                continue
+            items.append(f"{escape(str(provider))} {score_val:.2f}")
+        trend = entry.get("trend")
+        if trend:
+            trends.append(str(trend))
+    if not items:
+        return None
+    text = f"Reliability: {', '.join(items)}"
+    if trends:
+        unique_trends = []
+        for trend in trends:
+            if trend not in unique_trends:
+                unique_trends.append(trend)
+        text += f" ({escape(' / '.join(unique_trends))})"
+    return text
 
 
 def _render_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
@@ -370,6 +404,9 @@ def format_value_picks(
         best_line = _format_best_price(best_price)
         if best_line:
             block.append(best_line)
+        badge_line = _format_reliability_badge(card.get("reliability_v2"))
+        if badge_line:
+            block.append(badge_line)
         block.extend([price_line, thresholds, explain, f"Источник {escape(pick.provider)}", ""])
         lines.extend(block)
     return "\n".join(lines).strip()
@@ -390,6 +427,12 @@ def format_value_comparison(data: dict[str, object]) -> str:
         f"🏟️ {league} — {escape(kickoff_str)}",
         "",
     ]
+    badge_line = _format_reliability_badge(
+        data.get("reliability_v2") if isinstance(data.get("reliability_v2"), Iterable) else None
+    )
+    if badge_line:
+        lines.append(badge_line)
+        lines.append("")
     picks: Sequence[ValuePick] = data.get("picks") or []  # type: ignore[assignment]
     if picks:
         lines.append("💎 Value сигналы:")
@@ -567,6 +610,62 @@ def format_providers_breakdown(
     return "\n".join(lines)
 
 
+def format_providers_admin_table(
+    *,
+    scores: Sequence[Mapping[str, object]],
+    league: str | None,
+    market: str | None,
+    threshold: float,
+) -> str:
+    header = "🛠 <b>Reliability v2</b>"
+    context: list[str] = []
+    if league:
+        context.append(f"Лига: {escape(str(league))}")
+    if market:
+        context.append(f"Рынок: {escape(str(market))}")
+    context.append(f"Порог исключения: {threshold:.2f}")
+    rows: list[Sequence[str]] = []
+    for entry in scores:
+        provider = entry.get("provider") or entry.get("source")
+        if not provider:
+            continue
+        try:
+            score = float(entry.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        try:
+            coverage = float(entry.get("coverage", 0.0))
+        except (TypeError, ValueError):
+            coverage = 0.0
+        samples = entry.get("samples")
+        samples_str = str(int(samples)) if isinstance(samples, int) else str(samples or "—")
+        coverage_block = f"{coverage:.2f} ({samples_str})"
+        try:
+            fresh_share = float(entry.get("fresh_share", 0.0)) * 100
+        except (TypeError, ValueError):
+            fresh_share = 0.0
+        try:
+            latency_ms = float(entry.get("latency_ms", 0.0))
+        except (TypeError, ValueError):
+            latency_ms = 0.0
+        mark = "⚠️ " if score < threshold else ""
+        rows.append(
+            (
+                f"{mark}{escape(str(provider))}",
+                f"{score:.2f}",
+                coverage_block,
+                f"{fresh_share:.1f}%",
+                f"{latency_ms:.0f}",
+            )
+        )
+    table = _render_table(["Prov", "Score", "Coverage", "Fresh", "Latency"], rows)
+    parts = [header]
+    if context:
+        parts.append(" · ".join(context))
+    parts.append(table)
+    return "\n".join(parts)
+
+
 def format_portfolio(summary: dict[str, object]) -> str:
     total = int(summary.get("total", 0))
     avg_clv = float(summary.get("avg_clv", 0.0))
@@ -644,5 +743,6 @@ __all__ = [
     "format_value_picks",
     "format_value_comparison",
     "format_providers_breakdown",
+    "format_providers_admin_table",
     "format_portfolio",
 ]

@@ -17,6 +17,12 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics are exposed when `ENABLE_METRICS=1` (default port `METRICS_PORT=8000`) and include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
+## Reliability v2 badges
+
+- `/value` и `/compare` показывают бейдж `Reliability: csv …, http …` для текущей лиги/рынка и кнопку «Почему этот провайдер?» с расшифровкой fresh/latency/stability/closing из `app.lines.reliability_v2`.
+- Админ-команда `/providers [league] [market]` выводит компактную таблицу reliability v2 (score, coverage, fresh_share, latency) и подсвечивает провайдеров ниже порога `BEST_PRICE_MIN_SCORE`.
+- Портфель (`/portfolio`) дополнен агрегатами по ROI/CLV, чтобы быстрее оценивать динамику сигналов.
+
 ### Diagnostics automation
 
 - `diagtools.scheduler` выполняет ежедневный прогон диагностики (`DIAG_SCHEDULE_CRON`, `DIAG_ON_START`, `DIAG_MAX_RUNTIME_MIN`).
