@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import dataclasses
 import hashlib
+import importlib
 import importlib.util
 import json
 import math
@@ -31,10 +32,32 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dt_time
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import numpy as np
-import pandas as pd
+from types import ModuleType
+
+if TYPE_CHECKING:  # pragma: no cover - for static typing only
+    import numpy as np  # type: ignore
+    import pandas as pd  # type: ignore
+else:
+    class _LazyModule:
+        def __init__(self, module_name: str) -> None:
+            self._module_name = module_name
+            self._module: ModuleType | None = None
+
+        def _load(self) -> ModuleType:
+            if self._module is None:
+                self._module = importlib.import_module(self._module_name)
+            return self._module
+
+        def __getattr__(self, item: str) -> Any:  # pragma: no cover - trivial proxy
+            return getattr(self._load(), item)
+
+        def __dir__(self) -> list[str]:  # pragma: no cover - trivial proxy
+            return dir(self._load())
+
+    np = _LazyModule("numpy")
+    pd = _LazyModule("pandas")
 
 try:
     from matplotlib import pyplot as plt

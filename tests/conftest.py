@@ -21,8 +21,22 @@ import pytest
 pytest_plugins = ["conftest_np_guard"]
 
 
-# Ensure offline stubs are visible only when optional dependencies are missing.
-ensure_stubs(["pydantic", "httpx", "aiogram", "prometheus_client", "redis", "rq"])
+# Ensure offline stubs are visible only when optional dependencies are missing or
+# when the USE_OFFLINE_STUBS toggle is explicitly enabled.
+ensure_stubs(
+    [
+        "pydantic",
+        "httpx",
+        "aiogram",
+        "prometheus_client",
+        "redis",
+        "rq",
+        "numpy",
+        "pandas",
+        "sqlalchemy",
+        "joblib",
+    ]
+)
 
 
 # Автоматически включаем STUB-режим SportMonks для тестов,

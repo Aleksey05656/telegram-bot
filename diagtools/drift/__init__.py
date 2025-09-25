@@ -11,17 +11,40 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import hashlib
+import importlib
 import json
 import math
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, TYPE_CHECKING
 
-import numpy as np
-import pandas as pd
+from types import ModuleType
 from scipy.stats import ks_2samp
+
+if TYPE_CHECKING:  # pragma: no cover - aid static typing only
+    import numpy as np  # type: ignore
+    import pandas as pd  # type: ignore
+else:
+    class _LazyModule:
+        def __init__(self, module_name: str) -> None:
+            self._module_name = module_name
+            self._module: ModuleType | None = None
+
+        def _load(self) -> ModuleType:
+            if self._module is None:
+                self._module = importlib.import_module(self._module_name)
+            return self._module
+
+        def __getattr__(self, item: str):  # pragma: no cover - trivial proxy
+            return getattr(self._load(), item)
+
+        def __dir__(self) -> list[str]:  # pragma: no cover - trivial proxy
+            return dir(self._load())
+
+    np = _LazyModule("numpy")
+    pd = _LazyModule("pandas")
 
 try:  # pragma: no cover - matplotlib optional in some environments
     from matplotlib import pyplot as plt
