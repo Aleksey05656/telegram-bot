@@ -42,13 +42,19 @@ python -m diagtools.settlement_check --reports-dir reports/diagnostics --min-cov
 - **Calibration & Coverage** — Expected Calibration Error for 1X2/OU2.5/BTTS plus Monte-Carlo interval checks (80% / 90%).
 - **Backtest & Calibration** — подбор `τ/γ` per лига/рынок на исторических снапшотах (валидация `time_kfold`|`walk_forward`, метрики `Sharpe`, `log_gain`, `samples`, гейты `GATES_VALUE_SHARPE_*`, `BACKTEST_MIN_SAMPLES`). Результаты сохраняются в `value_calibration` и отчётах `value_calibration.{json,md}`; `python -m diagtools.value_check` по умолчанию читает последний отчёт, а флаг `--calibrate` принудительно перезапускает бэктест (используется в CI-гейте).
 - **Odds Aggregation & CLV** — мультипровайдерный консенсус (best/median/weighted), тренды closing line и сводка CLV из `picks_ledger`. CLI `python -m diagtools.clv_check` публикует `value_clv.{json,md}` и возвращает ненулевой код при отсутствии записей или просадке ниже `CLV_FAIL_THRESHOLD_PCT`.
-- **Provider Reliability** — EMA-скоринг coverage/fresh_share/lag/bias; `provider_quality.{json,md}` фиксирует средний/минимальный score, покрытие и список провайдеров ниже `RELIABILITY_MIN_SCORE`.
+- **Provider Reliability** — Bayesian-скоринг (Beta свежесть, Gamma латентность, |z|-стабильность, closing bias) с экспоненциальным забыванием; `provider_quality.{json,md}` фиксирует средний/минимальный score, компонентные метрики, WARN/FAIL статусы и список провайдеров ниже `RELIABILITY_MIN_SCORE` или `RELIAB_MIN_SAMPLES`.
 - **Best-Price Routing** — анализ свежих котировок в окне `BEST_PRICE_LOOKBACK_MIN`, сравнение с консенсусом, доля аномалий и средний выигрыш по цене.
 - **Settlement & ROI** — автоматический сеттлмент 1X2/OU/BTTS по итоговым счётам SportMonks, rolling ROI по `PORTFOLIO_ROLLING_DAYS`, отчёт `settlement_check.{json,md}`.
 - **Bi-Poisson Invariance** — sanity checks for market swaps and top scorelines when home/away are flipped.
 - **Benchmarks** — latency/memory for `/today`, `/match`, `/explain` rendering paths; default P95 budget from `BENCH_P95_BUDGET_MS`.
 - **Chaos / Ops** — smoke CLI, health endpoints, runtime lock exercise and backup inventory.
 - **Static Analysis & Security** — strict mypy for `app/` и `app/bot/`, `bandit`, `pip-audit` и проверка утечек секретов в логах.
+
+### Provider reliability configuration
+
+- `RELIAB_V2_ENABLE=1` включает байесовский скоринг и динамические веса в агрегаторе (`LinesAggregator.weighted`).
+- `RELIAB_DECAY`, `RELIAB_MIN_SAMPLES`, `RELIAB_SCOPE`, `RELIAB_COMPONENT_WEIGHTS` управляют экспоненциальным забыванием, порогами и весами компонентов.
+- `RELIAB_PRIOR_FRESH_ALPHA/BETA`, `RELIAB_PRIOR_LATENCY_SHAPE/SCALE`, `RELIAB_STAB_Z_TOL`, `RELIAB_CLOSING_TOL_PCT` задают параметры Beta/Gamma-приоров и допуски для стабильности/closing bias.
 
 ## SportMonks data freshness
 
@@ -152,7 +158,8 @@ reports/
 6. Дополнительный job `diagnostics-drift` в CI повторно запускает `diag-drift` и публикует `reports/diagnostics/drift` как артефакт.
 7. Job `value-calibration-gate` запускает `python -m diagtools.value_check --calibrate --days ${BACKTEST_DAYS}` и публикует `reports/diagnostics/value_calibration.{json,md}`. Падение происходит при `Sharpe < GATES_VALUE_SHARPE_FAIL` или `samples < BACKTEST_MIN_SAMPLES`.
 8. Job `value-agg-clv-gate` последовательно запускает `python -m diagtools.provider_quality`, `python -m diagtools.settlement_check` и `python -m diagtools.clv_check --db-path ${DB_PATH}`, публикуя артефакты `provider_quality.{json,md}`, `settlement_check.{json,md}`, `value_clv.{json,md}`. Exit-коды сигнализируют о провайдерах ниже порога, просадке ROI и среднем CLV ниже `CLV_FAIL_THRESHOLD_PCT`.
-9. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
-10. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
+9. Job `reliability-v2-gate` прогоняет оффлайн-фичу `python -m diagtools.provider_quality` на фикстурной базе (`DB_PATH` в runner temp), проверяя `RELIAB_*` пороги и выкладывая `provider_quality.{json,md}`; WARN → `exit 1`, FAIL → `exit 2`.
+10. Новый job `diagnostics-scheduled` симулирует плановый запуск (cron/manual) и выкладывает артефакты `reports/diagnostics/site/**` и `reports/diagnostics/history/**`.
+11. `assert-no-binaries` (первая стадия пайплайна) проверяет дифф на отсутствие бинарных файлов (`*.png`, `*.zip`, `*.sqlite` и т.д.) и мгновенно падает при нарушении политики.
 
 Failures in any gate (golden deltas, drift PSI fail, benchmark p95 above budget, ❌ data quality) break the build.

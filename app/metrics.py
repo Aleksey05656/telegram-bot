@@ -34,6 +34,11 @@ __all__ = [
     "provider_reliability_score",
     "provider_fresh_share",
     "provider_latency_ms",
+    "provider_reliability_v2_score",
+    "provider_reliability_v2_fresh",
+    "provider_reliability_v2_latency",
+    "provider_reliability_v2_stability",
+    "provider_reliability_v2_closing",
     "odds_anomaly_detected_total",
     "picks_settled_total",
     "portfolio_roi_rolling",
@@ -117,6 +122,31 @@ provider_latency_ms = Gauge(
     "provider_latency_ms",
     "Average latency of odds snapshots in milliseconds",
     ["provider", "market", "league"],
+)
+provider_reliability_v2_score = Gauge(
+    "provider_reliability_v2_score",
+    "Bayesian reliability score per provider/league/market",
+    ["provider", "league", "market"],
+)
+provider_reliability_v2_fresh = Gauge(
+    "provider_reliability_v2_fresh",
+    "Posterior expectation of fresh odds share",
+    ["provider", "league", "market"],
+)
+provider_reliability_v2_latency = Gauge(
+    "provider_reliability_v2_latency",
+    "Normalized latency component for provider reliability",
+    ["provider", "league", "market"],
+)
+provider_reliability_v2_stability = Gauge(
+    "provider_reliability_v2_stability",
+    "Stability component (|z|-based) for provider reliability",
+    ["provider", "league", "market"],
+)
+provider_reliability_v2_closing = Gauge(
+    "provider_reliability_v2_closing",
+    "Closing bias component for provider reliability",
+    ["provider", "league", "market"],
 )
 odds_anomaly_detected_total = Counter(
     "odds_anomaly_detected_total",

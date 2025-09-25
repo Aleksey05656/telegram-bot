@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     RELIABILITY_MIN_SCORE: float = 0.5
     RELIABILITY_MIN_COVERAGE: float = 0.6
     RELIABILITY_MAX_FRESHNESS_SEC: float = 600.0
+    RELIAB_V2_ENABLE: bool = False
+    RELIAB_DECAY: float = 0.92
+    RELIAB_MIN_SAMPLES: int = 200
+    RELIAB_SCOPE: str = "league_market"
+    RELIAB_COMPONENT_WEIGHTS: str = "fresh:0.35,latency:0.15,stability:0.30,closing_bias:0.20"
+    RELIAB_PRIOR_FRESH_ALPHA: float = 8.0
+    RELIAB_PRIOR_FRESH_BETA: float = 2.0
+    RELIAB_PRIOR_LATENCY_SHAPE: float = 3.0
+    RELIAB_PRIOR_LATENCY_SCALE: float = 300.0
+    RELIAB_STAB_Z_TOL: float = 1.0
+    RELIAB_CLOSING_TOL_PCT: float = 0.75
     ANOMALY_Z_MAX: float = 3.0
     BEST_PRICE_MIN_SCORE: float = 0.6
     BEST_PRICE_LOOKBACK_MIN: int = 15
