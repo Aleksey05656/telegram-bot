@@ -65,6 +65,12 @@
 - `tests/bot/test_value_commands.py` — сценарии `/value`, `/compare`, `/alerts`.
 - `tests/value/` — backtest окна, подбор порогов, вес `edge_w`, антиспам алертов, рендер объяснений и вычисление CLV в `picks_ledger`.
 
+#### Offline QA
+- CI job `offline-qa` устанавливает только `pytest` и прогоняет `pytest -q` с `USE_OFFLINE_STUBS=1`, чтобы убедиться: база кода импортируется и запускается без `numpy`, `pandas`, `sqlalchemy`, `joblib` и других тяжёлых колёс.
+- В `tests/_stubs/` лежат лёгкие модули-заменители; `tests/conftest.py` подключает их, если реальные зависимости недоступны, а также принудительно при установленной переменной `USE_OFFLINE_STUBS`.
+- Тесты, помеченные `needs_np`, автоматически помечаются `skip`, если проверка `_numpy_stack_ok` не прошла (например, когда задействованы стабы).
+- Чтобы вернуться к реальным библиотекам, установите зависимости и сбросьте `USE_OFFLINE_STUBS`.
+
 ### Поставщики котировок и нормализация
 - Пакет `app.lines` содержит:
   - `providers.base` — интерфейс `LinesProvider` и `OddsSnapshot` (normalised строки).

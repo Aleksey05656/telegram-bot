@@ -1,3 +1,18 @@
+# [2025-10-26] - Offline QA stubs & CI gate
+### Добавлено
+- Лёгкие стабы `tests/_stubs/{numpy.py,pandas.py,sqlalchemy.py,joblib.py}` и переменная окружения `USE_OFFLINE_STUBS` для их принудительной активации.
+- CI job `offline-qa`, запускающий `pytest -q` в окружении без тяжёлых зависимостей и использующий гард `tools/ci_assert_no_binaries.sh` как первый шаг.
+
+### Изменено
+- `tests/_stubs/__init__.py` поддерживает одновременное принудительное включение стабов и загрузку одиночных модулей.
+- `tests/conftest.py` регистрирует стабы для ML/ORM пакетов и учитывает `USE_OFFLINE_STUBS`.
+- Модули `diagtools.{drift,run_diagnostics,golden_regression}` подгружают `numpy`/`pandas` лениво, чтобы CLI импортировались оффлайн.
+- Обновлены README и `docs/dev_guide.md` с инструкциями по режиму Offline QA.
+- `.github/workflows/ci.yml` расширен новым профилем `offline-qa`.
+
+### Исправлено
+- Исключены жёсткие импорты тяжёлых зависимостей в `diagtools.*`, что позволяло CLI падать при отсутствии `numpy/pandas`.
+
 # [2025-10-07] - Value v1.5 best-price & settlement
 ### Добавлено
 - Модули `app/lines/reliability.py`, `app/lines/anomaly.py`, `app/settlement/engine.py`, CLI `diagtools/provider_quality.py`, `diagtools/settlement_check.py`, миграция `20241007_005_value_v1_5.py` и таблица `provider_stats`.

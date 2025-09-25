@@ -14,13 +14,27 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import numpy as np
-import pandas as pd
 from sklearn.linear_model import Ridge
 
 ROOT = Path(__file__).resolve().parents[1]
+
+if TYPE_CHECKING:  # pragma: no cover - assist type checkers only
+    import numpy as _np
+    import pandas as _pd
+
+
+def _lazy_numpy():
+    import numpy as np  # noqa: WPS433 - local import by design
+
+    return np
+
+
+def _lazy_pandas():
+    import pandas as pd  # noqa: WPS433 - local import by design
+
+    return pd
 
 
 @dataclass
@@ -58,7 +72,9 @@ class GoldenSnapshot:
         )
 
 
-def _simulate_dataset(n_rows: int = 256, seed: int = 20240920) -> pd.DataFrame:
+def _simulate_dataset(n_rows: int = 256, seed: int = 20240920):
+    np = _lazy_numpy()
+    pd = _lazy_pandas()
     rng = np.random.default_rng(seed)
     dates = pd.date_range("2023-08-01", periods=n_rows, freq="D")
     home_xg = rng.gamma(shape=2.2, scale=0.7, size=n_rows)
@@ -112,7 +128,8 @@ def _simulate_dataset(n_rows: int = 256, seed: int = 20240920) -> pd.DataFrame:
     )
 
 
-def _fit_models(df: pd.DataFrame) -> tuple[Ridge, Ridge, np.ndarray, np.ndarray, list[str]]:
+def _fit_models(df):
+    np = _lazy_numpy()
     feature_names = [
         "home_xg",
         "away_xg",
@@ -133,7 +150,8 @@ def _fit_models(df: pd.DataFrame) -> tuple[Ridge, Ridge, np.ndarray, np.ndarray,
     return model_home, model_away, lambda_home, lambda_away, feature_names
 
 
-def _poisson_probs(lambda_home: np.ndarray, lambda_away: np.ndarray, max_goals: int = 10) -> np.ndarray:
+def _poisson_probs(lambda_home, lambda_away, max_goals: int = 10):
+    np = _lazy_numpy()
     probs = np.zeros((lambda_home.size, 3))
     for idx, (lam_h, lam_a) in enumerate(zip(lambda_home, lambda_away)):
         dist_home = [math.exp(-lam_h) * lam_h**k / math.factorial(k) for k in range(max_goals + 1)]
@@ -157,7 +175,8 @@ def _poisson_probs(lambda_home: np.ndarray, lambda_away: np.ndarray, max_goals: 
     return probs
 
 
-def _metrics(df: pd.DataFrame, lambda_home: np.ndarray, lambda_away: np.ndarray) -> tuple[dict[str, float], np.ndarray]:
+def _metrics(df, lambda_home, lambda_away):
+    np = _lazy_numpy()
     probs = _poisson_probs(lambda_home, lambda_away)
     outcome = np.where(df["goals_home"].to_numpy() > df["goals_away"], 0, 2)
     outcome[df["goals_home"].to_numpy() == df["goals_away"].to_numpy()] = 1
@@ -186,6 +205,7 @@ def build_snapshot(seed: int = 20240920) -> GoldenSnapshot:
 
 
 def compare_snapshots(current: GoldenSnapshot, golden: GoldenSnapshot) -> dict[str, Any]:
+    np = _lazy_numpy()
     coef_eps = float(os.getenv("GOLDEN_COEF_EPS", "0.005"))
     lambda_mape_threshold = float(os.getenv("GOLDEN_LAMBDA_MAPE", "0.015"))
     prob_eps = float(os.getenv("GOLDEN_PROB_EPS", "0.005"))

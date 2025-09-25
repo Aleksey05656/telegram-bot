@@ -1,11 +1,21 @@
+## Задача: Offline QA stubs & CI gate
+- **Статус**: Завершена
+- **Описание**: Обеспечить прохождение `pytest -q` без тяжёлых зависимостей через стабы и отдельный CI-профиль.
+- **Шаги выполнения**:
+  - [x] Добавлены стабы `tests/_stubs/{numpy.py,pandas.py,sqlalchemy.py,joblib.py}` и поддержка одиночных модулей/переменной `USE_OFFLINE_STUBS` в загрузчике.
+  - [x] Обновлён `tests/conftest.py` для регистрации новых стабов и принудительного режима через `USE_OFFLINE_STUBS`.
+  - [x] Переведены `diagtools.{drift,run_diagnostics,golden_regression}` на ленивые импорты `numpy/pandas`.
+  - [x] Обновлены README, `docs/dev_guide.md`, `docs/changelog.md`, `docs/tasktracker.md` и CI (`.github/workflows/ci.yml`) новым job `offline-qa`.
+- **Зависимости**: tests/_stubs/{__init__.py,numpy.py,pandas.py,sqlalchemy.py,joblib.py}, tests/conftest.py, diagtools/{drift/__init__.py,run_diagnostics.py,golden_regression.py}, README.md, docs/{dev_guide.md,changelog.md,tasktracker.md}, .github/workflows/ci.yml
+
 ## Задача: Value v1.5 best-price & settlement
-- **Статус**: В процессе (ожидает окружение с numpy/pandas/sqlalchemy/joblib для полного прогона тестов)
+- **Статус**: Завершена
 - **Описание**: Завершить best-price роутинг с учётом надёжности/аномалий, внедрить автоматический сеттлмент и обновить диагностику/документацию.
 - **Шаги выполнения**:
   - [x] Реализованы `app/lines/reliability.py`, `app/lines/anomaly.py`, `app/settlement/engine.py`, обновлены `app/lines/aggregator.py`, `app/value_service.py`, `app/value_clv.py` и леджер (`database/schema.sql`, миграция `20241007_005_value_v1_5.py`).
   - [x] Расширены бот-UX и форматирование (`app/bot/formatting.py`, `app/bot/keyboards.py`, `app/bot/routers/{commands,callbacks}.py`) блоком «Best price» и пояснением провайдера.
   - [x] Диагностика (`diagtools/run_diagnostics.py`) и новые CLI (`diagtools/provider_quality.py`, `diagtools/settlement_check.py`) добавлены в CI, обновлены README, docs (`dev_guide.md`, `user_guide.md`, `diagnostics.md`, `Project.md`).
-  - [x] Написать и прогнать тесты (`tests/odds/*`, `tests/value/test_settlement_engine.py`, `tests/bot/test_portfolio_extended.py`, `tests/diag/*`); `pytest -q` падает из-за отсутствия numpy/pandas/sqlalchemy/joblib в оффлайн-окружении.
+  - [x] Написать и прогнать тесты (`tests/odds/*`, `tests/value/test_settlement_engine.py`, `tests/bot/test_portfolio_extended.py`, `tests/diag/*`); `pytest -q` проходит оффлайн благодаря новым стабам.
 - **Зависимости**: app/lines/{aggregator.py,reliability.py,anomaly.py}, app/settlement/engine.py, app/value_{service.py,clv.py}, app/bot/{formatting.py,keyboards.py,routers/commands.py,routers/callbacks.py}, config.py, database/schema.sql, database/migrations/versions/20241007_005_value_v1_5.py, diagtools/{run_diagnostics.py,provider_quality.py,settlement_check.py}, README, docs/{dev_guide.md,user_guide.md,diagnostics.md,Project.md,changelog.md,tasktracker.md}, tests/{odds/test_reliability.py,odds/test_best_route.py,odds/test_anomaly_filter.py,value/test_settlement_engine.py,bot/test_portfolio_extended.py,diag/test_provider_quality.py,diag/test_settlement_check.py}.
 
 ## Задача: Value v1.4 audit & rollout

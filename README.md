@@ -27,6 +27,13 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - CI job `diagnostics-scheduled` публикует артефакты HTML/истории; за ревью drift-референсов отвечает `diagtools.drift_ref_update` (с флагом `AUTO_REF_UPDATE`).
 - CI job `value-agg-clv-gate` прогоняет `python -m diagtools.clv_check` и падает, если средний CLV опускается ниже `CLV_FAIL_THRESHOLD_PCT`. Артефакты `reports/diagnostics/value_clv.{json,md}` прикладываются к сборке.
 
+## Offline QA
+
+- Job `offline-qa` в CI проверяет, что `pytest -q` успешно выполняется в окружении без тяжёлых ML-библиотек. Перед запуском тестов выполняется гард `tools/ci_assert_no_binaries.sh`.
+- Лёгкие стабы находятся в `tests/_stubs/` и автоматически подключаются, если реальные пакеты (`numpy`, `pandas`, `sqlalchemy`, `joblib` и другие) не установлены.
+- Для принудительного использования стабов выставьте `USE_OFFLINE_STUBS=1` (например, в CI или локально); чтобы использовать реальные зависимости, установите соответствующие пакеты и оставьте переменную пустой.
+- Тесты, помеченные `@pytest.mark.needs_np`, автоматически пропускаются, если стек `numpy/pandas` недоступен.
+
 ## Reliability snapshot
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).
