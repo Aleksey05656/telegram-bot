@@ -17,8 +17,20 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
+try:  # pragma: no cover - fallback when reliability_v2 is unavailable
+    from app.lines import reliability_v2  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - offline/test environments
+    class _ReliabilityV2Stub:
+        @staticmethod
+        def get_provider_scores(*_args, **_kwargs) -> list[dict[str, object]]:
+            return []
+
+        @staticmethod
+        def explain_components(*_args, **_kwargs) -> dict[str, object]:
+            return {}
+
+    reliability_v2 = _ReliabilityV2Stub()
 from app.lines.aggregator import LinesAggregator, parse_provider_weights
-from app.lines.reliability import ProviderReliabilityStore
 from app.lines.storage import OddsSQLiteStore
 from config import settings
 
@@ -175,23 +187,56 @@ async def handle_why_provider(callback: CallbackQuery) -> None:
         if quote.provider.lower() == provider.lower():
             league = quote.league
             break
-    reliability_store = ProviderReliabilityStore()
-    stats = reliability_store.get_stats(provider, market.upper(), league.upper() if league else None)
-    if not stats:
+    league_norm = league.upper() if isinstance(league, str) else None
+    try:
+        explanation = reliability_v2.explain_components(
+            provider=provider,
+            league=league_norm,
+            market=market.upper(),
+        )
+    except Exception:
+        explanation = None
+    if not explanation:
         await callback.answer("Нет данных по провайдеру")
         return
-    league_label = stats.league if stats.league != "GLOBAL" else "общая статистика"
+    league_label = explanation.get("league") or league_norm or "GLOBAL"
+    metrics = []
+    fresh_val = explanation.get("fresh")
+    if fresh_val is not None:
+        try:
+            metrics.append(f"fresh={float(fresh_val):.2f}")
+        except (TypeError, ValueError):
+            pass
+    latency_val = explanation.get("latency")
+    if latency_val is not None:
+        try:
+            metrics.append(f"latency={float(latency_val):.0f}мс")
+        except (TypeError, ValueError):
+            pass
+    stability_val = explanation.get("stability")
+    if stability_val is not None:
+        try:
+            metrics.append(f"stability={float(stability_val):.2f}")
+        except (TypeError, ValueError):
+            pass
+    closing_val = explanation.get("closing")
+    if closing_val is not None:
+        try:
+            metrics.append(f"closingΔ={float(closing_val):+.2f}")
+        except (TypeError, ValueError):
+            pass
+    trend_note = explanation.get("trend")
     lines = [
         f"🤔 <b>Почему {escape(provider)}</b>",
         f"Лига: {escape(str(league_label))}",
-        f"Score: {stats.score:.2f}",
-        f"Coverage: {stats.coverage:.2f}",
-        f"Fresh share: {stats.fresh_share:.2f}",
-        f"Latency: {stats.lag_ms:.0f} мс",
-        f"Stability: {stats.stability:.2f}",
-        f"Bias vs closing: {stats.bias:.2f}",
-        "Аномалии: не обнаружено (z ≤ 3.0)",
+        f"Рынок: {escape(market.upper())}",
     ]
+    if trend_note:
+        lines.append(f"Тренд: {escape(str(trend_note))}")
+    if metrics:
+        lines.append(" · ".join(metrics))
+    else:
+        lines.append("Деталей reliability_v2 нет.")
     await callback.message.answer("\n".join(lines))
     await callback.answer()
 

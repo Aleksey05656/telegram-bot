@@ -1,3 +1,16 @@
+# [2025-10-28] - Reliability v2 badges & admin providers
+### Добавлено
+- Бейджи reliability v2 (`Reliability: …`) и кнопка «Почему этот провайдер?» в ответах `/value` и `/compare`.
+- Админ-команда `/providers [league] [market]` с компактной таблицей score/coverage/fresh_share/latency и отметкой ⚠️ для низкого score.
+- Тесты `tests/bot/test_reliability_badges.py`, `tests/bot/test_providers_command.py` для новых UX-сценариев.
+
+### Изменено
+- `app/bot/routers/{commands.py,callbacks.py}`, `app/bot/{formatting.py,keyboards.py}` подключают API `app.lines.reliability_v2`, рендерят бейджи, расширяют `/portfolio` и обновляют кнопку «Почему этот провайдер?».
+- `diagtools/run_diagnostics.py` печатает статус доступности reliability v2 API, README и `docs/user_guide.md` описывают новые возможности.
+
+### Исправлено
+- —
+
 # [2025-10-26] - Offline QA stubs & CI gate
 ### Добавлено
 - Лёгкие стабы `tests/_stubs/{numpy.py,pandas.py,sqlalchemy.py,joblib.py}` и переменная окружения `USE_OFFLINE_STUBS` для их принудительной активации.
