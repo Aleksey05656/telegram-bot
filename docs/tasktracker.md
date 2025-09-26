@@ -998,3 +998,12 @@
   - [x] Обновлены отчёты, документация (`docs/quality_gates.md`, `docs/diagnostics.md`) и README-бейдж.
   - [x] Расширены тесты (`tests/diagnostics/*`), обновлён CI workflow и .env.example.
 - **Зависимости**: tools/run_diagnostics.py, app/data_quality, app/diagnostics, tools/golden_regression.py, tools/drift_report.py, tools/bench.py, docs/quality_gates.md, docs/diagnostics.md, .github/workflows/ci.yml, README.md, .env.example, tests/diagnostics
+
+## Задача: Унификация Makefile lint/test
+- **Статус**: Завершена
+- **Описание**: Привести цели `lint`, `fmt`, `test`, `check` в соответствие с требованиями CI и устранить ошибки `make`.
+- **Шаги выполнения**:
+  - [x] Настроены команды `lint`, `fmt`, `test` для использования стандартных инструментов (`ruff`, `black`, `isort`, `pytest`).
+  - [x] Добавлена цель `check`, вызывающая линтеры и тесты последовательно.
+  - [x] Объявлены `.PHONY`-цели и нормализованы табуляции в рецептах.
+- **Зависимости**: Makefile, docs/changelog.md, docs/tasktracker.md

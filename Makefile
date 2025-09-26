@@ -10,6 +10,9 @@ PRECOMMIT ?= pre-commit
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
+.PHONY: setup deps-fix lint lint-app fmt test test-fast test-smoke test-all coverage-html reports-gaps pre-commit-smart \
+smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run
+
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
 GIT_SHA ?= $(shell git rev-parse --short HEAD)
@@ -41,23 +44,9 @@ deps-fix:
 	@echo "Deps fixed."
 
 lint:
-	@echo "LINT_STRICT=$${LINT_STRICT:-0}"
-	@if [ "$${LINT_STRICT:-0}" = "1" ]; then \
-	        echo "[strict lint] ruff fix + isort + black check"; \
-	        $(PY) -m ruff check app tests --fix --unsafe-fixes; \
-	        $(PY) -m isort .; \
-	        $(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" ; \
-	        $(PY) -m ruff check app tests; \
-	        $(PY) -m isort --check-only .; \
-	        $(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check .; \
-	else \
-	        echo "[lenient lint] ruff fix + isort + black (без фейла)"; \
-	        $(PY) -m ruff check app tests --fix --unsafe-fixes || true; \
-	        $(PY) -m isort . || true; \
-	        $(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" . || true; \
-	        # отчёт остатка, но не фейлим сборку: \
-	        $(PY) -m ruff check app tests || true; \
-	fi
+	ruff check .
+	black --check .
+	isort --check-only .
 
 lint-app:
 	$(PY) scripts/syntax_partition.py
@@ -75,11 +64,11 @@ lint-app:
 	fi
 
 fmt:
-	ruff format app tests
-	ruff check --fix app tests
+	black .
+	isort .
 
 test:
-	pytest
+	pytest -q
 
 test-fast:
 	pytest -q -m "not slow and not e2e"
@@ -89,15 +78,15 @@ test-smoke:
 
 test-all:
 	pytest --cov=./ --cov-report=xml --cov-report=term-missing && \
-python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json
+	python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json
 
 coverage-html:
 	pytest --cov=./ --cov-report=xml --cov-report=term-missing && \
-python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json && \
+	python -m diagtools.coverage_enforce --total-min 80 --pkg-min workers=90 --pkg-min database=90 --pkg-min services=90 --pkg-min 'core/services'=90 --print-top 20 --summary-json reports/coverage_summary.json && \
 	pytest --cov=./ --cov-report=html
 
 reports-gaps:
-python -m diagtools.coverage_gaps
+	python -m diagtools.coverage_gaps
 
 pre-commit-smart:
 	@echo "[pre-commit smart] trying online first, with fallback to offline config"
@@ -110,7 +99,7 @@ pre-commit-offline:
 	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"
 	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
-check: lint test-fast test-smoke
+check: lint test
 
 deps-lock:
 	$(PY) scripts/deps_lock.py
