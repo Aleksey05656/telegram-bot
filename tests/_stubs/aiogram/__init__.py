@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, List
 
-__all__ = ["Router", "F"]
+__all__ = ["Router", "Dispatcher", "F"]
 
 
 class Router:
@@ -52,4 +52,14 @@ class _FilterBuilder:
 
 
 F = _FilterBuilder()
+
+
+class Dispatcher:
+    """Minimal dispatcher stub storing included routers."""
+
+    def __init__(self) -> None:
+        self.routers: list[Any] = []
+
+    def include_router(self, router: Any) -> None:
+        self.routers.append(router)
 
