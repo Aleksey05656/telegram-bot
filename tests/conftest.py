@@ -26,11 +26,14 @@ pytest_plugins = ["conftest_np_guard"]
 ensure_stubs(
     [
         "pydantic",
+        "fastapi",
         "httpx",
         "aiogram",
         "prometheus_client",
         "redis",
         "rq",
+        "starlette",
+        "sentry_sdk",
         "numpy",
         "pandas",
         "sqlalchemy",

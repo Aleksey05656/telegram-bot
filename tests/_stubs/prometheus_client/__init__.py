@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, Tuple
 
-__all__ = ["Counter", "Gauge", "Histogram", "start_http_server"]
+__all__ = ["Counter", "Gauge", "Histogram", "start_http_server", "generate_latest"]
 
 
 class _ValueHolder:
@@ -119,4 +119,8 @@ class Histogram(Counter):
 
 def start_http_server(_port: int) -> None:  # pragma: no cover - stubbed server
     return None
+
+
+def generate_latest(*_args, **_kwargs) -> bytes:  # pragma: no cover - stubbed exporter
+    return b""
 

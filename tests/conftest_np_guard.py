@@ -47,10 +47,8 @@ _HEAVY_PATH_PATTERNS = [
     "tests/workers/",
     "tests/value/",
     "tests/contracts/",
-    "tests/test_metrics_sentry.py",
     "tests/test_ml.py",
     "tests/test_metrics_server.py",
-    "tests/test_readiness.py",
     "tests/test_registry_local.py",
     "tests/test_task_manager",
 ]

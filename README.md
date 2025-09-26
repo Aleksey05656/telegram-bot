@@ -15,7 +15,7 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 ## Observability
 
-Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics are exposed when `ENABLE_METRICS=1` (default port `METRICS_PORT=8000`) and include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
+Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics are exposed on the same HTTP service when `ENABLE_METRICS=1` (see `/metrics`); the optional `METRICS_PORT` remains available for internal scrapes but is not exposed outside the Amvera pod. All metrics include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
 ## Reliability v2 badges
 
@@ -44,7 +44,7 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).
 - **Graceful shutdown** — `SIGTERM`/`SIGINT` останавливают polling через `TelegramBot.stop()` с таймаутом `SHUTDOWN_TIMEOUT`.
-- **Health/Readiness** — `/health` отражает сам факт работы процесса, `/ready` возвращает 200 только когда SQLite и планировщик инициализированы и polling стартовал. Проба включается `ENABLE_HEALTH=1` (порт 8080, см. `amvera.yaml`).
+- **Health/Readiness** — `/healthz` отражает сам факт работы процесса (алиас `/health` сохранён), а `/readyz` (`/ready`) выполняет `SELECT 1` в PostgreSQL, `PING` в Redis и проверку состояния планировщика/бота. Успешная проверка возвращает `200 OK`, деградация — `200` с `status=degraded`, критический сбой — `503`.
 - **Логи** — ротация 10 МБ×5 в `/data/logs/app.log`, stdout в logfmt, JSON для файлов.
 - **ENV-контракт** — `.env.example` синхронизирован с кодом (pytest `tests/test_env_contract.py`).
 
@@ -76,8 +76,13 @@ git push amvera main
 Переменные задаются в разделе «Переменные» Amvera (на сборке недоступны):
 
 - `TELEGRAM_BOT_TOKEN` — токен из BotFather (обязательный).
-- `DATABASE_URL` / `DATABASE_URL_RO` / `DATABASE_URL_R` — Postgres DSN для записи и чтения.
-- `REDIS_URL` — URL управляемого Redis (опционально).
+- `DATABASE_URL` / `DATABASE_URL_RO` / `DATABASE_URL_R` — DSN PostgreSQL для записи и чтения. Если переменные не заданы, DSN собирается из `PGUSER`, `PGPASSWORD`, `PGDATABASE`, хостов `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` (или общего `PGHOST`) и `PGPORT`.
+- `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` / `PGPORT` — компоненты для сборки DSN, когда явный `DATABASE_URL*` отсутствует.
+- `REDIS_URL` — URL управляемого Redis (приоритетный способ настройки).
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` — fallback-поля для сборки `REDIS_URL`, если он не задан.
+- `SPORTMONKS_API_TOKEN` — основной API-токен SportMonks.
+- `SPORTMONKS_TOKEN` / `SPORTMONKS_API_KEY` — устаревшие синонимы токена (при использовании логируется предупреждение).
+- `ENABLE_METRICS` — включает `/metrics` на порту API (`METRICS_PORT` оставлен для внутренних скрейпов и не прокидывается наружу).
 - `DB_PATH` — путь к SQLite-фолбэку (по умолчанию `/data/bot.sqlite3`).
 - `MODEL_REGISTRY_PATH` — каталог артефактов моделей (по умолчанию `/data/artifacts`).
 - `REPORTS_DIR` — каталог отчётов и Markdown-снимков (по умолчанию `/data/reports`).
@@ -108,13 +113,13 @@ Amvera монтирует постоянный том в `/data`. Все изм�
 
 ### Запуск и smoke
 
-`amvera.yaml` запускает `python main.py`. Скрипт поддерживает `--dry-run` для дымового теста:
+`amvera.yaml` выбирает команду по роли контейнера: `ROLE=api` запускает `uvicorn app.api:app --host 0.0.0.0 --port ${PORT:-80}`, `ROLE=worker` — `python -m scripts.worker`, `ROLE=tgbot` — `python -m scripts.tg_bot`. Для быстрой проверки конфигурации сохраните `ROLE=worker` и выполните дымовой прогон:
 
 ```bash
 python -m main --dry-run
 ```
 
-Команда выполняет инициализацию зависимостей (кэш, загрузка рейтингов) и завершает процесс без запуска long polling — используется в CI и при проверке конфигурации. Основной режим запускает Aiogram-поллинг после задержки `STARTUP_DELAY_SEC`.
+Команда выполняет инициализацию зависимостей (кэш, загрузка рейтингов) и завершает процесс без запуска long polling — используется в CI и при проверке конфигурации. Основной режим воркера и бота учитывает задержку `STARTUP_DELAY_SEC` перед началом polling.
 
 ## Команды бота и примеры
 

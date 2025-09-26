@@ -1,7 +1,7 @@
 """
 @file: tests/smoke/test_retrain_registration.py
 @description: Smoke tests for retrain scheduler registration feature flag.
-@dependencies: app.main, workers.runtime_scheduler
+@dependencies: app.api, workers.runtime_scheduler
 @created: 2025-09-12
 """
 
@@ -21,13 +21,18 @@ def test_retrain_registration_feature_flag(monkeypatch):
     # enable feature flag via env
     monkeypatch.setenv("RETRAIN_CRON", "*/15 * * * *")
 
-    # reload app.main to re-run init wiring under new env
+    # reload app modules to re-run init wiring under new env
     if "app.main" in sys.modules:
         importlib.reload(sys.modules["app.main"])
     else:
         import app.main  # noqa: F401
 
-    from app.main import app  # type: ignore
+    if "app.api" in sys.modules:
+        importlib.reload(sys.modules["app.api"])
+    else:
+        import app.api  # noqa: F401
+
+    from app.api import app  # type: ignore
 
     c = TestClient(app)
     r = c.get("/__smoke__/retrain")
@@ -51,7 +56,12 @@ def test_retrain_registration_disabled_by_default(monkeypatch):
     else:
         import app.main  # noqa: F401
 
-    from app.main import app  # type: ignore
+    if "app.api" in sys.modules:
+        importlib.reload(sys.modules["app.api"])
+    else:
+        import app.api  # noqa: F401
+
+    from app.api import app  # type: ignore
 
     c = TestClient(app)
     r = c.get("/__smoke__/retrain")
