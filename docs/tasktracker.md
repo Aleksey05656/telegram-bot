@@ -1,3 +1,14 @@
+## Задача: Подготовка деплоя на Amvera
+- **Статус**: Завершена
+- **Описание**: Настроить конфигурацию Amvera для API, фонового воркера и Telegram-бота без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Обновлён `amvera.yaml` с выбором ролей и единым скриптом запуска.
+  - [x] Добавлен пример окружения `.env.amvera.example` с placeholders.
+  - [x] Реализованы точки входа `app/api.py`, `scripts/worker.py`, `scripts/tg_bot.py`.
+  - [x] Настройки БД и Redis вынесены в `app/config.py` (DSN rw/ro/rr, `REDIS_URL`).
+  - [x] README дополнен разделом «Deploy to Amvera», обновлены changelog/tasktracker.
+- **Зависимости**: amvera.yaml, .env.amvera.example, app/config.py, app/api.py, scripts/worker.py, scripts/tg_bot.py, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Обновление lint и форматирования
 - **Статус**: Завершена
 - **Описание**: Перенастроить make-цели для мягкого/строгого линта, добавить проверку изменённых файлов и синхронизировать конфиги форматирования.

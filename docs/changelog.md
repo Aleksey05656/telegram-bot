@@ -1,3 +1,16 @@
+## [2025-10-27] - Amvera deployment profile
+### Добавлено
+- Конфигурация `amvera.yaml` с выбором ролей `api|worker|tgbot` и единой точкой входа FastAPI/воркера/бота.
+- Пример окружения `.env.amvera.example` без секретов и документация по деплою на Amvera.
+- Скрипты `app/api.py`, `scripts/worker.py`, `scripts/tg_bot.py` для запуска процессов на платформе.
+
+### Изменено
+- `app/config.py` формирует DSN PostgreSQL (rw/ro/rr) и URL Redis через переменные окружения.
+- README дополнен разделом «Deploy to Amvera» с проверками готовности и перечнем переменных.
+
+### Исправлено
+- Отсутствие централизованного доступа к DSN устраняет дублирование при подключении к БД и Redis.
+
 ## [2025-09-26] - Lint workflow consolidation
 ### Добавлено
 - Цель `lint-changed` в `Makefile`, проверяющая только изменённые Python-файлы критичными правилами Ruff.

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import os
+import urllib.parse as _u
 from functools import lru_cache
 from typing import Literal
 
@@ -158,6 +160,40 @@ class Settings(BaseSettings):
             max_picks=int(self.value_max_picks),
             markets=self.value_markets,
         )
+
+
+def _q(value: str | None) -> str:
+    return _u.quote(value or "", safe="")
+
+
+def _pg_url(host_env: str) -> str:
+    user = _q(os.getenv("PGUSER"))
+    password = _q(os.getenv("PGPASSWORD"))
+    host = os.getenv(host_env, "")
+    port = os.getenv("PGPORT", "5432")
+    database = os.getenv("PGDATABASE", "")
+    return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+
+
+DATABASE_URL_RW = _pg_url("PGHOST_RW")
+DATABASE_URL_RO = _pg_url("PGHOST_RO")
+DATABASE_URL_RR = _pg_url("PGHOST_RR")
+
+
+def get_database_url(mode: str = "rw") -> str:
+    mode_normalized = (mode or "rw").lower()
+    if mode_normalized == "ro":
+        return DATABASE_URL_RO
+    if mode_normalized == "rr":
+        return DATABASE_URL_RR
+    return DATABASE_URL_RW
+
+
+REDIS_URL = (
+    f"redis://default:{_q(os.getenv('REDIS_PASSWORD'))}@"
+    f"{os.getenv('REDIS_HOST', '')}:{os.getenv('REDIS_PORT', '6379')}/"
+    f"{os.getenv('REDIS_DB', '0')}"
+)
 
 
 @lru_cache(1)
