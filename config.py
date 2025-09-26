@@ -160,11 +160,16 @@ class Settings(BaseSettings):
     # TTL для различных типов данных кэша (в секундах)
     TTL: dict[str, int] = {
         "fixtures_base": 6 * 3600,  # 6 часов
+        "fixtures_upcoming": 10 * 60,  # 10 минут
+        "fixtures_live": 30,  # 30 секунд
         "table_base": 24 * 3600,  # 24 часа
+        "reference_slow": 24 * 3600,  # справочники API
         "form_slow": 24 * 3600,  # 24 часа
         "weather_fast": 15 * 60,  # 15 минут
         "lineups_fast": 90,  # 90 секунд
         "injuries_fast": 120,  # 2 минуты
+        "odds_pre_match": 3 * 60,  # 3 минуты
+        "odds_inplay": 20,  # 20 секунд
     }
 
     # Параметры расчёта уверенности

@@ -158,6 +158,26 @@ Monte-Carlo simulator generates correlated scores via Bi-Poisson model. Supporte
 
 CLI example:
 
+## SportMonks API reference
+
+```bash
+# Список матчей в окне (минимальный include)
+curl "https://api.sportmonks.com/v3/football/fixtures/between/2025-09-26/2025-10-10?api_token=API_TOKEN&include=participants;scores;states&per_page=50&timezone=Europe/Berlin&locale=ru"
+
+# Полная карточка матча для расчётов (xGFixture + lineups.xGLineup)
+curl "https://api.sportmonks.com/v3/football/fixtures/123456?api_token=API_TOKEN&include=participants;scores;events;statistics;lineups.details;formations;states;lineups.xGLineup;xGFixture&timezone=Europe/Berlin&locale=ru"
+
+# xG на уровне игроков для нескольких фикстур
+curl "https://api.sportmonks.com/v3/football/expected/lineups?api_token=API_TOKEN&filters=fixtureIds:123456,789012"
+
+# Live standings по лиге
+curl "https://api.sportmonks.com/v3/football/standings/live/leagues/271?api_token=API_TOKEN&locale=ru"
+
+# Потоки последних обновлений коэффициентов
+curl "https://api.sportmonks.com/v3/football/odds/pre-match/latest?api_token=API_TOKEN"
+curl "https://api.sportmonks.com/v3/football/odds/inplay/latest?api_token=API_TOKEN"
+```
+
 ```bash
 python scripts/run_simulation.py --season-id default --home H --away A --rho 0.1 \
     --n-sims 10000 --calibrate --write-db \

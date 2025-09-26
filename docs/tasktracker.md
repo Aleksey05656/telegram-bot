@@ -1,4 +1,14 @@
 
+## Задача: SportMonks ingestion v3
+- **Статус**: Завершена
+- **Описание**: Реализовать устойчивый сбор данных SportMonks v3 с кэшем, БД и сервисными скриптами для прогнозов/оддсов.
+- **Шаги выполнения**:
+  - [x] Создан пакет `sportmonks/{client.py,endpoints.py,cache.py,repository.py,schemas.py}` и сервис `services/feature_builder.py`.
+  - [x] Добавлены скрипты `scripts/update_upcoming.py` (cron ingest + симуляция) и `scripts/get_match_prediction.py` (CLI explain).
+  - [x] Расширен `config.py` TTL профилями, обновлены `docs/Project.md`, README (curl-примеры), `docs/changelog.md` и Tasktracker.
+  - [x] Написаны тесты `tests/sm/test_sportmonks_client_v3.py` для пагинации, ретраев и парсинга lineups/xGFixture.
+- **Зависимости**: sportmonks/{__init__.py,client.py,endpoints.py,cache.py,repository.py,schemas.py}, services/feature_builder.py, scripts/{update_upcoming.py,get_match_prediction.py}, config.py, docs/{Project.md,changelog.md,tasktracker.md}, README.md, tests/sm/test_sportmonks_client_v3.py
+
 ## Задача: Offline QA stubs & CI gate
 - **Статус**: Завершена
 - **Описание**: Обеспечить прохождение `pytest -q` без тяжёлых зависимостей через стабы и отдельный CI-профиль.
