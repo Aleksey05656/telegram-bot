@@ -15,6 +15,11 @@ from datetime import UTC, datetime, timedelta
 
 from app.lines.storage import LineHistoryPoint
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from app.lines.reliability_v2 import ProviderReliabilityV2
+
 
 @dataclass(slots=True, frozen=True)
 class MovementResult:
@@ -29,6 +34,11 @@ def analyze_movement(
     kickoff: datetime,
     window_minutes: int,
     tolerance_pct: float = 0.5,
+    reliability: "ProviderReliabilityV2 | None" = None,
+    match_key: str | None = None,
+    market: str | None = None,
+    league: str | None = None,
+    selection: str | None = None,
 ) -> MovementResult:
     if not history:
         return MovementResult(trend="→")
@@ -39,6 +49,16 @@ def analyze_movement(
     closing = _closing_point(ordered, kickoff=kickoff, window_minutes=window_minutes)
     if closing is None:
         return MovementResult(trend=trend)
+    if reliability is not None and match_key and market and selection:
+        reliability.observe_closing(
+            match_key=match_key,
+            market=market,
+            league=league,
+            selection=selection,
+            closing_price=closing.price_decimal,
+            closing_pulled_at=closing.pulled_at,
+            history=ordered,
+        )
     return MovementResult(
         trend=trend,
         closing_price=closing.price_decimal,

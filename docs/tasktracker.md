@@ -1,12 +1,3 @@
-## Задача: Reliability v2 badges & providers
-- **Статус**: Завершена
-- **Описание**: Добавить reliability v2 бейджи в UX бота, админ-команду `/providers` и диагностический проброс доступности API.
-- **Шаги выполнения**:
-  - [x] Подключить `app.lines.reliability_v2` в `/value` и `/compare`, отрендерить бейджи и кнопку «Почему этот провайдер?».
-  - [x] Реализовать `/providers [league] [market]` для `ADMIN_IDS` с таблицей score/coverage/fresh_share/latency и ⚠️-отметками.
-  - [x] Расширить `/portfolio` дополнительными агрегатами (N, средний edge/CLV, ROI, доля положительного CLV).
-  - [x] Добавить проверку API reliability v2 в `diagtools/run_diagnostics.py`, обновить README, `docs/user_guide.md`, `docs/changelog.md`, `docs/tasktracker.md` и написать тесты `tests/bot/test_reliability_badges.py`, `tests/bot/test_providers_command.py`.
-- **Зависимости**: app/bot/{routers/commands.py,routers/callbacks.py,formatting.py,keyboards.py}, diagtools/run_diagnostics.py, README.md, docs/{user_guide.md,changelog.md,tasktracker.md}, tests/bot/{test_reliability_badges.py,test_providers_command.py,test_value_commands.py}
 
 ## Задача: Offline QA stubs & CI gate
 - **Статус**: Завершена

@@ -19,6 +19,7 @@ from app.lines.anomaly import OddsAnomalyDetector
 from app.lines.movement import MovementResult, analyze_movement
 from app.lines.providers.base import LinesProvider, OddsSnapshot
 from app.lines.reliability import ProviderReliabilityTracker
+from app.lines.reliability_v2 import ProviderReliabilityV2
 from app.lines.storage import LineHistoryPoint, OddsSQLiteStore
 from config import settings
 
@@ -60,7 +61,7 @@ class LinesAggregator:
         retention_days: int = 7,
         movement_window_minutes: int = 60,
         movement_tolerance_pct: float = 0.5,
-        reliability: ProviderReliabilityTracker | None = None,
+        reliability: ProviderReliabilityTracker | ProviderReliabilityV2 | None = None,
         anomaly_detector: OddsAnomalyDetector | None = None,
         known_providers: Iterable[str] | None = None,
         best_price_lookback_min: int | None = None,
@@ -110,14 +111,21 @@ class LinesAggregator:
             quotes = self._latest_per_provider(items)
             if not quotes:
                 continue
-            probability = self._consensus_probability(quotes)
+            probability = self._consensus_probability(quotes, league)
             if probability is None or probability <= 0:
                 continue
             price = 1.0 / probability
             latest = max(quotes, key=lambda q: q.pulled_at)
             kickoff = quotes[0].kickoff_utc
             league = next((quote.league for quote in quotes if quote.league), None)
-            movement = self._movement(quotes, kickoff)
+            movement = self._movement(
+                quotes,
+                kickoff,
+                match_key=latest.match_key,
+                market=latest.market,
+                selection=latest.selection,
+                league=league,
+            )
             consensus = OddsSnapshot(
                 provider="consensus",
                 pulled_at=latest.pulled_at,
@@ -253,7 +261,7 @@ class LinesAggregator:
         }
 
     @property
-    def reliability_tracker(self) -> ProviderReliabilityTracker | None:
+    def reliability_tracker(self) -> ProviderReliabilityTracker | ProviderReliabilityV2 | None:
         return self._reliability
 
     @property
@@ -288,7 +296,11 @@ class LinesAggregator:
         ordered.sort(key=lambda row: row.price_decimal, reverse=True)
         return ordered
 
-    def _consensus_probability(self, quotes: Sequence[OddsSnapshot]) -> float | None:
+    def _consensus_probability(
+        self,
+        quotes: Sequence[OddsSnapshot],
+        league: str | None,
+    ) -> float | None:
         implied = [1.0 / quote.price_decimal for quote in quotes if quote.price_decimal > 0]
         if not implied:
             return None
@@ -301,6 +313,13 @@ class LinesAggregator:
             total_weight = 0.0
             for quote in quotes:
                 weight = self._weights.get(quote.provider.lower(), 1.0)
+                if (
+                    getattr(settings, "RELIAB_V2_ENABLE", False)
+                    and isinstance(self._reliability, ProviderReliabilityV2)
+                ):
+                    stats = self._reliability.get(quote.provider, quote.market.upper(), league)
+                    if stats and stats.score > 0:
+                        weight = float(stats.score)
                 weighted_sum += (1.0 / quote.price_decimal) * weight
                 total_weight += weight
             if total_weight <= 0:
@@ -308,7 +327,16 @@ class LinesAggregator:
             return weighted_sum / total_weight
         return float(median(implied))
 
-    def _movement(self, quotes: Sequence[OddsSnapshot], kickoff: datetime) -> MovementResult:
+    def _movement(
+        self,
+        quotes: Sequence[OddsSnapshot],
+        kickoff: datetime,
+        *,
+        match_key: str,
+        market: str,
+        selection: str,
+        league: str | None,
+    ) -> MovementResult:
         if not self._store:
             return MovementResult(trend="→")
         key = (quotes[0].match_key, quotes[0].market.upper(), quotes[0].selection.upper())
@@ -326,11 +354,21 @@ class LinesAggregator:
                 )
                 for quote in quotes
             ]
+        reliability = None
+        if getattr(settings, "RELIAB_V2_ENABLE", False) and isinstance(
+            self._reliability, ProviderReliabilityV2
+        ):
+            reliability = self._reliability
         return analyze_movement(
             history,
             kickoff=kickoff,
             window_minutes=self._movement_window,
             tolerance_pct=self._movement_tolerance,
+            reliability=reliability,
+            match_key=match_key,
+            market=market,
+            league=league,
+            selection=selection,
         )
 
 

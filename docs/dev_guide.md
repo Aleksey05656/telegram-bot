@@ -33,7 +33,7 @@
 - `odds_snapshots`: снимки котировок (поставщик, матч, рынок, выбор, цена, JSON `extra`). Идемпотентный upsert по `(provider, match_key, market, selection)`.
 - `closing_lines`: последний консенсусный коэффициент перед стартом (уникальный индекс по `(match_key, market, selection)`).
 - `picks_ledger`: журнал value-сигналов с коэффициентами (market/provider/consensus/closing), CLV и ROI (индексы `picks_ledger_user_idx`, `picks_ledger_match_idx`).
-- `provider_stats`: агрегаты надёжности провайдеров (coverage, fresh_share, lag_ms, stability, bias, score) для best-price роутинга.
+- `provider_stats`: агрегаты надёжности провайдеров (samples, fresh_success/fail, latency, z-стабильность, closing bias, score) для best-price роутинга и диагностики.
 - Индекс `odds_snapshots_match_time` по `(match_key, market, selection, pulled_at_utc)` ускоряет выборку последних котировок для best-price маршрута.
 
 ### Метрики и логирование
@@ -48,7 +48,7 @@
 - `PAGINATION_PAGE_SIZE`, `CACHE_TTL_SECONDS`, `ADMIN_IDS`, `DIGEST_DEFAULT_TIME` — новые параметры в `config.Settings`.
 - `matplotlib>=3.8` добавлена в зависимости для экспорта PNG.
 - `database/schema.sql` содержит `PRAGMA user_version = 1` и DDL таблиц.
-- Value/odds параметры (`ODDS_PROVIDERS`, `ODDS_PROVIDER_WEIGHTS`, `ODDS_PROVIDER`, `ODDS_AGG_METHOD`, `ODDS_TIMEOUT_SEC`, `RELIABILITY_*`, `ANOMALY_Z_MAX`, `BEST_PRICE_*`, `VALUE_MIN_EDGE_PCT`, `VALUE_CONFIDENCE_METHOD`, `VALUE_ALERT_COOLDOWN_MIN`, `VALUE_ALERT_QUIET_HOURS`, `VALUE_ALERT_MIN_EDGE_DELTA`, `VALUE_STALENESS_FAIL_MIN`, `BACKTEST_*`, `GATES_VALUE_SHARPE_*`, `CLV_FAIL_THRESHOLD_PCT`, `SETTLEMENT_*`, `PORTFOLIO_ROLLING_DAYS`, `ENABLE_VALUE_FEATURES` и т.д.) добавлены в `config.py` и `.env.example`.
+- Value/odds параметры (`ODDS_PROVIDERS`, `ODDS_PROVIDER_WEIGHTS`, `ODDS_PROVIDER`, `ODDS_AGG_METHOD`, `ODDS_TIMEOUT_SEC`, `RELIABILITY_*`, `RELIAB_V2_ENABLE`, `RELIAB_DECAY`, `RELIAB_MIN_SAMPLES`, `RELIAB_SCOPE`, `RELIAB_COMPONENT_WEIGHTS`, `RELIAB_PRIOR_*`, `RELIAB_STAB_Z_TOL`, `RELIAB_CLOSING_TOL_PCT`, `ANOMALY_Z_MAX`, `BEST_PRICE_*`, `VALUE_MIN_EDGE_PCT`, `VALUE_CONFIDENCE_METHOD`, `VALUE_ALERT_COOLDOWN_MIN`, `VALUE_ALERT_QUIET_HOURS`, `VALUE_ALERT_MIN_EDGE_DELTA`, `VALUE_STALENESS_FAIL_MIN`, `BACKTEST_*`, `GATES_VALUE_SHARPE_*`, `CLV_FAIL_THRESHOLD_PCT`, `SETTLEMENT_*`, `PORTFOLIO_ROLLING_DAYS`, `ENABLE_VALUE_FEATURES` и т.д.) добавлены в `config.py` и `.env.example`.
 - `ODDS_FIXTURES_PATH` — вспомогательная переменная окружения для CSV-фикстур в оффлайн-тестах.
 
 ### Тесты
@@ -58,10 +58,10 @@
 - `tests/odds/` — модульные тесты для overround, CSV-провайдера и мультипровайдерного агрегатора (best/median/weighted, closing line).
 - `tests/diag/test_value_check.py` — проверяет CLI `diagtools.value_check` (корректный exit code и наличие котировок).
 - `tests/diag/test_clv_check.py` — проверяет CLI `diagtools.clv_check` (артефакты и exit-коды 0/1/2).
-- `tests/odds/test_reliability.py`, `tests/odds/test_best_route.py`, `tests/odds/test_anomaly_filter.py` — проверяют скоринг провайдеров, best-price роутинг и фильтр аномалий.
+- `tests/odds/test_reliability.py`, `tests/odds/test_reliability_v2_bayes.py`, `tests/odds/test_best_route.py`, `tests/odds/test_aggregator_weighted_scores.py`, `tests/odds/test_anomaly_filter.py` — проверяют скоринг провайдеров, байесовский скоринг/декея, best-price роутинг и фильтр аномалий.
 - `tests/value/test_settlement_engine.py` — сеттлмент рынков 1X2/OU/BTTS и расчёт ROI.
 - `tests/bot/test_portfolio_extended.py` — расширенный рендер `/portfolio` и блок «Best price».
-- `tests/diag/test_provider_quality.py`, `tests/diag/test_settlement_check.py` — гейты качества провайдеров и сеттлмента.
+- `tests/diag/test_provider_quality.py`, `tests/diag/test_provider_quality_gate.py`, `tests/diag/test_settlement_check.py` — гейты качества провайдеров, Bayesian reliability и сеттлмента.
 - `tests/bot/test_value_commands.py` — сценарии `/value`, `/compare`, `/alerts`.
 - `tests/value/` — backtest окна, подбор порогов, вес `edge_w`, антиспам алертов, рендер объяснений и вычисление CLV в `picks_ledger`.
 
@@ -77,8 +77,9 @@
   - `providers.csv` — оффлайн-провайдер из CSV-файлов (`fixtures_dir`), нормализует колонки и timestamp.
   - `providers.http` — HTTP-клиент с `httpx.AsyncClient`, ETag-кешем и rate limit (token bucket).
   - `mapper` — преобразование `home/away/league/kickoff` в `match_key` на основе `app.mapping.keys`.
-  - `storage.OddsSQLiteStore` — хранение последних котировок в SQLite (upsert + индекс `odds_match`).
-  - `reliability` — EMA-скоринг покрытия/свежести/лагов/стабильности, сохранение в `provider_stats`, метрики Prometheus.
+  - `storage.OddsSQLiteStore` — хранение последних котировок в SQLite (upsert + индексы `odds_match`, `odds_match_time`).
+  - `reliability` — EMA-скоринг покрытия/свежести/лагов/стабильности, сохранение в `provider_stats`, метрики Prometheus (legacy).
+  - `reliability_v2` — Bayesian-скоринг с экспоненциальным забыванием (Beta свежесть, Gamma латентность, z-стабильность, closing bias), Prometheus-метрики по компонентам и итоговому score.
   - `anomaly` — фильтрация выбросов по z-score/квантилям и счётчик `odds_anomaly_detected_total`.
   - `aggregator` — консенсус (best/median/weighted), тренды closing line, best-price роутинг (`pick_best_route`).
   - `movement` — определение тренда и closing line в окне `CLV_WINDOW_BEFORE_KICKOFF_MIN`.
@@ -97,4 +98,4 @@
 - Команды бота `/value`, `/compare`, `/alerts` используют `ValueService`, выводят `τ/γ`, `edge_w`, историю алертов и сохраняют настройки в `value_alerts` и `value_alerts_sent`.
 - CLI `diagtools.value_check` проверяет провайдера котировок и запускает калибровку (опции `--calibrate`, `--days`). Отчёты сохраняются в `reports/diagnostics/value_calibration.{json,md}` и учитывают гейты `GATES_VALUE_SHARPE_*` и `BACKTEST_MIN_SAMPLES`.
 - CLI `diagtools.clv_check` агрегирует `picks_ledger` (средний CLV, доля положительных записей) и формирует `reports/diagnostics/value_clv.{json,md}`; exit-коды используются CI job `value-agg-clv-gate`.
-- CLI `diagtools.provider_quality` и `diagtools.settlement_check` публикуют `{json,md}`-сводки по надёжности провайдеров и ROI, используются в CI job `value-agg-clv-gate`.
+- CLI `diagtools.provider_quality` публикует `{json,md}`-сводки по Bayesian-скорингу провайдеров (score, coverage, latency, WARN/FAIL статусы) и используется в CI job `reliability-v2-gate`/`value-agg-clv-gate`; `diagtools.settlement_check` — ROI-гейт по сеттлменту.

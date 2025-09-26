@@ -98,6 +98,7 @@ except ImportError:  # pragma: no cover - диагностический fallbac
 from app.lines.aggregator import AggregatingLinesProvider, LinesAggregator, parse_provider_weights
 from app.lines.anomaly import OddsAnomalyDetector
 from app.lines.reliability import ProviderReliabilityTracker
+from app.lines.reliability_v2 import ProviderReliabilityV2, get_tracker as get_reliab_tracker
 from app.lines.storage import OddsSQLiteStore
 from app.lines.mapper import LinesMapper
 from app.lines.providers import CSVLinesProvider, HTTPLinesProvider
@@ -361,10 +362,13 @@ def _create_lines_provider_diag(settings: Any, mapper: LinesMapper) -> LinesProv
     if not active:
         return next(iter(providers.values()), None)
     weights = parse_provider_weights(getattr(settings, "ODDS_PROVIDER_WEIGHTS", None))
-    reliability_tracker = ProviderReliabilityTracker(
-        decay=float(getattr(settings, "RELIABILITY_DECAY", 0.9)),
-        max_freshness_sec=float(getattr(settings, "RELIABILITY_MAX_FRESHNESS_SEC", 600.0)),
-    )
+    if getattr(settings, "RELIAB_V2_ENABLE", False):
+        reliability_tracker = get_reliab_tracker()
+    else:
+        reliability_tracker = ProviderReliabilityTracker(
+            decay=float(getattr(settings, "RELIABILITY_DECAY", 0.9)),
+            max_freshness_sec=float(getattr(settings, "RELIABILITY_MAX_FRESHNESS_SEC", 600.0)),
+        )
     anomaly_detector = OddsAnomalyDetector(
         z_max=float(getattr(settings, "ANOMALY_Z_MAX", 3.0)),
     )
@@ -428,47 +432,62 @@ def _summarize_reliability(
         return {"entries": 0, "below_threshold": []}
     min_score_threshold = float(getattr(settings, "RELIABILITY_MIN_SCORE", 0.5))
     min_coverage_threshold = float(getattr(settings, "RELIABILITY_MIN_COVERAGE", 0.6))
+    min_samples_threshold = int(getattr(settings, "RELIAB_MIN_SAMPLES", 200))
+    if isinstance(tracker, ProviderReliabilityV2):
+        avg_score = sum(item.score for item in stats) / len(stats)
+        min_score = min(item.score for item in stats)
+        avg_fresh = sum(item.fresh_component for item in stats) / len(stats)
+        avg_latency = sum(item.latency_component for item in stats) / len(stats)
+        failures: list[dict[str, Any]] = []
+        warnings: list[dict[str, Any]] = []
+        for item in stats:
+            entry = {
+                "provider": item.provider,
+                "market": item.market,
+                "league": item.league,
+                "score": item.score,
+                "samples": item.samples,
+            }
+            if item.score < min_score_threshold:
+                failures.append(entry)
+            elif item.samples < min_samples_threshold:
+                warnings.append(entry)
+        return {
+            "entries": len(stats),
+            "avg_score": avg_score,
+            "avg_coverage": avg_fresh,
+            "avg_latency_component": avg_latency,
+            "min_score": min_score,
+            "below_threshold": failures,
+            "low_samples": warnings,
+            "thresholds": {
+                "score": min_score_threshold,
+                "samples": min_samples_threshold,
+            },
+        }
     avg_score = sum(item.score for item in stats) / len(stats)
     avg_coverage = sum(item.coverage for item in stats) / len(stats)
-    avg_fresh = sum(item.fresh_share for item in stats) / len(stats)
     avg_lag = sum(item.lag_ms for item in stats) / len(stats)
     min_score = min(item.score for item in stats)
-    min_coverage = min(item.coverage for item in stats)
-    failing = [
+    failures = [
         {
             "provider": item.provider,
             "market": item.market,
             "league": item.league,
             "score": item.score,
             "coverage": item.coverage,
-            "fresh_share": item.fresh_share,
         }
         for item in stats
         if item.score < min_score_threshold or item.coverage < min_coverage_threshold
-    ]
-    ordered = sorted(stats, key=lambda item: item.score)
-    sample = [
-        {
-            "provider": item.provider,
-            "market": item.market,
-            "league": item.league,
-            "score": item.score,
-            "coverage": item.coverage,
-            "fresh_share": item.fresh_share,
-            "lag_ms": item.lag_ms,
-        }
-        for item in ordered[:5]
     ]
     return {
         "entries": len(stats),
         "avg_score": avg_score,
         "avg_coverage": avg_coverage,
-        "avg_fresh_share": avg_fresh,
-        "avg_lag_ms": avg_lag,
+        "avg_latency_component": avg_lag,
         "min_score": min_score,
-        "min_coverage": min_coverage,
-        "below_threshold": failing,
-        "sample": sample,
+        "below_threshold": failures,
+        "low_samples": [],
         "thresholds": {
             "score": min_score_threshold,
             "coverage": min_coverage_threshold,
@@ -1875,6 +1894,7 @@ def main() -> None:
     reliability_diag = value_diag.get("reliability", {}) or {}
     reliability_entries = int(reliability_diag.get("entries", 0))
     reliability_failures = reliability_diag.get("below_threshold", []) or []
+    reliability_warnings = reliability_diag.get("low_samples", []) or []
     if reliability_entries == 0:
         reliability_status = "⚠️"
         reliability_note = "нет данных"
@@ -1885,9 +1905,16 @@ def main() -> None:
             f" min={reliability_diag.get('min_score', 0.0):.2f}"
             f" cov={reliability_diag.get('avg_coverage', 0.0):.2f}"
         )
+        if reliability_diag.get("avg_latency_component") is not None:
+            reliability_note += (
+                f" lat={reliability_diag.get('avg_latency_component', 0.0):.2f}"
+            )
         if reliability_failures:
             reliability_status = "❌"
             reliability_note += f" fails={len(reliability_failures)}"
+        elif reliability_warnings:
+            reliability_status = "⚠️"
+            reliability_note += f" warn={len(reliability_warnings)}"
     statuses["Provider Reliability"] = {
         "status": reliability_status,
         "note": reliability_note,

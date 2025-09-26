@@ -40,7 +40,8 @@ telegram-bot/
 │  ├─ lines/                | Нормализация котировок (mapper, providers CSV/HTTP, storage)
 │  │  ├─ aggregator.py      # мультипровайдерный консенсус (best/median/weighted), best-price роутинг
 │  │  ├─ movement.py        # классификация тренда и поиск closing line
-│  │  ├─ reliability.py     # EMA-скоринг провайдеров, хранение в provider_stats, Prometheus-метрики
+│  │  ├─ reliability.py     # Legacy EMA-скоринг провайдеров, хранение в provider_stats, Prometheus-метрики
+│  │  ├─ reliability_v2.py  # Байесовский скоринг (Beta/Gamma, closing bias), экспоненциальное забывание, Prometheus-компоненты
 │  │  ├─ anomaly.py         # фильтрация выбросов (z-score/квантили)
 │  │  └─ storage.py         # SQLite-хранилище odds_snapshots, история котировок
 │  ├─ pricing/              | Overround → implied probabilities (`overround.py`)
@@ -125,7 +126,7 @@ Value: `fair_odds = 1/p`; сравнение с внешними котиров�
 детерминирована seed-ом из настроек (`SIM_SEED`).
 
 - Источник прогнозов: `PredictionFacade.today()` → вероятности рынков (1X2/OU/Btts) + confidence.
-- Источник котировок: мультипровайдер `app.lines` (CSV/HTTP) → `LinesAggregator` (best/median/weighted, веса `ODDS_PROVIDER_WEIGHTS`, метод `ODDS_AGG_METHOD`) с историей в `OddsSQLiteStore`, нормализацией `LinesMapper`, EMA-скорингом `reliability` и фильтром `anomaly`.
+- Источник котировок: мультипровайдер `app.lines` (CSV/HTTP) → `LinesAggregator` (best/median/weighted, веса `ODDS_PROVIDER_WEIGHTS`, метод `ODDS_AGG_METHOD`) с историей в `OddsSQLiteStore`, нормализацией `LinesMapper`, Bayesian-скорингом `reliability_v2` (при `RELIAB_V2_ENABLE`) и фильтром `anomaly`.
 - Overround: `app/pricing/overround.normalize_market` (методы `proportional`, `shin` для 1X2) переводит decimal-odds в вероятности рынка.
 - Детектор: `app/value_detector.ValueDetector` фильтрует по `min_edge_pct`, `min_confidence`, `markets`, сортирует по взвешенному edge, считает метрики Prometheus (`value_confidence_avg`, `value_edge_weighted_avg`).
 - Калибровка: `app/value_calibration/backtest.py` подбирает `τ/γ` per лига/рынок (валидация `time_kfold|walk_forward`, оптимизация `BACKTEST_OPTIM_TARGET`), результаты сохраняются через `CalibrationService` в SQLite (`value_calibration`).
