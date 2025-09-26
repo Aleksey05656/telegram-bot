@@ -1,4 +1,19 @@
 
+# [2025-09-23] - SportMonks ingestion v3
+### Добавлено
+- Пакет `sportmonks/` (клиент с singleflight, endpoints, cache, repository, schemas) и сервис `services/feature_builder.py`.
+- Скрипты `scripts/update_upcoming.py` (cron загрузка фикстур/xG/odds, симуляция и запись в БД/Redis) и `scripts/get_match_prediction.py` (CLI explain по fixture_id).
+- Юнит-тесты `tests/sm/test_sportmonks_client_v3.py` покрывают пагинацию, ретраи и парсинг lineups/xGFixture.
+
+### Изменено
+- `config.py` расширен TTL профилями (`fixtures_upcoming`, `fixtures_live`, `odds_pre_match`, `odds_inplay`, `reference_slow`).
+- `docs/Project.md` описывает новый ingestion pipeline и роль Redis/БД; README дополнен справочными curl-командами SportMonks.
+- `services`/`scripts` подключены к новым helper-ам; репозиторий сохраняет прогнозы в таблицу `predictions` с upsert.
+
+### Исправлено
+- Деградация xG в lineups fallback к ударам маркируется флагом `degraded_mode`, confidence штрафует отсутствие данных.
+- Хранение odds больше не создаёт дубликаты благодаря `ON CONFLICT` и нормализованному ключу `match_key`.
+
 # [2025-10-26] - Offline QA stubs & CI gate
 ### Добавлено
 - Лёгкие стабы `tests/_stubs/{numpy.py,pandas.py,sqlalchemy.py,joblib.py}` и переменная окружения `USE_OFFLINE_STUBS` для их принудительной активации.

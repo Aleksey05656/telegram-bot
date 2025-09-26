@@ -77,6 +77,12 @@ telegram-bot/
 │  ├─ prediction_pipeline.py      # оркестрация трёх уровней
 │  ├─ recommendation_engine.py    # fair odds, edge, рекомендации
 │  ├─ sportmonks_client.py        # API с ретраями/лимитами
+├─ sportmonks/
+│  ├─ client.py                   # асинхронный HTTP-клиент с singleflight и ретраями
+│  ├─ endpoints.py                # typed-обёртки над SportMonks API v3
+│  ├─ cache.py                    # TTL-кэш для фикстур/odds/справочников
+│  ├─ repository.py               # upsert в Postgres и запись odds_snapshots
+│  └─ schemas.py                  # Pydantic-модели фикстур, стоек, odds
 ├─ telegram/
 │  ├─ bot.py
 │  ├─ models.py               | Pydantic модели команд
@@ -91,6 +97,8 @@ telegram-bot/
 │  ├─ train_base_glm.py
 │  ├─ train_modifiers.py
 │  └─ run_training_pipeline.py
+│  ├─ update_upcoming.py          # cron: обновление фикстур/xG/odds, фичи и симуляции
+│  └─ get_match_prediction.py     # CLI: выдаёт вероятности и explain по fixture_id
 ├─ diagtools/
 │  ├─ run_diagnostics.py       # агрегированный прогон диагностики
 │  ├─ scheduler.py             # CRON/ручной запуск, алерты, логи, метрики
@@ -177,39 +185,47 @@ PredictionPipeline дополнительно записывает `glm_base_*` 
 markdown-отчёт `$REPORTS_DIR/metrics/MODIFIERS_<season>.md` (по умолчанию `/data/reports/metrics/...`).
 Недельные отчёты.
 
-## 7. Безопасность
+## 7. Интеграция SportMonks и потоки данных
+- **Клиент:** `sportmonks/client.py` — асинхронный httpx-клиент с singleflight, экспоненциальным backoff и дефолтными параметрами `timezone=Europe/Berlin`, `locale=ru`. Rate-limit управляется семафором, Retry-After учитывается.
+- **Endpoints:** `sportmonks/endpoints.py` формирует канонические вызовы (fixtures between/card, expected lineups, standings, odds). Минимизирует include/select и агрегирует пагинацию по курсору. Лайнап xG деградирует к ударам с флагом `degraded_mode`.
+- **Кэш:** `sportmonks/cache.py` — ttl профили: справочники 24ч (`reference_slow`), upcoming fixtures 10 мин, live fixtures 30 c, odds (pre 3 мин, inplay 20 c). Используется версия ключа из настроек.
+- **Хранилище:** `sportmonks/repository.py` делает upsert в `sm_fixtures/sm_teams/sm_standings`, пишет predictions (λ, рынки, confidence, features_snapshot) и odds_snapshots. Idempotency обеспечивается `ON CONFLICT`.
+- **Фичи и симуляции:** `services/feature_builder.py` собирает базовые λ из xG/xGA, penalizes fatigue/injuries/motivation. `scripts/update_upcoming.py` orchestrates: chunk fixtures, тянет карточки+xG/odds, строит фичи, запускает `simulate_markets`, сохраняет в БД и Redis. CLI `scripts/get_match_prediction.py` возвращает вероятности + top-факторы.
+- **Сервисные требования:** cron запускает `update_upcoming.py --days N`; передаваемый `MODEL_VERSION` попадает в predictions. Redis ключ `fixture-prediction:{id}` используется ботом/воркерами. Логи и метрики отмечают degraded режим.
+
+## 8. Безопасность
 Секреты: только ENV/secret-manager. Роли БД: rw и read-only; минимальные привилегии.
 Логи без PII. RateLimitMiddleware ограничивает частоту команд бота. Circuit-breaker API.
 Валидация входящих данных (pydantic-схемы).
 
-## 8. Производительность и надёжность
+## 9. Производительность и надёжность
 p95 ответа бота ≤ 700 мс при кэше; ≤ 3–5 с on-demand прогноз.
 Redis-lock per fixture; idempotency (upsert по (fixture_id, model_version)).
 Graceful shutdown, health-checks, dead-letter.
 
-## 9. Стандарты разработки
+## 10. Стандарты разработки
 Black, Ruff; mypy(strict); докстринги Google-style.
 Pydantic-контракты для JSONB.
 Тесты: unit/integration/contract/load; ≥80% в критичных модулях.
 Conventional Commits; ветки `feature/*`, `fix/*`, `ml/*`.
 CI/CD: линтеры/типы/тесты/миграции → build артефактов (модель, model_info.json) → деплой.
 
-## 10. План разработки (вехи)
+## 11. План разработки (вехи)
 M1: базовые λ + сохранение прогнозов (уникальность, expected_total) → внутренний тест.
 M2: модификаторы + калибровка, online-ECE → альфа.
 M3: value-логика и расширенные рынки → бета.
 M4: дашборды и отчётность → прод.
 
-## 11. Консистентность и поддерживаемость
+## 12. Консистентность и поддерживаемость
 Инварианты: λ≥0; expected_total=λH+λA; JSON-схемы назад-совместимы.
 Миграции только вперёд; изменения схемы — через feature-флаги.
 Версионирование модели `vYYYY.MM.DD_buildNNN`; логи и БД включают model_version.
 Любые изменения архитектуры/требований требуют обновления этого файла и Tasktracker.md.
 
-## 12. Риски и меры
+## 13. Риски и меры
 Нехватка/нестабильность данных → кэп модификаторов, штраф в confidence.
 Дрифт модели → online-метрики и переобучения по расписанию.
 API-лимиты → агрессивный кэш, batch-запросы, ретраи с джиттером.
 
-## 13. Обновление документа
+## 14. Обновление документа
 При изменениях: обновить разделы 3–6 и 9, добавить запись в Diary.md и задачи в Tasktracker.md.
