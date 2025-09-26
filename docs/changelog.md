@@ -1,3 +1,16 @@
+## [2025-09-26] - Lint workflow consolidation
+### Добавлено
+- Цель `lint-changed` в `Makefile`, проверяющая только изменённые Python-файлы критичными правилами Ruff.
+
+### Изменено
+- `lint-soft` запускает `ruff check . --select E9,F63,F7,F82`, сохраняя alias `lint` для мягкого режима и убирая Black/isort из проверки.
+- Цель `check` теперь последовательно вызывает `make lint` и `make test`, гарантируя порядок выполнения.
+- В `pyproject.toml` синхронизированы параметры Black/isort (Python 3.10, длина строки 88, стандартное include).
+
+### Исправлено
+- Рецепты Makefile выровнены табуляцией, что исключает ошибки выполнения из-за неверных отступов.
+- Исправлены ошибки Ruff `F821` в `app/data_providers/sportmonks/provider.py` и `app/lines/aggregator.py`, чтобы мягкий линт отслеживал только критичные нарушения.
+
 
 ## [2025-10-21] - Ruff lint soft/strict workflow
 ### Добавлено

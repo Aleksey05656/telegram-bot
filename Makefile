@@ -10,8 +10,8 @@ PRECOMMIT ?= pre-commit
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
-.PHONY: setup deps-fix lint lint-soft lint-strict lint-app fmt test test-fast test-smoke test-all coverage-html reports-gaps \
-pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run
+.PHONY: setup deps-fix lint lint-soft lint-strict lint-app lint-changed fmt test test-fast test-smoke test-all coverage-html \
+reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run
 
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
@@ -33,7 +33,7 @@ setup:
 	echo "Fallback install (unpinned, prefer-binary)"; \
 	$(PIP) install --only-binary=:all: --prefer-binary numpy pandas scipy pyarrow || true; \
 	$(PIP) install ruff black isort pre-commit pytest pytest-asyncio || true; \
-	fi
+		fi
 	pre-commit install -f || true
 	@echo "Setup done."
 
@@ -46,9 +46,8 @@ deps-fix:
 lint: lint-soft
 
 lint-soft:
-	ruff check . --exit-zero
-	black --check .
-	isort --check-only .
+	ruff check --isolated --select E9,F63,F7,F82 --target-version py310 --respect-gitignore \
+		--extend-exclude migrations --extend-exclude alembic .
 
 lint-strict:
 	ruff check .
@@ -66,7 +65,7 @@ lint-app:
 		$(PY) -m ruff check `cat .lint_targets_app`; \
 		$(PY) -m isort --check-only `cat .lint_targets_app`; \
 		$(PY) -m black --force-exclude "$(BLACK_EXCLUDE)" --check `cat .lint_targets_app`; \
-	else \
+		else \
 		echo "[lint-app] no parseable targets found (skipped)"; \
 	fi
 
@@ -74,6 +73,15 @@ fmt:
 	ruff check . --fix
 	isort .
 	black .
+
+lint-changed:
+	@files=$$(git diff --name-only --diff-filter=ACMRTUXB HEAD | grep -E "\.py$$" || true); \
+	if [ -n "$$files" ]; then \
+		echo "[lint-changed] targets: $$files"; \
+		ruff check $$files --select E9,F63,F7,F82; \
+	else \
+		echo "[lint-changed] no python files changed"; \
+	fi
 
 test:
 	pytest -q
@@ -107,7 +115,9 @@ pre-commit-offline:
 	@echo "[pre-commit offline] using .pre-commit-config.offline.yaml"
 	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
-check: lint test
+check:
+	$(MAKE) lint
+	$(MAKE) test
 
 deps-lock:
 	$(PY) scripts/deps_lock.py

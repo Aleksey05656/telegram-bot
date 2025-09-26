@@ -1,3 +1,15 @@
+## Задача: Обновление lint и форматирования
+- **Статус**: Завершена
+- **Описание**: Перенастроить make-цели для мягкого/строгого линта, добавить проверку изменённых файлов и синхронизировать конфиги форматирования.
+- **Шаги выполнения**:
+  - [x] Обновлён `lint-soft`, чтобы запускать только критичные правила Ruff и оставаться alias-ом для `lint`.
+  - [x] Добавлена цель `lint-changed`, проверяющая изменённые Python-файлы с критичными правилами.
+  - [x] Цель `check` вызывает `make lint` и `make test` последовательно.
+  - [x] Обновлены настройки Black/isort (Python 3.10, длина строки 88, include/skip) в `pyproject.toml`.
+  - [x] Устранены критичные предупреждения Ruff `F821` в `app/data_providers/sportmonks/provider.py` и `app/lines/aggregator.py`.
+  - [x] Задокументированы изменения в `docs/changelog.md`.
+- **Зависимости**: Makefile, pyproject.toml, app/data_providers/sportmonks/provider.py, app/lines/aggregator.py, docs/changelog.md, docs/tasktracker.md
+
 
 ## Задача: Разделение мягкого и строгого Ruff
 - **Статус**: Завершена
