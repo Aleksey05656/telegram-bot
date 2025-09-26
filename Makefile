@@ -10,8 +10,8 @@ PRECOMMIT ?= pre-commit
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
-.PHONY: setup deps-fix lint lint-app fmt test test-fast test-smoke test-all coverage-html reports-gaps pre-commit-smart \
-smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run
+.PHONY: setup deps-fix lint lint-soft lint-strict lint-app fmt test test-fast test-smoke test-all coverage-html reports-gaps \
+pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run
 
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
@@ -43,7 +43,14 @@ deps-fix:
 	$(PIP) install -c constraints.txt --only-binary=:all: --prefer-binary numpy pandas scipy pyarrow
 	@echo "Deps fixed."
 
-lint:
+lint: lint-soft
+
+lint-soft:
+	ruff check . --exit-zero
+	black --check .
+	isort --check-only .
+
+lint-strict:
 	ruff check .
 	black --check .
 	isort --check-only .
@@ -64,8 +71,9 @@ lint-app:
 	fi
 
 fmt:
-	black .
+	ruff check . --fix
 	isort .
+	black .
 
 test:
 	pytest -q

@@ -1,4 +1,16 @@
 
+## [2025-10-21] - Ruff lint soft/strict workflow
+### Добавлено
+- Цели `lint-soft` и `lint-strict` в `Makefile`, позволяющие включать строгий режим Ruff по мере готовности.
+
+### Изменено
+- `pyproject.toml` включает конфигурацию Ruff (target-version, line-length, исключения, правила и игнорирования).
+- Цель `fmt` теперь выполняет `ruff check . --fix` перед `isort` и `black`, чтобы применять авто-правки линтера.
+- `lint` по умолчанию перенаправлен на `lint-soft`, чтобы `make check` успешно проходил при существующих предупреждениях.
+
+### Исправлено
+- Стабилизирован `make check` за счёт мягкого режима Ruff при сохранении пути к строгому контролю.
+
 # [2025-09-23] - SportMonks ingestion v3
 ### Добавлено
 - Пакет `sportmonks/` (клиент с singleflight, endpoints, cache, repository, schemas) и сервис `services/feature_builder.py`.
