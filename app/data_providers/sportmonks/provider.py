@@ -11,7 +11,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from app.mapping.keys import normalize_name
 
-from .client import SportmonksClient
+from .client import SportmonksClient, SportmonksResponse
 from .cache import SportmonksETagCache
 from .schemas import FixtureDTO, InjuryDTO, StandingDTO, TeamDTO
 
@@ -114,7 +114,7 @@ class SportmonksProvider:
         endpoint: str,
         *,
         params: Mapping[str, Any] | None = None,
-    ) -> "SportmonksResponse":
+    ) -> SportmonksResponse:
         cached_entry = None
         etag: str | None = None
         last_modified: str | None = None

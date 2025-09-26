@@ -17,8 +17,9 @@ diag-drift = "diagtools.drift:main"
 diag-run = "diagtools.run_diagnostics:main"
 
 [tool.black]
-line-length = 100
-target-version = ["py311"]
+line-length = 88
+target-version = ["py310"]
+include = "\.pyi?$"
 # Внимание: extend-exclude — это ОДНА regex-строка (без многострочного тела).
 # Мы будем программно дописывать сюда пути через пайпы `|`.
 extend-exclude = "(^app/config\\.py$|^app/data_processor/__init__\\.py$|^app/data_processor/feature_engineering\\.py$|^app/data_processor/io\\.py$|^app/data_processor/transformers\\.py$|^app/data_processor/validators\\.py$|^experiments/|^legacy/|^ml/base_poisson_glm\\.py$|^ml/calibration\\.py$|^ml/modifiers_model\\.py$|^ml/montecarlo_simulator\\.py$|^notebooks/|^scripts/fix_headers\\.py$|^scripts/migrations/|^telegram/middlewares\\.py$|^telegram/models\\.py$)"
@@ -45,3 +46,9 @@ ignore = ["E203", "W503"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
+
+[tool.isort]
+profile = "black"
+py_version = 310
+line_length = 88
+skip = ["migrations", "alembic"]

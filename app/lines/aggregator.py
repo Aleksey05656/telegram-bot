@@ -111,13 +111,13 @@ class LinesAggregator:
             quotes = self._latest_per_provider(items)
             if not quotes:
                 continue
+            league = next((quote.league for quote in quotes if quote.league), None)
             probability = self._consensus_probability(quotes, league)
             if probability is None or probability <= 0:
                 continue
             price = 1.0 / probability
             latest = max(quotes, key=lambda q: q.pulled_at)
             kickoff = quotes[0].kickoff_utc
-            league = next((quote.league for quote in quotes if quote.league), None)
             movement = self._movement(
                 quotes,
                 kickoff,
