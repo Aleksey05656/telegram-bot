@@ -407,3 +407,29 @@ make pre-commit-smart
 ```bash
 PRECOMMIT=pre-commit PRE_COMMIT_HOME=.cache/pre-commit python scripts/run_precommit.py run --files path/to/file.py README.md
 ```
+
+## Deploy to Amvera
+
+Use the provided `amvera.yaml` and `.env.amvera.example` to deploy three coordinated processes from a single repository. The `ROLE`
+variable selects which entrypoint runs inside the container:
+
+- `ROLE=api` → FastAPI service (`uvicorn app.api:app`) with `/healthz` readiness and automatic best-effort migrations.
+- `ROLE=worker` → Background pipeline refresher (`python -m scripts.worker`) that updates features, simulations and prediction
+  storage on a schedule.
+- `ROLE=tgbot` → Telegram bot process (`python -m scripts.tg_bot`).
+
+Create an `.env` file from `.env.amvera.example` (no secrets committed) and fill in the platform-specific credentials:
+
+- `AMVERA`, `PYTHONUNBUFFERED`, `TZ`, `PORT`, `ENV`, `ROLE`
+- SportMonks & Telegram tokens: `SPORTMONKS_TOKEN`, `TELEGRAM_BOT_TOKEN`
+- PostgreSQL routing: `PGDATABASE`, `PGUSER`, `PGPASSWORD`, `PGHOST_RW`, `PGHOST_RO`, `PGHOST_RR`, `PGPORT`
+- Redis connection: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `REDIS_PASSWORD`
+
+Mount `/data` as a persistent volume (configured via `persistenceMount`) to keep caches, logs and scheduler artefacts shared across
+roles.
+
+### Readiness checks
+
+- API: `GET /healthz` should return `{ "status": "ok" }`.
+- Worker: review logs for `worker.refresh.done` markers to confirm successful pipeline iterations.
+- Telegram bot: send `/start` in chat and ensure the bot responds with the onboarding flow.
