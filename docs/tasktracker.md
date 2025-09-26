@@ -1,3 +1,12 @@
+## Задача: Preflight-гейт для ролей Amvera
+- **Статус**: Завершена
+- **Описание**: Включить опциональный строгий preflight для ролей `api`/`worker` и зафиксировать его в документации.
+- **Шаги выполнения**:
+  - [x] Реализован скрипт `scripts/preflight.py` с режимами `strict`/`health` и логированием результата.
+  - [x] Добавлен условный вызов `python -m scripts.preflight --mode strict` в `amvera.yaml` при `PRESTART_PREFLIGHT=1`.
+  - [x] Обновлены README, changelog и tasktracker, добавлены тесты `tests/scripts/test_preflight.py`.
+- **Зависимости**: scripts/preflight.py, amvera.yaml, README.md, docs/changelog.md, docs/tasktracker.md, tests/scripts/test_preflight.py
+
 ## Задача: Унификация health/readiness для Amvera API
 - **Статус**: Завершена
 - **Описание**: Перевести проверки живости на `/healthz`/`/readyz`, унифицировать контракт переменных окружения и обновить документацию.

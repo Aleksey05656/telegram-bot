@@ -98,12 +98,14 @@ def deps() -> BotDependencies:
 pytestmark = pytest.mark.bot_smoke
 
 
+@pytest.mark.bot_smoke
 def test_help_lists_all_commands(deps: BotDependencies) -> None:
     text = help_handler.build_help_text(tuple(deps.command_catalog))
     for info in deps.command_catalog:
         assert f"/{info.command}" in text
 
 
+@pytest.mark.bot_smoke
 def test_model_contains_version(deps: BotDependencies) -> None:
     text = model_handler.render_model_info(deps.model_meta)
     assert deps.model_meta.app_version in text
@@ -111,6 +113,7 @@ def test_model_contains_version(deps: BotDependencies) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.bot_smoke
 async def test_predict_returns_job_id(deps: BotDependencies) -> None:
     response = await predict_handler.build_predict_response(deps, chat_id=10, query="Alpha - Beta")
     assert "job-123" in response
@@ -120,6 +123,7 @@ async def test_predict_returns_job_id(deps: BotDependencies) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.bot_smoke
 async def test_today_returns_fixtures(deps: BotDependencies) -> None:
     now = datetime(2025, 1, 1, 19, 0, tzinfo=timezone.utc)
     text = await today_handler.build_today_response(deps, now=now)
@@ -128,6 +132,7 @@ async def test_today_returns_fixtures(deps: BotDependencies) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.bot_smoke
 async def test_match_returns_formatted_prediction(deps: BotDependencies) -> None:
     text = await match_handler.build_match_response(deps, 77)
     assert "1X2" in text

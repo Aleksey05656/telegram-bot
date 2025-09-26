@@ -1,3 +1,15 @@
+## [2025-10-29] - Amvera preflight gate
+### Добавлено
+- Скрипт `scripts/preflight.py` с режимами `strict` и `health` для миграций и health-check перед стартом ролей.
+- Юнит-тесты `tests/scripts/test_preflight.py`, проверяющие последовательность вызовов и обработку ошибок.
+
+### Изменено
+- `amvera.yaml` условно запускает `python -m scripts.preflight --mode strict` для ролей `api` и `worker`, если `PRESTART_PREFLIGHT=1`.
+- README описывает флаг `PRESTART_PREFLIGHT` и его поведение при деплое на Amvera.
+
+### Исправлено
+- Усилен фейловер старта ролей: ошибки preflight теперь прерывают запуск контейнера до инициализации процесса.
+
 ## [2025-10-28] - Amvera health/readiness unification
 ### Добавлено
 - FastAPI эндпоинты `/healthz` и `/readyz` с проверками PostgreSQL, Redis и статусов планировщика/бота, а также промышленные тесты на алиасы.
