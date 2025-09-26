@@ -17,6 +17,13 @@ Telegram bot that exposes a FastAPI service and ML pipeline for football match p
 
 Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus metrics are exposed on the same HTTP service when `ENABLE_METRICS=1` (see `/metrics`); the optional `METRICS_PORT` remains available for internal scrapes but is not exposed outside the Amvera pod. All metrics include constant labels `service`, `env` and `version` (from `GIT_SHA` or `APP_VERSION`). Markdown reports produced by simulation scripts also embed the version in the header.
 
+### Monitoring & Alerts
+
+- Подключите `monitoring/alerts.yaml` к вашему Prometheus (или `PrometheusRule` в kube-prometheus) через `kubectl apply -f monitoring/alerts.yaml` либо Helm-шаблон с `envsubst` для подстановки порогов.
+- Пороговые значения управляются переменными `SM_FRESHNESS_WARN_HOURS`, `SM_FRESHNESS_FAIL_HOURS` и `WORKER_DEADMAN_SEC` (см. `.env.alerts.example`).
+- Используемые метрики: `sm_freshness_hours_max`, `sm_sync_failures_total`, `worker_refresh_done_timestamp`, `sm_requests_total{component="odds"}`, `sm_matches_open_total`, `app_ready{status="fail"}`.
+- Для оперативных действий при алёртах см. [docs/runbook.md](docs/runbook.md).
+
 ## Reliability v2 badges
 
 - `/value` и `/compare` показывают бейдж `Reliability: csv …, http …` для текущей лиги/рынка и кнопку «Почему этот провайдер?» с расшифровкой fresh/latency/stability/closing из `app.lines.reliability_v2`.
