@@ -1,3 +1,16 @@
+## [2025-10-28] - Amvera health/readiness unification
+### Добавлено
+- FastAPI эндпоинты `/healthz` и `/readyz` с проверками PostgreSQL, Redis и статусов планировщика/бота, а также промышленные тесты на алиасы.
+- В `app/config.Settings` добавлены fallback-поля для PostgreSQL/Redis и предупреждения о депрекации `SPORTMONKS_TOKEN`/`SPORTMONKS_API_KEY`.
+
+### Изменено
+- `app/api.py`, smoke-тесты и `scripts/verify.py` используют `app.api:app`, обновлены проверки метрик и readiness.
+- `.env.example`, `README.md` и `docs/deploy-amvera.md` отражают новые приоритеты переменных окружения и единый `/metrics` на API-порту.
+
+### Исправлено
+- Смоук-сценарии повторно загружают `app.api`, чтобы учесть флаги окружения `RETRAIN_CRON` и `ENABLE_METRICS`.
+- Offline QA режим больше не пропускает тесты `/healthz` и `/readyz`, обеспечивая запуск `pytest -k "health or ready"`.
+
 ## [2025-10-27] - Amvera deployment profile
 ### Добавлено
 - Конфигурация `amvera.yaml` с выбором ролей `api|worker|tgbot` и единой точкой входа FastAPI/воркера/бота.

@@ -31,11 +31,6 @@ if settings.rate_limit.enabled:
 app.add_middleware(ProcessingTimeMiddleware)
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
 # --- Retrain wiring (feature-flagged by RETRAIN_CRON) ---
 _retrain_enabled = False
 _effective_cron = None

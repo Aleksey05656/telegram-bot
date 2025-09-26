@@ -67,12 +67,12 @@ def test_cli_retrain_run_and_schedule(monkeypatch, tmp_path):
     assert summary_after.count("## CLI retrain") == summary_before.count("## CLI retrain") + 1
     assert "- Season: default" in summary_after
 
-    if "app.main" in sys.modules:
-        importlib.reload(sys.modules["app.main"])
+    if "app.api" in sys.modules:
+        importlib.reload(sys.modules["app.api"])
     else:
-        import app.main  # noqa: F401
+        import app.api  # noqa: F401
 
-    from app.main import app  # type: ignore
+    from app.api import app  # type: ignore
 
     client = TestClient(app)
     payload_before = client.get("/__smoke__/retrain").json()

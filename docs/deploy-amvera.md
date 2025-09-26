@@ -8,7 +8,7 @@
 # Руководство по деплою на Amvera
 
 ## 1. Требования платформы
-- **amvera.yaml** описывает окружение `python/pip 3.11`, точку входа `main.py`, монтирование `/data`.
+- **amvera.yaml** описывает окружение `python/pip 3.11`, роли `api|worker|tgbot` с запуском `uvicorn app.api:app` для API и монтирование `/data`.
 - Все изменяемые данные (`DB_PATH`, `MODEL_REGISTRY_PATH`, `REPORTS_DIR`, `LOG_DIR`) должны находиться под `/data`.
 - Переменные окружения и секреты задаются в UI Amvera; во время сборки недоступны.
 - Для Telegram long polling используется флаг `STARTUP_DELAY_SEC` (по умолчанию 0 c) и флаг `--dry-run` для smoke.
@@ -19,10 +19,14 @@
 | Переменная | Назначение | Значение по умолчанию |
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Токен бота из BotFather | — (обязателен) |
-| `DATABASE_URL` | Async DSN writer (Postgres) | — |
-| `DATABASE_URL_RO` | Async DSN чтения (опционально) | — |
-| `DATABASE_URL_R` | DSN реплики (опционально) | — |
-| `REDIS_URL` | Redis в Amvera (если используется) | — |
+| `DATABASE_URL` | Async DSN writer (Postgres). При отсутствии собирается из `PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGHOST_RW`/`PGPORT`. | — |
+| `DATABASE_URL_RO` | Async DSN чтения (опционально, fallback к `PGHOST_RO`). | — |
+| `DATABASE_URL_R` | DSN реплики (опционально, fallback к `PGHOST_RR`). | — |
+| `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` / `PGPORT` | Компоненты для сборки DSN, если `DATABASE_URL*` не заданы. | — |
+| `REDIS_URL` | Redis в Amvera (если используется). Приоритетная переменная. | — |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` | Fallback-параметры для сборки `REDIS_URL`. | — |
+| `SPORTMONKS_API_TOKEN` | Основной API-токен SportMonks | — |
+| `SPORTMONKS_TOKEN` / `SPORTMONKS_API_KEY` | Устаревшие синонимы токена (при использовании логируется предупреждение) | — |
 | `APP_VERSION` | Версия релиза (для логов/метрик) | — |
 | `GIT_SHA` | Commit SHA (для трассировки) | — |
 | `LOG_LEVEL` | Уровень логирования | `INFO` |
@@ -31,9 +35,10 @@
 | `REPORTS_DIR` | Каталог отчётов и markdown | `/data/reports` |
 | `LOG_DIR` | Каталог логов (RotatingFileHandler) | `/data/logs` |
 | `RUNTIME_LOCK_PATH` | Путь для lock-файла единственного инстанса | `/data/runtime.lock` |
-| `ENABLE_HEALTH` | Флаг запуска встроенных `/health` и `/ready` | `0` |
-| `HEALTH_HOST` / `HEALTH_PORT` | Адрес и порт health-сервера | `0.0.0.0` / `8080` |
-| `ENABLE_METRICS` / `METRICS_PORT` | Prometheus-метрики и порт | `0` / `8000` |
+| `ENABLE_HEALTH` | Legacy TCP health-сервер (по умолчанию выключен; основная проверка — `/healthz` и `/readyz` в API) | `0` |
+| `HEALTH_HOST` / `HEALTH_PORT` | Адрес и порт legacy health-сервера | `0.0.0.0` / `8080` |
+| `ENABLE_METRICS` | Prometheus-метрики на `/metrics` (порт API) | `0` |
+| `METRICS_PORT` | Дополнительный порт для внутренних скрейпов (не пробрасывается наружу) | `8000` |
 | `STARTUP_DELAY_SEC` | Задержка перед polling (секунды) | `0` |
 | `ENABLE_POLLING` | Запуск Telegram polling | `1` |
 | `ENABLE_SCHEDULER` | Регистрация задач переобучения/обслуживания | `1` |
@@ -52,7 +57,7 @@
 
 ## 4. CI и smoke-проверка
 - GitHub Actions содержит job `amvera-smoke`, который выполняет `python -m main --dry-run` c временным `DB_PATH`/`REPORTS_DIR`.
-- Дополнительная job `amvera-ops-v2-smoke` запускает `python -m main --dry-run` с включёнными `ENABLE_HEALTH=1` и `ENABLE_METRICS=1`, затем проверяет `/health`, `/ready` и `/metrics` curl-запросами.
+- Дополнительная job `amvera-ops-v2-smoke` запускает `python -m main --dry-run` с `ENABLE_METRICS=1`, затем проверяет `/healthz`, `/readyz` (алиасы `/health`, `/ready` остаются) и `/metrics` curl-запросами.
 - Локально перед деплоем выполните:
   ```bash
   export DB_PATH=$(mktemp -u)
@@ -75,9 +80,9 @@
 - Проверьте права записи, если контейнер работает под не-root пользователем.
 
 ## 7. Health / Readiness probes
-- Включаются переменной `ENABLE_HEALTH=1` (см. `amvera.yaml`, порт 8080).
-- `GET /health` отвечает `200 OK` пока процесс жив, а `GET /ready` возвращает `200` только после успешной инициализации SQLite, планировщика и запуска polling (`503`, если компонент ещё поднимается или остановлен).
-- При выключенном флаге сервер не стартует.
+- API всегда отдаёт `GET /healthz` (алиас `/health`) с `200 OK` и `{"status":"ok"}`.
+- `GET /readyz` (алиас `/ready`) выполняет `SELECT 1` в Postgres, `PING` в Redis и проверяет флаги планировщика/бота. Успешный ответ — `200` с `status=ok`, деградация — `200` с `status=degraded`, критическая ошибка — `503`.
+- Переменная `ENABLE_HEALTH=1` включает legacy TCP-сервер (`HEALTH_HOST`/`HEALTH_PORT`); основной сценарий Amvera использует HTTP-эндпоинты FastAPI.
 
 ## 8. Logs & retention
 - Логгер использует `RotatingFileHandler` с ротацией 10 МБ × 5 файлов (`/data/logs/app.log` + бэкапы).

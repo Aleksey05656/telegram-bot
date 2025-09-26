@@ -1,18 +1,18 @@
 """
 @file: verify.py
 @description: Smoke runner using FastAPI TestClient
-@dependencies: fastapi, app.main
+@dependencies: fastapi, app.api
 @created: 2025-09-10
 """
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.api import app
 
 
 def main() -> None:
     client = TestClient(app)
-    resp = client.get("/health")
+    resp = client.get("/healthz")
     if resp.status_code != 200:
         raise SystemExit(1)
 

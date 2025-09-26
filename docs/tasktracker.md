@@ -1,3 +1,14 @@
+## Задача: Унификация health/readiness для Amvera API
+- **Статус**: Завершена
+- **Описание**: Перевести проверки живости на `/healthz`/`/readyz`, унифицировать контракт переменных окружения и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Реализованы эндпоинты `/healthz` и `/readyz` в `app/api.py` с проверками PostgreSQL, Redis и runtime-флагов.
+  - [x] Добавлены fallback-поля и предупреждения о депрекации в `app/config.py`, обновлён `.env.example`.
+  - [x] Обновлены smoke/интеграционные тесты и `scripts/verify.py` для использования `app.api:app` и новых алиасов.
+  - [x] Синхронизированы `README.md`, `docs/deploy-amvera.md`, `amvera.yaml` и changelog/tasktracker.
+  - [x] Offline-режим pytest больше не пропускает проверки `/healthz` и `/readyz`.
+- **Зависимости**: app/api.py, app/config.py, app/main.py, README.md, docs/deploy-amvera.md, docs/changelog.md, docs/tasktracker.md, .env.example, tests/*, scripts/verify.py
+
 ## Задача: Подготовка деплоя на Amvera
 - **Статус**: Завершена
 - **Описание**: Настроить конфигурацию Amvera для API, фонового воркера и Telegram-бота без изменения бизнес-логики.
