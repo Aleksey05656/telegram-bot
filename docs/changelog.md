@@ -1,16 +1,3 @@
-# [2025-10-12] - Provider reliability v2
-### Добавлено
-- Байесовский скоринг провайдеров (`app/lines/reliability_v2.py`) с Prometheus-метриками по компонентам, API `get_provider_scores`/`explain_components` и поддержкой closing bias.
-- Alembic-миграция `20241012_006_provider_reliability_v2.py`, создающая расширенную таблицу `provider_stats` и индекс `idx_odds_snapshots_match_market_time`.
-- Тесты `tests/odds/test_reliability_v2_bayes.py`, `tests/odds/test_aggregator_weighted_scores.py`, `tests/diag/test_provider_quality_gate.py` и CI job `reliability-v2-gate` с артефактами `provider_quality.{json,md}`.
-
-### Изменено
-- `app/lines/aggregator.py`, `app/lines/movement.py` и `diagtools/run_diagnostics.py` используют Bayesian-скоринг, обновляют closing-метрики и секцию Provider Reliability, применяют новые пороги `RELIAB_*`.
-- `.env.example`, `config.py`, документация (`docs/dev_guide.md`, `docs/diagnostics.md`, `docs/Project.md`) и GitHub Actions workflow (`.github/workflows/ci.yml`) отражают новые параметры, job `reliability-v2-gate` и обновлённый процесс диагностики.
-- `diagtools/provider_quality.py` теперь рассчитывает покрытия/латентность из новой схемы, выводит WARN/FAIL статусы и строит Markdown-таблицу.
-
-### Исправлено
-- Исключено повторное начисление closing bias при переобработке одного и того же closing-среза; best-price фильтр игнорирует провайдеров ниже `RELIAB_MIN_SAMPLES`/`BEST_PRICE_MIN_SCORE`.
 
 # [2025-10-26] - Offline QA stubs & CI gate
 ### Добавлено

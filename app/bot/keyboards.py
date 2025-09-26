@@ -103,7 +103,7 @@ def value_providers_keyboard(cards: Iterable[dict[str, object]]) -> InlineKeyboa
         provider = best.get("provider")
         if provider:
             builder.button(
-                text=f"Почему {provider}",
+                text="Почему этот провайдер?",
                 callback_data=_why_provider_callback(
                     str(match_key), str(market), str(selection), str(provider)
                 ),
@@ -128,7 +128,7 @@ def comparison_providers_keyboard(
             payload = best_price.get((market, selection))
             if payload and payload.get("provider"):
                 builder.button(
-                    text=f"Почему {payload['provider']}",
+                    text="Почему этот провайдер?",
                     callback_data=_why_provider_callback(
                         match_key, market, selection, str(payload["provider"])
                     ),

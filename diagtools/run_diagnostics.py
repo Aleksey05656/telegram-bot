@@ -82,6 +82,19 @@ from app.diagnostics import (
     reliability_table,
     scoreline_symmetry,
 )
+try:  # pragma: no cover - reliability_v2 может отсутствовать в оффлайн-сборках
+    from app.lines import reliability_v2  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - диагностический fallback
+    class _ReliabilityV2Stub:
+        @staticmethod
+        def get_provider_scores(*_args, **_kwargs) -> list[dict[str, object]]:
+            return []
+
+        @staticmethod
+        def explain_components(*_args, **_kwargs) -> dict[str, object]:
+            return {}
+
+    reliability_v2 = _ReliabilityV2Stub()
 from app.lines.aggregator import AggregatingLinesProvider, LinesAggregator, parse_provider_weights
 from app.lines.anomaly import OddsAnomalyDetector
 from app.lines.reliability import ProviderReliabilityTracker
@@ -1907,6 +1920,20 @@ def main() -> None:
         "note": reliability_note,
     }
     metrics["provider_reliability"] = reliability_diag
+    try:
+        probe = list(reliability_v2.get_provider_scores(league="GLOBAL", market="1X2"))
+    except Exception as exc:  # pragma: no cover - diagnostic logging only
+        statuses["Reliability v2 API"] = {
+            "status": "⚠️",
+            "note": f"error={exc.__class__.__name__}",
+        }
+        metrics["reliability_v2_api"] = {"reachable": False, "error": str(exc)}
+    else:
+        statuses["Reliability v2 API"] = {
+            "status": "✅" if probe else "⚠️",
+            "note": f"entries={len(probe)}",
+        }
+        metrics["reliability_v2_api"] = {"reachable": True, "entries": len(probe)}
     best_price_diag = value_diag.get("best_price", {}) or {}
     best_routes = int(best_price_diag.get("routes", 0))
     best_available = int(best_price_diag.get("available", 0))

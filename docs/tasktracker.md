@@ -1,12 +1,3 @@
-## Задача: Provider reliability v2 & CI gate
-- **Статус**: Завершена
-- **Описание**: Перевести скоринг провайдеров на байесовскую модель, внедрить динамические веса в агрегатор, обновить диагностику и добавить отдельный CI-гейт.
-- **Шаги выполнения**:
-  - [x] Реализован `app/lines/reliability_v2.py` с хранением в новой схеме `provider_stats`, Prometheus-метриками и публичными API.
-  - [x] Обновлены `app/lines/aggregator.py`, `app/lines/movement.py`, `diagtools/run_diagnostics.py` для поддержки Bayesian score, closing bias и фильтрации по `RELIAB_*`.
-  - [x] Расширен `diagtools/provider_quality.py`, документация (`docs/dev_guide.md`, `docs/diagnostics.md`, `docs/Project.md`, `docs/changelog.md`, `docs/tasktracker.md`) и `.env.example` новыми параметрами.
-  - [x] Добавлены миграция `20241012_006_provider_reliability_v2.py`, тесты (`tests/odds/test_reliability_v2_bayes.py`, `tests/odds/test_aggregator_weighted_scores.py`, `tests/diag/test_provider_quality_gate.py`) и CI job `reliability-v2-gate`.
-- **Зависимости**: app/lines/{aggregator.py,movement.py,reliability_v2.py}, app/metrics.py, diagtools/{run_diagnostics.py,provider_quality.py}, database/migrations/versions/20241012_006_provider_reliability_v2.py, .env.example, config.py, docs/{dev_guide.md,diagnostics.md,Project.md,changelog.md,tasktracker.md}, .github/workflows/ci.yml, tests/{odds/test_reliability_v2_bayes.py,odds/test_aggregator_weighted_scores.py,diag/test_provider_quality_gate.py}.
 
 ## Задача: Offline QA stubs & CI gate
 - **Статус**: Завершена

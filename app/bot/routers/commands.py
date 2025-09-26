@@ -25,6 +25,19 @@ from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import FSInputFile, Message
 
+try:  # pragma: no cover - fallback when reliability_v2 is not bundled
+    from app.lines import reliability_v2  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - offline/test environments
+    class _ReliabilityV2Stub:
+        @staticmethod
+        def get_provider_scores(*_args, **_kwargs) -> list[dict[str, object]]:
+            return []
+
+        @staticmethod
+        def explain_components(*_args, **_kwargs) -> dict[str, object]:
+            return {}
+
+    reliability_v2 = _ReliabilityV2Stub()
 from app.lines.aggregator import (
     AggregatingLinesProvider,
     ConsensusMeta,
@@ -51,6 +64,7 @@ from ..formatting import (
     format_about,
     format_explain,
     format_help,
+    format_providers_admin_table,
     format_match_details,
     format_portfolio,
     format_settings,
@@ -98,6 +112,106 @@ _COMMANDS_LIST = [
 
 if settings.ENABLE_VALUE_FEATURES:
     _COMMANDS_LIST.extend(["/value", "/compare", "/portfolio", "/alerts"])
+
+
+_RELIABILITY_CACHE: dict[tuple[str, str], list[dict[str, object]]] = {}
+
+
+def _normalize_reliability_key(league: str | None, market: str | None) -> tuple[str, str]:
+    league_norm = (league or "GLOBAL").strip().upper()
+    market_norm = (market or "").strip().upper()
+    return league_norm, market_norm
+
+
+def _fetch_reliability_scores(league: str | None, market: str | None) -> list[dict[str, object]]:
+    if not market:
+        return []
+    key = _normalize_reliability_key(league, market)
+    if key in _RELIABILITY_CACHE:
+        return _RELIABILITY_CACHE[key]
+    try:
+        result = reliability_v2.get_provider_scores(league=league, market=market)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.debug(
+            "reliability_v2_scores_failed",  # noqa: TRY400
+            extra={"league": league, "market": market, "error": str(exc)},
+        )
+        scores: list[dict[str, object]] = []
+    else:
+        scores = list(result) if result else []
+    _RELIABILITY_CACHE[key] = scores
+    return scores
+
+
+def _attach_reliability_badges(
+    cards: Sequence[dict[str, object]],
+    *,
+    default_league: str | None = None,
+) -> None:
+    for card in cards:
+        match = card.get("match", {}) or {}
+        pick = card.get("pick")
+        market = getattr(pick, "market", None)
+        if not market:
+            continue
+        league = match.get("league") or default_league
+        scores = _fetch_reliability_scores(str(league) if league else None, str(market))
+        if scores:
+            card["reliability_v2"] = scores
+
+
+def _attach_comparison_reliability(summary: dict[str, object]) -> None:
+    match = summary.get("match", {}) or {}
+    league = match.get("league")
+    picks: Sequence[Any] = summary.get("picks") or []  # type: ignore[assignment]
+    market: str | None = None
+    for pick in picks:
+        market = getattr(pick, "market", None)
+        if market:
+            break
+    if not market:
+        markets = summary.get("markets")
+        if isinstance(markets, Mapping):
+            for candidate in markets.keys():
+                market = str(candidate)
+                break
+    scores = _fetch_reliability_scores(str(league) if league else None, market)
+    if scores:
+        summary["reliability_v2"] = scores
+
+
+@commands_router.message(Command("providers"))
+async def handle_providers(message: Message, command: CommandObject) -> None:
+    user_id = message.from_user.id if message.from_user else 0
+    if user_id not in _ADMIN_IDS:
+        await message.answer("Команда доступна только администраторам.")
+        return
+    args = (command.args or "").split()
+    league = args[0] if args else None
+    market = args[1] if len(args) > 1 else None
+    try:
+        scores = list(reliability_v2.get_provider_scores(league=league, market=market))
+    except Exception:  # pragma: no cover - defensive logging
+        logger.exception(
+            "Команда /providers упала",  # noqa: TRY400
+            extra={
+                "user_id": user_id,
+                "league": league,
+                "market": market,
+            },
+        )
+        await message.answer("Не удалось загрузить показатели надёжности провайдеров.")
+        return
+    render_start = monotonic()
+    text = format_providers_admin_table(
+        scores=scores,
+        league=league,
+        market=market,
+        threshold=float(getattr(settings, "BEST_PRICE_MIN_SCORE", 0.6)),
+    )
+    observe_render_latency("providers", monotonic() - render_start)
+    record_command("providers")
+    await message.answer(text, reply_markup=noop_keyboard())
 
 
 def _hash_query(user_id: int, key: str) -> str:
@@ -754,6 +868,7 @@ if settings.ENABLE_VALUE_FEATURES:
         finally:
             await _close_lines_provider(provider)
         cards = cards[: parsed.limit]
+        _attach_reliability_badges(cards, default_league=parsed.league)
         user_id = message.from_user.id if message.from_user else 0
         if user_id > 0:
             for card in cards:
@@ -810,6 +925,7 @@ if settings.ENABLE_VALUE_FEATURES:
         if not summary:
             await message.answer("Матч не найден или котировки недоступны.")
             return
+        _attach_comparison_reliability(summary)
         render_start = monotonic()
         text = format_value_comparison(summary)
         observe_render_latency("compare", monotonic() - render_start)
