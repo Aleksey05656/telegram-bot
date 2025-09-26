@@ -1,3 +1,12 @@
+## Задача: Мониторинг и runbook для SportMonks/odds
+- **Статус**: Завершена
+- **Описание**: Добавить Prometheus-алёрты, пример переменных и краткий runbook без изменений бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Создан `monitoring/alerts.yaml` с правилами Data Freshness, ETL, Worker Deadman, Odds stalled и API readiness.
+  - [x] Добавлен `.env.alerts.example` с порогами `SM_FRESHNESS_*`, `WORKER_DEADMAN_SEC`.
+  - [x] Обновлены README (Monitoring & Alerts), docs/runbook.md и Makefile/CI (`alerts-validate`).
+- **Зависимости**: monitoring/alerts.yaml, .env.alerts.example, README.md, docs/runbook.md, Makefile, .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Preflight-гейт для ролей Amvera
 - **Статус**: Завершена
 - **Описание**: Включить опциональный строгий preflight для ролей `api`/`worker` и зафиксировать его в документации.

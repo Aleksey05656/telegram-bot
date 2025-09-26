@@ -1,0 +1,90 @@
+# @file: monitoring/alerts.yaml
+# @description: Prometheus alert rules for SportMonks ETL, odds pipeline, and API readiness.
+# @created: 2025-10-29
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: telegram-bot-alerts
+  labels:
+    role: alerts
+spec:
+  groups:
+    - name: sportmonks.data
+      rules:
+        - alert: DataFreshnessCritical
+          expr: sm_freshness_hours_max > ${SM_FRESHNESS_FAIL_HOURS:-12}
+          for: 10m
+          labels:
+            severity: critical
+            service: telegram-bot
+          annotations:
+            summary: "Data freshness degraded"
+            description: |
+              Maximum SportMonks data freshness exceeded ${SM_FRESHNESS_FAIL_HOURS:-12} hours.
+              Check worker logs and SportMonks API quotas.
+        - alert: DataFreshnessWarning
+          expr: sm_freshness_hours_max > ${SM_FRESHNESS_WARN_HOURS:-6}
+          for: 10m
+          labels:
+            severity: warning
+            service: telegram-bot
+          annotations:
+            summary: "Data freshness approaching limit"
+            description: |
+              Maximum SportMonks data freshness exceeded ${SM_FRESHNESS_WARN_HOURS:-6} hours.
+              Review latest sync runs and upcoming fixtures.
+        - alert: EtlFailuresWarning
+          expr: increase(sm_sync_failures_total[30m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+            service: telegram-bot
+          annotations:
+            summary: "SportMonks ETL failures detected"
+            description: |
+              SportMonks sync failures increased within the last 30 minutes.
+              Inspect worker logs and retriable errors.
+    - name: workers.health
+      rules:
+        - alert: WorkerDeadman
+          expr: |
+            absent(worker_refresh_done_timestamp)
+            or (time() - worker_refresh_done_timestamp > ${WORKER_DEADMAN_SEC:-900})
+          for: 0m
+          labels:
+            severity: critical
+            service: telegram-bot
+          annotations:
+            summary: "Worker refresh heartbeat lost"
+            description: |
+              Worker refresh timestamp missing or stale for more than ${WORKER_DEADMAN_SEC:-900} seconds.
+              Restart worker after clearing stale locks.
+    - name: odds.pipeline
+      rules:
+        - alert: OddsPipelineStalled
+          expr: |
+            rate(sm_requests_total{component="odds"}[5m]) == 0
+            and on() (sm_matches_open_total > 0)
+          for: 5m
+          labels:
+            severity: warning
+            service: telegram-bot
+          annotations:
+            summary: "Odds pipeline stalled"
+            description: |
+              Odds provider requests halted for at least 5 minutes while matches are scheduled.
+              Check provider availability and adjust ODDS_TIMEOUT_SEC or retry settings.
+    - name: api.readiness
+      rules:
+        - alert: ApiReadinessCritical
+          expr: app_ready{status="fail"} == 1
+          for: 0m
+          labels:
+            severity: critical
+            service: telegram-bot
+          annotations:
+            summary: "API readiness probe failed"
+            description: |
+              /readyz returned HTTP 503 or reported degraded dependencies.
+              Inspect PRESTART_PREFLIGHT status and verify Postgres/Redis connectivity.

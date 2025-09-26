@@ -1,3 +1,15 @@
+## [2025-10-30] - Monitoring alerts and runbook
+### Добавлено
+- Файл `monitoring/alerts.yaml` с правилами Data Freshness, ETL Failures, Worker Deadman, Odds Pipeline и API Readiness.
+- Пример окружения `.env.alerts.example` с порогами без секретов.
+- Runbook `docs/runbook.md` с действиями по алёртам.
+
+### Изменено
+- README дополнен разделом «Monitoring & Alerts», Makefile включает цель `alerts-validate`, CI добавляет мягкую проверку алёртов.
+
+### Исправлено
+- —
+
 ## [2025-10-29] - Amvera preflight gate
 ### Добавлено
 - Скрипт `scripts/preflight.py` с режимами `strict` и `health` для миграций и health-check перед стартом ролей.
