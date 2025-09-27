@@ -64,7 +64,7 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 ## Offline QA: stubs & wheels
 
 - Быстрый путь: выполните `USE_OFFLINE_STUBS=1 make line-health-min`. Цель включает рантайм-стобы (`tools/qa_stub_injector.py`), печатает успешный импорт и запускает `api-selftest`, который вернёт JSON `{"skipped": "fastapi not installed"}` и код 0, если реальные зависимости недоступны.
-- Реалистичный путь: положите локальные колёса в `wheels/` и вызовите `make qa-deps && make api-selftest`. Скрипт `tools/qa_deps_sync.py` установит минимальные зависимости через `pip --no-index --find-links wheels`, а `api-selftest` использует настоящий `TestClient` и прогонит `/healthz`, `/readyz`, `/__smoke__/warmup`.
+- Реалистичный путь: положите локальные колёса в `wheels/` и вызовите `make qa-deps && make api-selftest`. Скрипт `tools/qa_deps_sync.py` установит минимальные зависимости через `pip --no-index --find-links wheels`, а `api-selftest` использует настоящий `TestClient` и прогонит `/healthz`, `/readyz`, `/__smoke__/warmup` и `/smoke/warmup`.
 - Каталог `wheels/` входит в `.gitignore` — политика «no-binaries-in-git» сохраняется, артефакты берутся из локального кеша или CI-артефактов.
 
 ### Offline QA stubs
@@ -73,6 +73,8 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 
 - `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make safe-import`
 - `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make api-selftest`
+
+Smoke-прогрев `/__smoke__/warmup` (алиас `/smoke/warmup`) всегда отвечает `200 OK` с JSON вида `{"warmed": [], "took_ms": N}` даже при офлайн-стабах.
 
 Для реального прогона без стабов подготовьте локальные колёса в `wheels/` и выполните `make qa-deps` перед запуском целей.
 

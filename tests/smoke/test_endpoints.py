@@ -51,3 +51,6 @@ def test_warmup_smoke():
     payload = response.json()
     assert "warmed" in payload
     assert "took_ms" in payload
+    alias_response = client.get("/smoke/warmup")
+    assert alias_response.status_code == 200
+    assert alias_response.json().keys() >= {"warmed", "took_ms"}

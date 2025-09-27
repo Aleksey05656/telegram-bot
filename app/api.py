@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import inspect
 import time
 from typing import Any
 
@@ -53,7 +54,6 @@ except Exception:  # pragma: no cover - offline fallback
 
 logger = logging.getLogger(__name__)
 READINESS_TIMEOUT = float(os.getenv("READINESS_TIMEOUT_SEC", "1.5"))
-_USE_OFFLINE_STUBS = os.getenv("USE_OFFLINE_STUBS", "").lower() in {"1", "true", "yes"}
 
 # Reuse FastAPI app from app.main to keep routers/middleware intact.
 app: FastAPI = _main_app
@@ -189,34 +189,79 @@ async def readyz() -> JSONResponse:
     return JSONResponse(status_code=status_code, content=payload)
 
 
+async def _maybe_warm_redis(warmed: list[str]) -> None:
+    if redis_from_url is None:
+        return
+
+    try:
+        redis_url = get_settings().get_redis_url()
+    except Exception:
+        return
+
+    if not redis_url:
+        return
+
+    client: Any | None = None
+    try:
+        client = redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
+        ping_result = client.ping()
+        if inspect.isawaitable(ping_result):
+            ping_result = await ping_result
+        if ping_result:
+            warmed.append("redis")
+    except Exception:
+        pass
+    finally:
+        if client is None:
+            return
+        close_method = getattr(client, "close", None)
+        if callable(close_method):
+            try:
+                close_result = close_method()
+                if inspect.isawaitable(close_result):
+                    await close_result
+            except Exception:
+                pass
+
+
 @app.get("/__smoke__/warmup", tags=["system"])
-async def warmup() -> dict[str, Any]:
-    """Preload caches and models to reduce cold start latency."""
+@app.get("/smoke/warmup", tags=["system"])
+async def warmup() -> JSONResponse:
+    """Best-effort warmup for lightweight dependencies."""
 
-    started = time.perf_counter()
-    if _USE_OFFLINE_STUBS:
-        elapsed = int((time.perf_counter() - started) * 1000)
-        return {"warmed": [], "took_ms": elapsed}
-
+    started = time.monotonic()
     warmed: list[str] = []
+
+    await _maybe_warm_redis(warmed)
+
     if init_cache is not None:
         try:
             await init_cache()
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.debug("warmup cache failed", extra={"error": str(exc)})
+        except Exception:
+            pass
         else:
             warmed.append("cache")
 
     if poisson_regression_model is not None:
         try:
             poisson_regression_model.load_ratings()
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.debug("warmup model failed", extra={"error": str(exc)})
+        except Exception:
+            pass
         else:
             warmed.append("poisson_ratings")
 
-    elapsed = int((time.perf_counter() - started) * 1000)
-    return {"warmed": warmed, "took_ms": elapsed}
+    try:
+        from app.ml.model_registry import LocalModelRegistry
+
+        registry = LocalModelRegistry(os.getenv("MODEL_REGISTRY_PATH", "/data/artifacts"))
+        registry.peek()
+    except Exception:
+        pass
+    else:
+        warmed.append("model_registry")
+
+    took_ms = int((time.monotonic() - started) * 1000)
+    return JSONResponse({"warmed": warmed, "took_ms": took_ms}, status_code=200)
 
 
 @app.get("/metrics", tags=["system"])

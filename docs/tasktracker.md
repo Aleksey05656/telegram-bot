@@ -1,3 +1,12 @@
+## Задача: Warmup alias and offline parity
+- **Статус**: Завершена
+- **Описание**: Вернуть smoke-прогрев с best-effort логикой и алиасом без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Расширен `/__smoke__/warmup` best-effort проверками Redis, кэша и модельного реестра с гарантированным JSON.
+  - [x] Добавлен алиас `/smoke/warmup`, обновлены smoke-тесты и `tools/api_selftest.py`.
+  - [x] Обновлены Makefile (`warmup`) и README с офлайн-инструкциями и ответом `200 OK`.
+- **Зависимости**: app/api.py, tests/smoke/test_endpoints.py, tools/api_selftest.py, Makefile, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Safe-import subprocess allowlist
 - **Статус**: Завершена
 - **Описание**: Добавить whitelist для `scripts.deps_lock` в офлайн safe-import, не затрагивая остальной аудит.
