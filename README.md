@@ -61,6 +61,12 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - Лёгкий профиль зависимостей хранится в `requirements-qa-min.txt`; он не содержит жёстких пинов и подходит для офлайн-установки.
 - Запуск проверки: `make qa-deps && make line-health` для синхронизации зависимостей и привычного smoke-скрипта линий либо `make api-selftest` для локального запроса `/healthz` и `/readyz` через FastAPI `TestClient`.
 
+## Offline QA: stubs & wheels
+
+- Быстрый путь: выполните `USE_OFFLINE_STUBS=1 make line-health-min`. Цель включает рантайм-стобы (`tools/qa_stub_injector.py`), печатает успешный импорт и запускает `api-selftest`, который вернёт JSON `{"skipped": "fastapi not installed"}` и код 0, если реальные зависимости недоступны.
+- Реалистичный путь: положите локальные колёса в `wheels/` и вызовите `make qa-deps && make api-selftest`. Скрипт `tools/qa_deps_sync.py` установит минимальные зависимости через `pip --no-index --find-links wheels`, а `api-selftest` использует настоящий `TestClient` и прогонит `/healthz`, `/readyz`, `/__smoke__/warmup`.
+- Каталог `wheels/` входит в `.gitignore` — политика «no-binaries-in-git» сохраняется, артефакты берутся из локального кеша или CI-артефактов.
+
 ## Reliability snapshot
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).

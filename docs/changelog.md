@@ -1,3 +1,17 @@
+## [2024-05-09] - Offline QA stubs injector
+### Добавлено
+- Скрипт `tools/qa_stub_injector.py`, подмешивающий рантайм-стобы FastAPI/Pydantic/Starlette/Numpy-пакетов при `USE_OFFLINE_STUBS=1`.
+- Хелпер `tools/offline_safe_import.py`, переиспользующий стобы и (при наличии) safe-import скрипт для короткой проверки импортов.
+- Makefile-цель `line-health-min`, объединяющая установку офлайн-зависимостей и self-test c автоматическим включением стабов.
+
+### Изменено
+- `tools/api_selftest.py` научился активировать стобы, пропускать проверку при их использовании и опрашивать `/__smoke__/warmup`.
+- `tools/qa_deps_sync.py` использует строгий офлайн-режим `pip` (`--no-input --no-color --no-index ...`).
+- README.md дополнен разделом «Offline QA: stubs & wheels» с инструкциями по stub/real-flows.
+
+### Исправлено
+- —
+
 ## [2024-05-09] - QA-min offline profile
 ### Добавлено
 - Файл `requirements-qa-min.txt` с минимальным набором FastAPI-зависимостей для офлайн-аудита.

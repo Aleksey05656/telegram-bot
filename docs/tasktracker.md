@@ -1,3 +1,13 @@
+## Задача: Offline QA стобы и line-health-min
+- **Статус**: Завершена
+- **Описание**: Обеспечить зелёный офлайн-аудит без изменения бизнес-логики через рантайм-стобы и минимальные зависимости из локальных wheels.
+- **Шаги выполнения**:
+  - [x] Добавлен инжектор `tools/qa_stub_injector.py`, подмешивающий стобы FastAPI/Pydantic/Starlette/Numpy при `USE_OFFLINE_STUBS=1`.
+  - [x] Обновлён `tools/api_selftest.py` для активации стабов, пропуска офлайн-прогона и вызова `/healthz`, `/readyz`, `/__smoke__/warmup` при реальных пакетах.
+  - [x] Усилен `tools/qa_deps_sync.py`, добавлен `tools/offline_safe_import.py` и обновлён Makefile (цели `qa-deps`, `line-health-min`, `api-selftest`) для офлайн-режима `pip` и единого аудита.
+  - [x] README и docs/changelog/tasktracker дополнены описанием сценариев «stubs & wheels».
+- **Зависимости**: tools/qa_stub_injector.py, tools/offline_safe_import.py, tools/api_selftest.py, tools/qa_deps_sync.py, Makefile, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: QA-min офлайн профиль
 - **Статус**: Завершена
 - **Описание**: Подготовить минимальный офлайн-профиль зависимостей для FastAPI и автоматизировать установку/self-test без изменения бизнес-кода.

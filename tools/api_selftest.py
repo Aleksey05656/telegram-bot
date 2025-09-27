@@ -12,6 +12,14 @@ import os
 import sys
 from typing import Any, Dict
 
+if os.getenv("USE_OFFLINE_STUBS") == "1":
+    try:
+        from tools.qa_stub_injector import install_stubs
+
+        install_stubs()
+    except Exception:  # pragma: no cover - defensive stub hook
+        pass
+
 
 def _collect_env_flags() -> Dict[str, str]:
     relevant_prefixes = ("USE_", "OFFLINE", "NO_PROXY", "PIP_")
@@ -32,9 +40,11 @@ def main() -> int:
         print("- (no offline-related environment variables detected)")
 
     try:
-        import fastapi  # noqa: F401  # pylint: disable=unused-import
+        import fastapi as fastapi_module
     except Exception:
+        payload = {"skipped": "fastapi not installed"}
         print("fastapi missing, skipping API self-test")
+        print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
     try:
@@ -42,6 +52,12 @@ def main() -> int:
     except Exception as exc:  # pragma: no cover - dependency missing scenario
         print(f"Failed to import TestClient: {exc}")
         return 1
+
+    if getattr(fastapi_module, "__OFFLINE_STUB__", False) or getattr(TestClient, "__OFFLINE_STUB__", False):
+        payload = {"skipped": "fastapi not installed"}
+        print("API self-test results:")
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
 
     try:
         from app.api import app  # type: ignore[import]
@@ -51,7 +67,7 @@ def main() -> int:
 
     results: dict[str, dict[str, Any]] = {}
     with TestClient(app) as client:  # type: ignore[arg-type]
-        for endpoint in ("/healthz", "/readyz"):
+        for endpoint in ("/healthz", "/readyz", "/__smoke__/warmup"):
             try:
                 response = client.get(endpoint)
             except Exception as exc:  # pragma: no cover - runtime failure

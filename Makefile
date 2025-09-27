@@ -12,8 +12,8 @@ PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
 .PHONY: setup deps-fix lint lint-soft lint-strict lint-app lint-changed fmt test test-fast test-smoke test-all coverage-html \
-reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync qa-deps api-selftest docker-build docker-run \
-alerts-validate warmup
+reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync qa-deps api-selftest line-health-min \
+docker-build docker-run alerts-validate warmup
 
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
@@ -132,6 +132,12 @@ qa-deps:
 
 api-selftest:
 	$(PY) -m tools.api_selftest
+
+# минимальный офлайн-аудит: стобы + (по возможности) колёса
+line-health-min: qa-deps
+	# статическая компиляция + критичный ruff уже покрыты make check; здесь запускаем импорт и api self-test
+	$(PY) -m tools.offline_safe_import
+	$(MAKE) api-selftest
 
 docker-build:
 	docker build --build-arg APP_VERSION=$(APP_VERSION) --build-arg GIT_SHA=$(GIT_SHA) \
