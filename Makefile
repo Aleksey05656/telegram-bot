@@ -12,7 +12,7 @@ PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
 .PHONY: setup deps-fix lint lint-soft lint-strict lint-app lint-changed fmt test test-fast test-smoke test-all coverage-html \
-reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync qa-deps api-selftest line-health-min \
+reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync qa-deps safe-import api-selftest line-health-min \
 docker-build docker-run alerts-validate warmup
 
 IMAGE_NAME ?= telegram-bot
@@ -128,10 +128,13 @@ deps-sync:
 	$(PIP) install --no-index --find-links wheels/ -r requirements.lock
 
 qa-deps:
-	$(PY) -m tools.qa_deps_sync
+        USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.qa_deps_sync
+
+safe-import:
+        USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.safe_import_sweep
 
 api-selftest:
-	$(PY) -m tools.api_selftest
+        USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.api_selftest
 
 # минимальный офлайн-аудит: стобы + (по возможности) колёса
 line-health-min: qa-deps

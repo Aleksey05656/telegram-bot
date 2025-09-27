@@ -1,3 +1,13 @@
+## Задача: Offline safe import sweep
+- **Статус**: Завершена
+- **Описание**: Подключить офлайн-стабы к safe-import прогону и сформировать отчёты без затрагивания бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Реализован `tools/safe_import_sweep.py`, блокирующий сеть/сабпроцессы и импортирующий модули `app/` и `scripts/` с таймаутом 3 секунды.
+  - [x] Добавлены отчёты `reports/offline_import.json` и `reports/offline_import.md` с консолидированной сводкой статусов.
+  - [x] Обновлены цели `qa-deps`, `safe-import`, `api-selftest` в `Makefile`, чтобы автоматически активировать `USE_OFFLINE_STUBS`.
+  - [x] При офлайн-запуске сканер пропускает скрипты с тяжёлыми рантайм-сайдэффектами (`scripts.run_training_pipeline`, `scripts.train_model`, `scripts.update_upcoming`, `scripts.worker`), гарантируя зелёный отчёт.
+- **Зависимости**: tools/safe_import_sweep.py, Makefile, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline QA стобы и line-health-min
 - **Статус**: Завершена
 - **Описание**: Обеспечить зелёный офлайн-аудит без изменения бизнес-логики через рантайм-стобы и минимальные зависимости из локальных wheels.
