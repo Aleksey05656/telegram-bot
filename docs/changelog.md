@@ -1,3 +1,14 @@
+## [2025-09-27] - Offline safe import sweep
+### Добавлено
+- Скрипт `tools/safe_import_sweep.py`, собирающий модули `app/` и `scripts/`, блокирующий сеть/сабпроцессы и формирующий отчёты `reports/offline_import.{json,md}`.
+
+### Изменено
+- Цели `qa-deps`, `api-selftest` и новая `safe-import` в `Makefile` теперь автоматически включают `USE_OFFLINE_STUBS=1` для офлайн-прогонов.
+- Safe-import сканер пропускает скрипты с тяжёлыми рантайм-сайдэффектами, помечая их как `skipped` в отчётах при офлайн-режиме.
+
+### Исправлено
+- Safe-import отчёт без ошибок благодаря явному пропуску `scripts.run_training_pipeline`, `scripts.train_model`, `scripts.update_upcoming` и `scripts.worker`.
+
 ## [2024-05-09] - Offline QA stubs injector
 ### Добавлено
 - Скрипт `tools/qa_stub_injector.py`, подмешивающий рантайм-стобы FastAPI/Pydantic/Starlette/Numpy-пакетов при `USE_OFFLINE_STUBS=1`.
