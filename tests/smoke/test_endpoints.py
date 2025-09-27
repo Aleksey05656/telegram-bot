@@ -13,7 +13,9 @@ from app.config import reset_settings_cache
 
 def test_health_ok():
     client = TestClient(app)
-    assert client.get("/healthz").status_code == 200
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
     assert client.get("/health").status_code == 200
 
 
@@ -40,3 +42,12 @@ def test_retrain_smoke():
     r = client.get("/__smoke__/retrain")
     assert r.status_code == 200
     assert "jobs_registered_total" in r.json()
+
+
+def test_warmup_smoke():
+    client = TestClient(app)
+    response = client.get("/__smoke__/warmup")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "warmed" in payload
+    assert "took_ms" in payload

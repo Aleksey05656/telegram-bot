@@ -31,6 +31,21 @@ from diagtools import reports_html
 _SECRET_PATTERN = re.compile(r"(?:_TOKEN|_KEY|PASSWORD)$")
 
 
+def _parse_admin_ids(raw: str | None) -> set[int]:
+    ids: set[int] = set()
+    if not raw:
+        return ids
+    for chunk in raw.split(","):
+        piece = chunk.strip()
+        if not piece:
+            continue
+        try:
+            ids.add(int(piece))
+        except ValueError:
+            continue
+    return ids
+
+
 @dataclass
 class CommandExecution:
     """Result of a single diagnostics sub-command."""
@@ -139,6 +154,21 @@ def _send_alert(trigger: str, statuses: dict[str, dict[str, Any]], html_path: Pa
     if not token:
         logger.warning("Alerts enabled but TELEGRAM_BOT_TOKEN missing")
         return False
+    canary_mode = bool(getattr(settings, "CANARY", False))
+    admin_ids = _parse_admin_ids(getattr(settings, "ADMIN_IDS", ""))
+    if canary_mode:
+        if not admin_ids:
+            logger.warning("CANARY=1 — ADMIN_IDS не заданы, алерт не будет отправлен")
+            return False
+        try:
+            chat_candidate = int(str(chat_id))
+        except (TypeError, ValueError):
+            chat_candidate = None
+        if chat_candidate not in admin_ids:
+            logger.warning(
+                "CANARY=1 — диагностика не отправляет алерт в неадминский чат", extra={"chat_id": chat_id}
+            )
+            return False
     warn_sections = [s for s, payload in statuses.items() if payload.get("status") == "⚠️"]
     fail_sections = [s for s, payload in statuses.items() if payload.get("status") == "❌"]
     if fail_sections:
@@ -160,6 +190,8 @@ def _send_alert(trigger: str, statuses: dict[str, dict[str, Any]], html_path: Pa
     if html_path and html_path.exists():
         parts.append(f"html={html_path}")
     message = " | ".join(parts)
+    if canary_mode and not message.startswith("[CANARY]"):
+        message = f"[CANARY] {message}"
     payload = json.dumps({"chat_id": chat_id, "text": message})
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     request = urllib.request.Request(

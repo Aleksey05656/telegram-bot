@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import api
+from app.config import reset_settings_cache
 
 
 @pytest.fixture(autouse=True)
@@ -89,3 +90,26 @@ def test_ready_alias_fails_on_postgres(monkeypatch):
     payload = resp.json()
     assert payload["status"] == "fail"
     assert payload["checks"]["postgres"]["detail"] == "connection refused"
+
+
+def test_readyz_canary(monkeypatch):
+    monkeypatch.setenv("CANARY", "1")
+    reset_settings_cache()
+
+    async def pg_ok(*_args, **_kwargs):
+        return "ok", None
+
+    async def redis_ok(*_args, **_kwargs):
+        return "ok", None
+
+    def runtime_ok():
+        return "ok", None
+
+    monkeypatch.setattr(api, "_check_postgres", pg_ok)
+    monkeypatch.setattr(api, "_check_redis", redis_ok)
+    monkeypatch.setattr(api, "_check_runtime_flags", runtime_ok)
+
+    resp = _client().get("/readyz")
+    reset_settings_cache()
+    assert resp.status_code == 200
+    assert resp.json().get("canary") is True

@@ -1,3 +1,13 @@
+## [2025-11-24] - Canary rollout support
+### Добавлено
+- Флаг окружения `CANARY` в конфиге, эндпоинт `/__smoke__/warmup` и таргет `make warmup` для прогрева.
+- Разделы README с инструкциями по канареечной раскатке и шагами `api-canary`, CI-шаг `canary-smoke`.
+### Изменено
+- `/`, `/healthz`, `/readyz` теперь возвращают `canary: true` при `CANARY=1`, логи и метрики получают fallback-метку `env=canary`.
+- Основной процесс и prediction worker пропускают фоновые задачи/запуск в канарейке, диагностика ограничивает алерты админ-чатами.
+### Исправлено
+- —
+
 ## [2025-10-30] - Monitoring alerts and runbook
 ### Добавлено
 - Файл `monitoring/alerts.yaml` с правилами Data Freshness, ETL Failures, Worker Deadman, Odds Pipeline и API Readiness.

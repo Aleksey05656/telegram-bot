@@ -1,3 +1,12 @@
+## Задача: Канареечный режим API
+- **Статус**: Завершена
+- **Описание**: Добавить канареечный флаг и инструкции раскатки без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Добавлен флаг `CANARY` в конфигурацию, warmup-эндпоинт `/__smoke__/warmup` и Makefile-таргет `warmup`.
+  - [x] API (`/`, `/healthz`, `/readyz`) и логи/метрики метят канареечный режим, фоновые задачи/воркеры завершаются ранним выходом.
+  - [x] Диагностические алерты ограничены админ-чатами в канарейке, README и CI дополнены инструкциями/шагом `canary-smoke`.
+- **Зависимости**: config.py, app/api.py, app/main.py, workers/prediction_worker.py, diagtools/scheduler.py, Makefile, .github/workflows/ci.yml, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Мониторинг и runbook для SportMonks/odds
 - **Статус**: Завершена
 - **Описание**: Добавить Prometheus-алёрты, пример переменных и краткий runbook без изменений бизнес-логики.

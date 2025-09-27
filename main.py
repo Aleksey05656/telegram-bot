@@ -125,6 +125,9 @@ async def app_lifespan(dry_run: bool = False):
     STATE.scheduler_ready = (
         not settings.ENABLE_SCHEDULER or settings.FAILSAFE_MODE
     )
+    canary_mode = bool(getattr(settings, "CANARY", False))
+    if canary_mode:
+        STATE.scheduler_ready = True
     await _runtime_lock.acquire()
     try:
         setup_signal_handlers()
@@ -136,10 +139,15 @@ async def app_lifespan(dry_run: bool = False):
         STATE.db_ready = True
         poisson_regression_model.load_ratings()
 
-        retrain_enabled, effective_cron = _register_retrain_job()
-        if retrain_enabled:
-            logger.info("Retrain scheduler активирован: cron=%s", effective_cron)
-            STATE.scheduler_ready = True
+        retrain_enabled = False
+        effective_cron = None
+        if not canary_mode:
+            retrain_enabled, effective_cron = _register_retrain_job()
+            if retrain_enabled:
+                logger.info("Retrain scheduler активирован: cron=%s", effective_cron)
+                STATE.scheduler_ready = True
+        else:
+            logger.info("CANARY=1 — пропуск регистрации retrain scheduler")
 
         if settings.ENABLE_HEALTH:
             _health_server = HealthServer(settings.HEALTH_HOST, settings.HEALTH_PORT)
@@ -147,7 +155,7 @@ async def app_lifespan(dry_run: bool = False):
         else:
             _health_server = None
 
-        if settings.ENABLE_METRICS:
+        if settings.ENABLE_METRICS and not canary_mode:
             try:
                 start_metrics_server(int(settings.METRICS_PORT))
             except OSError as exc:  # pragma: no cover - port already in use
@@ -160,8 +168,10 @@ async def app_lifespan(dry_run: bool = False):
                         stop_event=shutdown_event,
                     )
                 )
+        elif settings.ENABLE_METRICS and canary_mode:
+            logger.info("CANARY=1 — сервер метрик не запускается")
 
-        if not settings.FAILSAFE_MODE:
+        if not settings.FAILSAFE_MODE and not canary_mode:
             _backup_task = asyncio.create_task(
                 _periodic_executor(
                     "SQLite backup",
@@ -182,6 +192,8 @@ async def app_lifespan(dry_run: bool = False):
             )
             if settings.ENABLE_SCHEDULER:
                 STATE.scheduler_ready = True
+        elif not settings.FAILSAFE_MODE and canary_mode:
+            logger.info("CANARY=1 — фоновые задачи резервного копирования отключены")
 
         try:
             yield
@@ -214,6 +226,11 @@ async def main(dry_run: bool = False) -> None:
     try:
         async with app_lifespan(dry_run=dry_run):
             log_runtime_paths()
+            if getattr(settings, "CANARY", False):
+                logger.warning("CANARY=1 — запуск Telegram бота пропущен")
+                STATE.polling_ready = True
+                await shutdown_event.wait()
+                return
             bot = await get_bot()
             if dry_run:
                 await bot.run(dry_run=True, shutdown_event=shutdown_event)

@@ -6,12 +6,13 @@
 PY ?= python
 PIP ?= $(PY) -m pip
 PRECOMMIT ?= pre-commit
+PORT ?= 8080
 
 PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
 .PHONY: setup deps-fix lint lint-soft lint-strict lint-app lint-changed fmt test test-fast test-smoke test-all coverage-html \
-reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run alerts-validate
+reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run alerts-validate warmup
 
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
@@ -140,3 +141,6 @@ docker-run:
 
 alerts-validate:
 	$(PY) tools/alerts_validate.py
+
+warmup:
+	curl -fsS localhost:$(PORT)/__smoke__/warmup || true

@@ -149,6 +149,7 @@ class Settings(BaseSettings):
     ADMIN_IDS: str = ""
     DIGEST_DEFAULT_TIME: str = "09:00"
     SHOW_DATA_STALENESS: int = 0
+    CANARY: bool = False
 
     # --- Observability ---
     SENTRY_DSN: str | None = None
