@@ -7,10 +7,7 @@
 
 from __future__ import annotations
 
-import json
 import os
-import sys
-from typing import Any, Dict
 
 if os.getenv("USE_OFFLINE_STUBS") == "1":
     os.environ.setdefault("QA_STUB_SSL", "1")
@@ -20,6 +17,10 @@ if os.getenv("USE_OFFLINE_STUBS") == "1":
         install_stubs()
     except Exception:  # pragma: no cover - defensive stub hook
         pass
+
+import json
+import sys
+from typing import Any, Dict
 
 
 def _collect_env_flags() -> Dict[str, str]:

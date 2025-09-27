@@ -62,6 +62,8 @@ def _maybe_patch_ssl_module() -> None:
             return None
 
     current = sys.modules.get("ssl")
+    if current is not None and not getattr(current, _STUB_SENTINEL_ATTR, False):
+        return
     if getattr(current, _STUB_SENTINEL_ATTR, False):
         return
 
@@ -92,6 +94,10 @@ def _ensure_module(name: str, factory: Callable[[ModuleType], None]) -> ModuleTy
 
 
 def _install_pydantic() -> None:
+    existing = sys.modules.get("pydantic")
+    if existing is not None and not getattr(existing, _STUB_SENTINEL_ATTR, False):
+        return
+
     module = _ensure_module("pydantic", lambda m: None)
 
     class BaseModel:
@@ -139,13 +145,22 @@ def _install_pydantic() -> None:
     module.computed_field = computed_field
     module.field_validator = field_validator
 
+    settings_module = sys.modules.get("pydantic_settings")
+    if settings_module is not None and not getattr(settings_module, _STUB_SENTINEL_ATTR, False):
+        return
+
     settings_module = _ensure_module("pydantic_settings", lambda m: setattr(m, "__path__", []))
     settings_module.BaseSettings = BaseModel
     settings_module.SettingsConfigDict = dict
 
 
 def _install_fastapi_testclient(module: ModuleType) -> None:
+    if not getattr(module, _STUB_SENTINEL_ATTR, False):
+        return
+
     testclient_module = _ensure_module("fastapi.testclient", lambda m: None)
+    if not getattr(testclient_module, _STUB_SENTINEL_ATTR, False):
+        return
 
     class _StubResponse:
         def __init__(self) -> None:
@@ -176,7 +191,12 @@ def _install_fastapi_testclient(module: ModuleType) -> None:
 
 
 def _install_fastapi() -> None:
+    existing = sys.modules.get("fastapi")
+    if existing is not None and not getattr(existing, _STUB_SENTINEL_ATTR, False):
+        return
+
     module = _ensure_module("fastapi", lambda m: None)
+    setattr(module, "__OFFLINE_STUB__", True)
 
     class HTTPException(Exception):
         def __init__(self, status_code: int, detail: Any = None) -> None:
@@ -257,7 +277,7 @@ def _install_fastapi() -> None:
     module.APIRouter = APIRouter
     module.HTTPException = HTTPException
     module.status = _build_status()
-    
+
     class Response:
         def __init__(self, content: Any | None = None, status_code: int = 200) -> None:
             self.body = content
@@ -271,6 +291,8 @@ def _install_fastapi() -> None:
     module.Request = Request
 
     responses_module = _ensure_module("fastapi.responses", lambda m: None)
+    if not getattr(responses_module, _STUB_SENTINEL_ATTR, False):
+        return
 
     class JSONResponse(Response):
         def __init__(self, content: Any, status_code: int = 200) -> None:
@@ -287,12 +309,20 @@ def _install_fastapi() -> None:
 
 
 def _install_starlette_testclient() -> None:
+    existing = sys.modules.get("starlette")
+    if existing is not None and not getattr(existing, _STUB_SENTINEL_ATTR, False):
+        return
+
     def _factory(module: ModuleType) -> None:
         module.__path__ = []  # type: ignore[attr-defined]
 
     starlette_module = _ensure_module("starlette", _factory)
+    if not getattr(starlette_module, _STUB_SENTINEL_ATTR, False):
+        return
     starlette_module.status = _build_status()
     testclient_module = _ensure_module("starlette.testclient", lambda m: None)
+    if not getattr(testclient_module, _STUB_SENTINEL_ATTR, False):
+        return
     starlette_module.testclient = testclient_module
 
     middleware_module = _ensure_module("starlette.middleware", lambda m: setattr(m, "__path__", []))
@@ -362,7 +392,13 @@ def _install_starlette_testclient() -> None:
 
 
 def _install_aiogram() -> None:
+    existing = sys.modules.get("aiogram")
+    if existing is not None and not getattr(existing, _STUB_SENTINEL_ATTR, False):
+        return
+
     module = _ensure_module("aiogram", lambda m: setattr(m, "__path__", []))
+    if not getattr(module, _STUB_SENTINEL_ATTR, False):
+        return
 
     class Router:
         def __init__(self) -> None:
@@ -777,21 +813,22 @@ def install_stubs() -> None:
     _install_empty_module("alembic.config", is_package=False)
     _install_empty_module("sentry_sdk", is_package=False)
 
-    sentry_module = sys.modules["sentry_sdk"]
+    sentry_module = sys.modules.get("sentry_sdk")
 
     def _noop(*_: Any, **__: Any) -> None:
         return None
 
-    sentry_module.init = _noop  # type: ignore[attr-defined]
-    sentry_module.capture_message = _noop  # type: ignore[attr-defined]
-    sentry_module.capture_exception = _noop  # type: ignore[attr-defined]
+    if sentry_module is not None and getattr(sentry_module, _STUB_SENTINEL_ATTR, False):
+        sentry_module.init = _noop  # type: ignore[attr-defined]
+        sentry_module.capture_message = _noop  # type: ignore[attr-defined]
+        sentry_module.capture_exception = _noop  # type: ignore[attr-defined]
 
     pandas_api_types = sys.modules.get("pandas.api.types")
-    if pandas_api_types is not None:
+    if pandas_api_types is not None and getattr(pandas_api_types, _STUB_SENTINEL_ATTR, False):
         pandas_api_types.is_numeric_dtype = lambda *_: True  # type: ignore[attr-defined]
 
     linear_model_module = sys.modules.get("sklearn.linear_model")
-    if linear_model_module is not None:
+    if linear_model_module is not None and getattr(linear_model_module, _STUB_SENTINEL_ATTR, False):
 
         class PoissonRegressor:
             def fit(self, *_: Any, **__: Any) -> "PoissonRegressor":
@@ -811,7 +848,7 @@ def install_stubs() -> None:
         linear_model_module.Ridge = Ridge  # type: ignore[attr-defined]
 
     preprocessing_module = sys.modules.get("sklearn.preprocessing")
-    if preprocessing_module is not None:
+    if preprocessing_module is not None and getattr(preprocessing_module, _STUB_SENTINEL_ATTR, False):
 
         class StandardScaler:
             def fit(self, *_: Any, **__: Any) -> "StandardScaler":
@@ -826,12 +863,12 @@ def install_stubs() -> None:
         preprocessing_module.StandardScaler = StandardScaler  # type: ignore[attr-defined]
 
     metrics_module = sys.modules.get("sklearn.metrics")
-    if metrics_module is not None:
+    if metrics_module is not None and getattr(metrics_module, _STUB_SENTINEL_ATTR, False):
         metrics_module.log_loss = lambda *_: 0.0  # type: ignore[attr-defined]
         metrics_module.roc_auc_score = lambda *_: 0.0  # type: ignore[attr-defined]
 
     model_selection_module = sys.modules.get("sklearn.model_selection")
-    if model_selection_module is not None:
+    if model_selection_module is not None and getattr(model_selection_module, _STUB_SENTINEL_ATTR, False):
 
         class TimeSeriesSplit:
             def __init__(self, *_: Any, **__: Any) -> None:
@@ -843,11 +880,11 @@ def install_stubs() -> None:
         model_selection_module.TimeSeriesSplit = TimeSeriesSplit  # type: ignore[attr-defined]
 
     calibration_module = sys.modules.get("sklearn.calibration")
-    if calibration_module is not None:
+    if calibration_module is not None and getattr(calibration_module, _STUB_SENTINEL_ATTR, False):
         calibration_module.calibration_curve = lambda *_: ([], [])  # type: ignore[attr-defined]
 
     isotonic_module = sys.modules.get("sklearn.isotonic")
-    if isotonic_module is not None:
+    if isotonic_module is not None and getattr(isotonic_module, _STUB_SENTINEL_ATTR, False):
 
         class IsotonicRegression:
             def fit(self, *_: Any, **__: Any) -> "IsotonicRegression":
@@ -859,7 +896,7 @@ def install_stubs() -> None:
         isotonic_module.IsotonicRegression = IsotonicRegression  # type: ignore[attr-defined]
 
     numpy_module = sys.modules.get("numpy")
-    if numpy_module is not None:
+    if numpy_module is not None and getattr(numpy_module, _STUB_SENTINEL_ATTR, False):
         numpy_module.float64 = float  # type: ignore[attr-defined]
         numpy_module.int64 = int  # type: ignore[attr-defined]
         numpy_module.ndarray = list  # type: ignore[attr-defined]
@@ -869,7 +906,7 @@ def install_stubs() -> None:
         numpy_module.mean = lambda *_: 0.0  # type: ignore[attr-defined]
 
     pandas_module = sys.modules.get("pandas")
-    if pandas_module is not None:
+    if pandas_module is not None and getattr(pandas_module, _STUB_SENTINEL_ATTR, False):
 
         class DataFrame(dict):
             def copy(self, *_: Any, **__: Any) -> "DataFrame":
@@ -915,16 +952,16 @@ def install_stubs() -> None:
         pandas_module.read_parquet = lambda *_: DataFrame()  # type: ignore[attr-defined]
 
     alembic_module = sys.modules.get("alembic")
-    if alembic_module is not None:
+    if alembic_module is not None and getattr(alembic_module, _STUB_SENTINEL_ATTR, False):
         command_module = sys.modules.get("alembic.command")
         config_module = sys.modules.get("alembic.config")
 
-        if command_module is not None:
+        if command_module is not None and getattr(command_module, _STUB_SENTINEL_ATTR, False):
             command_module.upgrade = _noop  # type: ignore[attr-defined]
             command_module.downgrade = _noop  # type: ignore[attr-defined]
             alembic_module.command = command_module  # type: ignore[attr-defined]
 
-        if config_module is not None:
+        if config_module is not None and getattr(config_module, _STUB_SENTINEL_ATTR, False):
 
             class Config:
                 def __init__(self, *_: Any, **__: Any) -> None:
@@ -934,11 +971,11 @@ def install_stubs() -> None:
             alembic_module.config = config_module  # type: ignore[attr-defined]
 
     sqlalchemy_module = sys.modules.get("sqlalchemy")
-    if sqlalchemy_module is not None:
+    if sqlalchemy_module is not None and getattr(sqlalchemy_module, _STUB_SENTINEL_ATTR, False):
         sqlalchemy_module.text = lambda sql, *_: sql  # type: ignore[attr-defined]
 
     engine_module = sys.modules.get("sqlalchemy.engine")
-    if engine_module is not None:
+    if engine_module is not None and getattr(engine_module, _STUB_SENTINEL_ATTR, False):
 
         class URL:
             def __init__(self, *_: Any, **__: Any) -> None:
@@ -952,7 +989,7 @@ def install_stubs() -> None:
         engine_module.make_url = make_url  # type: ignore[attr-defined]
 
     exc_module = sys.modules.get("sqlalchemy.exc")
-    if exc_module is not None:
+    if exc_module is not None and getattr(exc_module, _STUB_SENTINEL_ATTR, False):
 
         class SQLAlchemyError(Exception):
             pass
@@ -960,7 +997,7 @@ def install_stubs() -> None:
         exc_module.SQLAlchemyError = SQLAlchemyError  # type: ignore[attr-defined]
 
     ext_asyncio_module = sys.modules.get("sqlalchemy.ext.asyncio")
-    if ext_asyncio_module is not None:
+    if ext_asyncio_module is not None and getattr(ext_asyncio_module, _STUB_SENTINEL_ATTR, False):
 
         class AsyncSession:
             def __init__(self, *_: Any, **__: Any) -> None:
@@ -994,7 +1031,7 @@ def install_stubs() -> None:
         ext_asyncio_module.async_sessionmaker = async_sessionmaker  # type: ignore[attr-defined]
 
     pool_module = sys.modules.get("sqlalchemy.pool")
-    if pool_module is not None:
+    if pool_module is not None and getattr(pool_module, _STUB_SENTINEL_ATTR, False):
 
         class NullPool:
             def __init__(self, *_: Any, **__: Any) -> None:
@@ -1003,7 +1040,7 @@ def install_stubs() -> None:
         pool_module.NullPool = NullPool  # type: ignore[attr-defined]
 
     asyncpg_module = sys.modules.get("asyncpg")
-    if asyncpg_module is not None:
+    if asyncpg_module is not None and getattr(asyncpg_module, _STUB_SENTINEL_ATTR, False):
 
         class _AsyncPGConnection:
             async def fetch(self, *_: Any, **__: Any) -> list[Any]:
@@ -1022,7 +1059,7 @@ def install_stubs() -> None:
         asyncpg_module.Connection = _AsyncPGConnection  # type: ignore[attr-defined]
 
     aiohttp_module = sys.modules.get("aiohttp")
-    if aiohttp_module is not None:
+    if aiohttp_module is not None and getattr(aiohttp_module, _STUB_SENTINEL_ATTR, False):
 
         class _AiohttpResponse:
             status = 200
@@ -1049,7 +1086,7 @@ def install_stubs() -> None:
         aiohttp_module.ClientSession = ClientSession  # type: ignore[attr-defined]
 
     httpx_module = sys.modules.get("httpx")
-    if httpx_module is not None:
+    if httpx_module is not None and getattr(httpx_module, _STUB_SENTINEL_ATTR, False):
 
         class AsyncBaseTransport:
             pass
@@ -1109,14 +1146,14 @@ def install_stubs() -> None:
         httpx_module.codes = types.SimpleNamespace(NOT_MODIFIED=304)  # type: ignore[attr-defined]
 
     matplotlib_module = sys.modules.get("matplotlib")
-    if matplotlib_module is not None:
+    if matplotlib_module is not None and getattr(matplotlib_module, _STUB_SENTINEL_ATTR, False):
 
         def _matplotlib_use(*_: Any, **__: Any) -> None:
             return None
 
         matplotlib_module.use = _matplotlib_use  # type: ignore[attr-defined]
         pyplot_module = sys.modules.get("matplotlib.pyplot")
-        if pyplot_module is not None:
+        if pyplot_module is not None and getattr(pyplot_module, _STUB_SENTINEL_ATTR, False):
 
             def figure(*_: Any, **__: Any) -> object:
                 return object()
@@ -1141,7 +1178,7 @@ def install_stubs() -> None:
             matplotlib_module.pyplot = pyplot_module  # type: ignore[attr-defined]
 
     prometheus_module = sys.modules.get("prometheus_client")
-    if prometheus_module is not None:
+    if prometheus_module is not None and getattr(prometheus_module, _STUB_SENTINEL_ATTR, False):
 
         class _Metric:
             def labels(self, *_: Any, **__: Any) -> "_Metric":
