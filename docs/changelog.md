@@ -1,3 +1,16 @@
+## [2025-09-27] - Offline QA stub hardening
+### Добавлено
+- Поддержка SSL-стаба по флагу `QA_STUB_SSL=1` в `tools/qa_stub_injector.install_stubs`, чтобы офлайн-аудит не трогал системный `ssl`.
+
+### Изменено
+- `tools/qa_stub_injector.py` расширен статусами FastAPI/Starlette, стабильными стабы для Redis/httpx/requests/urllib3 и ответами `TestClient` на `/health*`/`/ready*`.
+- `tools/safe_import_sweep.py` и `tools/api_selftest.py` автоматически активируют офлайн-стабы при `USE_OFFLINE_STUBS=1` и пробрасывают `QA_STUB_SSL=1`.
+- Цели `safe-import` и `api-selftest` в `Makefile` теперь всегда запускаются с `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1`.
+- README.md и `docs/qa.md` дополнены разделом «Offline QA stubs» с командами для офлайна и ссылкой на `make qa-deps`.
+
+### Исправлено
+- Офлайн safe-import и API self-test перестали падать на импортных ошибках SSL и HTTP-клиентов за счёт предсказуемых стабов.
+
 ## [2025-09-27] - Offline safe import sweep
 ### Добавлено
 - Скрипт `tools/safe_import_sweep.py`, собирающий модули `app/` и `scripts/`, блокирующий сеть/сабпроцессы и формирующий отчёты `reports/offline_import.{json,md}`.

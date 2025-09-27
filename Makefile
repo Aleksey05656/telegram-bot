@@ -131,10 +131,10 @@ qa-deps:
         USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.qa_deps_sync
 
 safe-import:
-        USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.safe_import_sweep
+	USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 $(PY) -m tools.safe_import_sweep
 
 api-selftest:
-        USE_OFFLINE_STUBS=$${USE_OFFLINE_STUBS:-1} $(PY) -m tools.api_selftest
+	USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 $(PY) -m tools.api_selftest
 
 # минимальный офлайн-аудит: стобы + (по возможности) колёса
 line-health-min: qa-deps

@@ -20,6 +20,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+if os.getenv("USE_OFFLINE_STUBS") == "1":
+    os.environ.setdefault("QA_STUB_SSL", "1")
+    try:
+        from tools.qa_stub_injector import install_stubs
+
+        install_stubs()
+    except Exception:
+        pass
+
 REPORTS_DIR = Path("reports")
 JSON_REPORT = REPORTS_DIR / "offline_import.json"
 MD_REPORT = REPORTS_DIR / "offline_import.md"
