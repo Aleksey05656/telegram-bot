@@ -69,7 +69,7 @@ def main() -> int:
 
     results: dict[str, dict[str, Any]] = {}
     with TestClient(app) as client:  # type: ignore[arg-type]
-        for endpoint in ("/healthz", "/readyz", "/__smoke__/warmup"):
+        for endpoint in ("/healthz", "/readyz", "/__smoke__/warmup", "/smoke/warmup"):
             try:
                 response = client.get(endpoint)
             except Exception as exc:  # pragma: no cover - runtime failure

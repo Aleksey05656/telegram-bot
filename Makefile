@@ -159,4 +159,4 @@ alerts-validate:
 	$(PY) tools/alerts_validate.py
 
 warmup:
-	curl -fsS localhost:$(PORT)/__smoke__/warmup || true
+	curl -fsS http://localhost:$${PORT:-8000}/__smoke__/warmup || true

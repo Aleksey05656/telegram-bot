@@ -1,3 +1,15 @@
+## [2025-09-29] - Warmup alias and offline parity
+### Добавлено
+- Алиас `/smoke/warmup` для smoke-прогрева и проверка в `tools/api_selftest.py` и smoke-тестах.
+
+### Изменено
+- Эндпоинт `/__smoke__/warmup` выполняет best-effort прогрев Redis, кэша и модельного реестра с гарантированным `200 OK` JSON.
+- Цель `make warmup` вызывает новый smoke-прогрев через `curl http://localhost:$${PORT:-8000}/__smoke__/warmup`.
+- README уточнён по офлайн-прогреву и алиасу `/smoke/warmup`.
+
+### Исправлено
+- Офлайн прогрев в стабе больше не пропускается и всегда возвращает валидный JSON `{"warmed": [], "took_ms": N}`.
+
 ## [2025-09-28] - Safe-import subprocess allowlist
 ### Добавлено
 - Флаг `QA_ALLOW_SUBPROCESS=deps_lock` для `tools/safe_import_sweep.py`, разрешающий `subprocess.check_output` во время импорта `scripts.deps_lock`.
