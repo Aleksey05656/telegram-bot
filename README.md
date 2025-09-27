@@ -55,6 +55,12 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - Для принудительного использования стабов выставьте `USE_OFFLINE_STUBS=1` (например, в CI или локально); чтобы использовать реальные зависимости, установите соответствующие пакеты и оставьте переменную пустой.
 - Тесты, помеченные `@pytest.mark.needs_np`, автоматически пропускаются, если стек `numpy/pandas` недоступен.
 
+## QA-min offline
+
+- Сложите необходимые колёса FastAPI-стека в каталог `wheels/` (например, `wheels/fastapi-*.whl`, `wheels/pydantic-*.whl`). Внутренние репозитории артефактов или архивы CI можно использовать как источник готовых wheels.
+- Лёгкий профиль зависимостей хранится в `requirements-qa-min.txt`; он не содержит жёстких пинов и подходит для офлайн-установки.
+- Запуск проверки: `make qa-deps && make line-health` для синхронизации зависимостей и привычного smoke-скрипта линий либо `make api-selftest` для локального запроса `/healthz` и `/readyz` через FastAPI `TestClient`.
+
 ## Reliability snapshot
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).

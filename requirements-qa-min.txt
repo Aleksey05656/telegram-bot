@@ -1,0 +1,7 @@
+fastapi
+starlette
+anyio
+typing-extensions
+h11
+pydantic
+pydantic-settings
