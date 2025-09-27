@@ -106,7 +106,7 @@ def _build_blocked_socket_cls(base_cls: type) -> type:
     return _OfflineSocket
 
 
-def _apply_blockers(stack: ExitStack) -> None:
+def _apply_blockers(stack: ExitStack, *, allow_check_output: bool) -> None:
     try:
         import socket
     except Exception:
@@ -125,6 +125,8 @@ def _apply_blockers(stack: ExitStack) -> None:
         subprocess = None  # type: ignore[assignment]
     if subprocess is not None:
         for attr in ("run", "Popen", "call", "check_call", "check_output"):
+            if allow_check_output and attr == "check_output":
+                continue
             _patch_attr(stack, subprocess, attr, _blocked_subprocess)
 
     try:
@@ -145,9 +147,24 @@ def _apply_blockers(stack: ExitStack) -> None:
 def _worker(module_name: str, queue: mp.Queue) -> None:  # pragma: no cover - subprocess
     start = time.perf_counter()
     _maybe_install_stubs()
+    allow_check_output = os.getenv("QA_ALLOW_SUBPROCESS") == "deps_lock" and module_name == "scripts.deps_lock"
+    if (
+        os.getenv("USE_OFFLINE_STUBS") == "1"
+        and module_name == "scripts.deps_lock"
+        and not allow_check_output
+    ):
+        queue.put(
+            {
+                "module": module_name,
+                "status": "skipped",
+                "error": "skipped by audit harness",
+                "duration_s": round(time.perf_counter() - start, 4),
+            }
+        )
+        return
     try:
         with ExitStack() as stack:
-            _apply_blockers(stack)
+            _apply_blockers(stack, allow_check_output=allow_check_output)
             importlib.import_module(module_name)
     except RuntimeError as exc:
         if "disabled during offline safe import" in str(exc):

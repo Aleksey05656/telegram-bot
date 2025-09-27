@@ -1,3 +1,12 @@
+## Задача: Safe-import subprocess allowlist
+- **Статус**: Завершена
+- **Описание**: Добавить whitelist для `scripts.deps_lock` в офлайн safe-import, не затрагивая остальной аудит.
+- **Шаги выполнения**:
+  - [x] Добавлен флаг `QA_ALLOW_SUBPROCESS=deps_lock`, разрешающий `subprocess.check_output` в safe-import рабочему процессу.
+  - [x] При запрете сабпроцессов модуль `scripts.deps_lock` помечается как «skipped by audit harness» без исключения.
+  - [x] Обновлена документация (changelog, tasktracker) под новый флаг офлайн whitelist.
+- **Зависимости**: tools/safe_import_sweep.py, tools/api_selftest.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline QA stub hardening
 - **Статус**: Завершена
 - **Описание**: Усилить офлайн-стабы для safe-import и API self-test, исключив обращения к сети/SSL и добавив документацию.
