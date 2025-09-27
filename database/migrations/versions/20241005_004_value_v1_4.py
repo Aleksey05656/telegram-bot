@@ -1,11 +1,7 @@
-"""
-"""
-/**
- * @file: database/migrations/versions/20241005_004_value_v1_4.py
- * @description: Value v1.4 schema updates for odds history, closing lines and picks ledger.
- * @dependencies: alembic, sqlalchemy
- * @created: 2025-10-05
- */
+"""Value v1.4 schema updates for odds history, closing lines and picks ledger.
+
+Dependencies: alembic, sqlalchemy.
+Created: 2025-10-05.
 """
 
 from __future__ import annotations
