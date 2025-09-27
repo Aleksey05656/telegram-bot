@@ -1143,3 +1143,13 @@
   - [x] Добавлена цель `check`, вызывающая линтеры и тесты последовательно.
   - [x] Объявлены `.PHONY`-цели и нормализованы табуляции в рецептах.
 - **Зависимости**: Makefile, docs/changelog.md, docs/tasktracker.md
+
+## Задача: Offline warmup и QA-stubs
+- **Статус**: Завершена
+- **Описание**: Восстановить smoke warmup-эндпоинт и расширить офлайн-заглушки для QA-аудита без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Вынесен warmup-роут в `app/smoke_warmup.py` и подключён через FastAPI router.
+  - [x] Обновлены офлайн-заглушки FastAPI/Starlette, SSL и HTTP-клиентов для корректных ответов health/warmup.
+  - [x] Конфигурация Ruff переведена на namespace `lint.*`.
+- **Зависимости**: app/smoke_warmup.py, app/main.py, tools/qa_stub_injector.py, ruff.toml, docs/changelog.md, docs/tasktracker.md
+

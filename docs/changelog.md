@@ -1314,6 +1314,18 @@
 ### Исправлено
 - Исключена немотивированная загрузка калибровки в `diagtools.value_check` при наличии актуального отчёта.
 - CI получает детерминированный отчёт value calibration даже в оффлайн-окружении (`ODDS_PROVIDER=csv`).
+## [2025-09-27] - Offline warmup and QA stubs
+### Добавлено
+- Роутер `app/smoke_warmup.py` с эндпоинтами `/__smoke__/warmup` и `/smoke/warmup` для офлайн-прогрева.
+
+### Изменено
+- FastAPI-приложение (`app/main.py`) включает smoke-router без изменения остальной логики.
+- `tools/qa_stub_injector.install_stubs()` расширен поддержкой статус-модулей, TestClient и SSL-заглушек.
+- Конфигурация `ruff.toml` переведена на пространство имён `lint.*`.
+
+### Исправлено
+- Офлайн TestClient для FastAPI/Starlette возвращает 200 для `/healthz`, `/readyz`, `/__smoke__/warmup`, а неизвестные пути — 404.
+- SSL-заглушки теперь содержат `SSLContext`, `SSLError` и `SSLWantReadError`, что устраняет падения при импортe.
 ## [2025-09-26] - Makefile lint/test alignment
 ### Добавлено
 - —
