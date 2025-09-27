@@ -7,18 +7,7 @@
 
 from __future__ import annotations
 
-import importlib
-import json
-import multiprocessing as mp
 import os
-import sys
-import time
-import traceback
-from collections import Counter
-from contextlib import ExitStack
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterator
 
 if os.getenv("USE_OFFLINE_STUBS") == "1":
     os.environ.setdefault("QA_STUB_SSL", "1")
@@ -28,6 +17,18 @@ if os.getenv("USE_OFFLINE_STUBS") == "1":
         install_stubs()
     except Exception:
         pass
+
+import importlib
+import json
+import multiprocessing as mp
+import sys
+import time
+import traceback
+from collections import Counter
+from contextlib import ExitStack
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator
 
 REPORTS_DIR = Path("reports")
 JSON_REPORT = REPORTS_DIR / "offline_import.json"
