@@ -1,3 +1,13 @@
+## [2025-09-28] - Safe-import subprocess allowlist
+### Добавлено
+- Флаг `QA_ALLOW_SUBPROCESS=deps_lock` для `tools/safe_import_sweep.py`, разрешающий `subprocess.check_output` во время импорта `scripts.deps_lock`.
+
+### Изменено
+- `tools/safe_import_sweep.py` пропускает `scripts.deps_lock` с пометкой «skipped by audit harness», если сабпроцессы запрещены.
+
+### Исправлено
+- Офлайн safe-import не падает на `scripts.deps_lock`, сохраняя чистый отчёт при жёсткой блокировке сабпроцессов.
+
 ## [2025-09-27] - Offline QA stub hardening
 ### Добавлено
 - Поддержка SSL-стаба по флагу `QA_STUB_SSL=1` в `tools/qa_stub_injector.install_stubs`, чтобы офлайн-аудит не трогал системный `ssl`.
