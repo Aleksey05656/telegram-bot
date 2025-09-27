@@ -6,6 +6,7 @@
 """
 
 import os
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -29,6 +30,18 @@ if settings.rate_limit.enabled:
         per_seconds=settings.rate_limit.per_seconds,
     )
 app.add_middleware(ProcessingTimeMiddleware)
+
+
+@app.get("/", tags=["system"])
+def index() -> dict[str, Any]:
+    current = get_settings()
+    payload: dict[str, Any] = {
+        "service": current.app_name,
+        "version": current.git_sha,
+    }
+    if getattr(current, "canary", False):
+        payload["canary"] = True
+    return payload
 
 
 # --- Retrain wiring (feature-flagged by RETRAIN_CRON) ---

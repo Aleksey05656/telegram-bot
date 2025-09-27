@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="ml-service", alias="APP_NAME")
     debug: bool = Field(default=False, alias="DEBUG")
     env: str = Field(default="local", alias="ENV")
+    canary: bool = Field(default=False, alias="CANARY")
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     sportmonks_api_key: str = Field(default="", alias="SPORTMONKS_API_KEY")
     sportmonks_api_token: str = Field(default="", alias="SPORTMONKS_API_TOKEN")
@@ -183,6 +184,12 @@ class Settings(BaseSettings):
             max_picks=int(self.value_max_picks),
             markets=self.value_markets,
         )
+
+    @property
+    def deployment_env(self) -> str:
+        if self.canary:
+            return "canary"
+        return self.env or "local"
 
     def model_post_init(self, __context: Any) -> None:
         if not self.sportmonks_api_token:

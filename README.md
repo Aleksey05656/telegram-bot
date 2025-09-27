@@ -24,6 +24,14 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - Используемые метрики: `sm_freshness_hours_max`, `sm_sync_failures_total`, `worker_refresh_done_timestamp`, `sm_requests_total{component="odds"}`, `sm_matches_open_total`, `app_ready{status="fail"}`.
 - Для оперативных действий при алёртах см. [docs/runbook.md](docs/runbook.md).
 
+## Canary
+
+- Для проверки новых сборок без изменения бизнес-логики заведите отдельный проект `api-canary` на Amvera с тем же репозиторием и `ROLE=api`.
+- В переменных окружения `api-canary` включите `CANARY=1` и `PRESTART_PREFLIGHT=1`, чтобы сервис прогревался и проверялся перед стартом.
+- При `CANARY=1` API помечает ответы (`/`, `/healthz`, `/readyz`) полем `canary: true`, warmup доступен на `GET /__smoke__/warmup`, а логи/метрики получают fallback-метку `env=canary`.
+- Telegram-бот и фоновые задачи (retrain/бэкапы) автоматически не запускаются, prediction worker завершается с предупреждением.
+- Диагностические оповещения в канарейке допускаются только в чаты из `ADMIN_IDS` и получают префикс `[CANARY]`.
+
 ## Reliability v2 badges
 
 - `/value` и `/compare` показывают бейдж `Reliability: csv …, http …` для текущей лиги/рынка и кнопку «Почему этот провайдер?» с расшифровкой fresh/latency/stability/closing из `app.lines.reliability_v2`.
@@ -129,6 +137,24 @@ python -m main --dry-run
 Установите `PRESTART_PREFLIGHT=1`, чтобы перед стартом ролей `api` и `worker` выполнялся строгий прогон `python -m scripts.preflight --mode strict`. При сбое проверок контейнер завершится без запуска процесса.
 
 Команда выполняет инициализацию зависимостей (кэш, загрузка рейтингов) и завершает процесс без запуска long polling — используется в CI и при проверке конфигурации. Основной режим воркера и бота учитывает задержку `STARTUP_DELAY_SEC` перед началом polling.
+
+## Canary rollout on Amvera
+
+1. Создайте вторую Amvera-службу `api-canary` с `ROLE=api`, `CANARY=1`, `PRESTART_PREFLIGHT=1` и тем же образом/коммитом, что и production.
+2. Последовательность прогрева:
+   1. Дождитесь успешного `PRESTART_PREFLIGHT`.
+   2. Выполните `make smoke` (или CI job `make test-smoke`).
+   3. Внутри контейнера вызовите `make warmup` (делает `curl -fsS localhost:${PORT:-8080}/__smoke__/warmup`).
+   4. Убедитесь по `/metrics`, что `env=canary`, ошибок нет, warmup прошёл.
+   5. Проверьте вручную `/today`, `/match`, `/readyz`.
+3. Правила канарейки:
+   - Не запускайте роли `worker` и `tgbot` (они завершаются с предупреждением при `CANARY=1`).
+   - Value/diagnostics уведомления отправляются только в админ-чаты (`ADMIN_IDS`) и префиксуются `[CANARY]`.
+4. Чек-лист переключения трафика:
+   - Метрики и логи канарейки зелёные (без WARN/ERROR).
+   - `/healthz`, `/readyz`, `/__smoke__/warmup` стабильно отвечают.
+   - Ручные проверки `/today`, `/match` подтверждают корректный рендер.
+   - После валидации переведите основной `api` на тот же образ/коммит.
 
 ## Команды бота и примеры
 

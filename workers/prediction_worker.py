@@ -23,6 +23,9 @@ from services.recommendation_engine import (
 from workers.queue_adapter import IQueueAdapter, TaskStatus
 from workers.redis_factory import RedisFactory
 
+if bool(getattr(get_settings(), "CANARY", False)):
+    logger.warning("CANARY=1 — запуск prediction worker заблокирован")
+
 
 class PredictionWorkerError(RuntimeError):
     """Base worker error."""
@@ -203,3 +206,12 @@ def build_prediction_worker(
 async def run_prediction_job(worker: PredictionWorker, job: PredictionJob) -> dict[str, Any]:
     """Convenience helper for tests and orchestration layers."""
     return await worker.handle(job)
+
+
+if __name__ == "__main__":
+    if bool(getattr(get_settings(), "CANARY", False)):
+        logger.warning("CANARY=1 — prediction worker завершает работу без запуска")
+    else:
+        logger.info(
+            "Prediction worker CLI entrypoint is not available; use task manager integration."
+        )

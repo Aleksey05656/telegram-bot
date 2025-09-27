@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response, status
@@ -39,8 +40,20 @@ except Exception:  # pragma: no cover - metrics will be disabled
         raise RuntimeError("prometheus_client is not installed")
 
 
+try:  # pragma: no cover - optional dependency guard
+    from database.cache_postgres import init_cache
+except Exception:  # pragma: no cover - offline fallback
+    init_cache = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional dependency guard
+    from ml.models.poisson_regression_model import poisson_regression_model
+except Exception:  # pragma: no cover - offline fallback
+    poisson_regression_model = None  # type: ignore[assignment]
+
+
 logger = logging.getLogger(__name__)
 READINESS_TIMEOUT = float(os.getenv("READINESS_TIMEOUT_SEC", "1.5"))
+_USE_OFFLINE_STUBS = os.getenv("USE_OFFLINE_STUBS", "").lower() in {"1", "true", "yes"}
 
 # Reuse FastAPI app from app.main to keep routers/middleware intact.
 app: FastAPI = _main_app
@@ -50,6 +63,12 @@ def _is_truthy(value: str | None) -> bool:
     if value is None:
         return False
     return value.strip().lower() not in {"", "0", "false", "off", "no"}
+
+
+def _is_canary(settings_obj: Any | None = None) -> bool:
+    if settings_obj is None:
+        settings_obj = get_settings()
+    return bool(getattr(settings_obj, "canary", False))
 
 
 async def _check_postgres(dsn: str, timeout: float) -> tuple[str, str | None]:
@@ -118,10 +137,13 @@ def _check_runtime_flags() -> tuple[str, str | None]:
 
 @app.get("/healthz", tags=["system"])
 @app.get("/health", include_in_schema=False)
-async def healthz() -> dict[str, str]:
+async def healthz() -> dict[str, Any]:
     """Lightweight liveness probe."""
 
-    return {"status": "ok"}
+    payload: dict[str, Any] = {"status": "ok"}
+    if _is_canary():
+        payload["canary"] = True
+    return payload
 
 
 @app.get("/readyz", tags=["system"])
@@ -155,14 +177,46 @@ async def readyz() -> JSONResponse:
     if overall == "fail":
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    payload = {
+    payload: dict[str, Any] = {
         "status": overall,
         "checks": {
             name: {k: v for k, v in data.items() if v is not None}
             for name, data in checks.items()
         },
     }
+    if _is_canary(settings):
+        payload["canary"] = True
     return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.get("/__smoke__/warmup", tags=["system"])
+async def warmup() -> dict[str, Any]:
+    """Preload caches and models to reduce cold start latency."""
+
+    started = time.perf_counter()
+    if _USE_OFFLINE_STUBS:
+        elapsed = int((time.perf_counter() - started) * 1000)
+        return {"warmed": [], "took_ms": elapsed}
+
+    warmed: list[str] = []
+    if init_cache is not None:
+        try:
+            await init_cache()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("warmup cache failed", extra={"error": str(exc)})
+        else:
+            warmed.append("cache")
+
+    if poisson_regression_model is not None:
+        try:
+            poisson_regression_model.load_ratings()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.debug("warmup model failed", extra={"error": str(exc)})
+        else:
+            warmed.append("poisson_ratings")
+
+    elapsed = int((time.perf_counter() - started) * 1000)
+    return {"warmed": warmed, "took_ms": elapsed}
 
 
 @app.get("/metrics", tags=["system"])
@@ -187,4 +241,4 @@ async def metrics() -> Response:
     return response
 
 
-__all__ = ["app", "healthz", "readyz", "metrics"]
+__all__ = ["app", "healthz", "readyz", "metrics", "warmup"]

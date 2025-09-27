@@ -158,7 +158,14 @@ class BindableLogger(logging.LoggerAdapter):
         return msg, kwargs
 
 
-logger = BindableLogger(_configure_logger())
+_base_extra: dict[str, Any] = {}
+app_env = getattr(settings, "APP_ENV", "")
+if app_env:
+    _base_extra["env"] = app_env
+if getattr(settings, "CANARY", False):
+    _base_extra.setdefault("env", "canary")
+
+logger = BindableLogger(_configure_logger(), extra=_base_extra or None)
 
 
 __all__ = ["logger"]

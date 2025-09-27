@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import app
+from app.config import reset_settings_cache
 
 pytestmark = pytest.mark.needs_np
 
@@ -19,4 +20,18 @@ async def test_health_endpoint() -> None:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/healthz")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint_canary(monkeypatch) -> None:
+    monkeypatch.setenv("CANARY", "1")
+    reset_settings_cache()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/healthz")
+    reset_settings_cache()
+    data = resp.json()
+    assert resp.status_code == 200
+    assert data["status"] == "ok"
+    assert data.get("canary") is True

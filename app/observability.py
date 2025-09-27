@@ -19,7 +19,7 @@ BUILD_INFO = Gauge("build_info", "Build info", ["service", "env", "version"])
 def init_observability(app: FastAPI, settings: Settings):
     labels = {
         "service": settings.app_name,
-        "env": settings.env,
+        "env": getattr(settings, "deployment_env", settings.env),
         "version": settings.git_sha,
     }
 

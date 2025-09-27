@@ -89,6 +89,10 @@ jobs:
       - name: smoke
         run: make test-smoke
 
+      - name: canary-smoke
+        run: CANARY=1 make warmup
+        continue-on-error: true
+
       - name: coverage
         run: make coverage-html
 
