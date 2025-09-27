@@ -1,3 +1,13 @@
+## Задача: Offline QA stub hardening
+- **Статус**: Завершена
+- **Описание**: Усилить офлайн-стабы для safe-import и API self-test, исключив обращения к сети/SSL и добавив документацию.
+- **Шаги выполнения**:
+  - [x] Обновлён `tools/qa_stub_injector.py` (status-стабы FastAPI/Starlette, Redis/HTTP клиенты, SSL-замена).
+  - [x] Подключены стобы в `tools/safe_import_sweep.py` и `tools/api_selftest.py` с установкой `QA_STUB_SSL`.
+  - [x] Цели `safe-import`/`api-selftest` в `Makefile` жёстко активируют офлайн-режим.
+  - [x] README.md и `docs/qa.md` дополнены разделом «Offline QA stubs», changelog обновлён.
+- **Зависимости**: tools/qa_stub_injector.py, tools/safe_import_sweep.py, tools/api_selftest.py, Makefile, README.md, docs/qa.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline safe import sweep
 - **Статус**: Завершена
 - **Описание**: Подключить офлайн-стабы к safe-import прогону и сформировать отчёты без затрагивания бизнес-логики.

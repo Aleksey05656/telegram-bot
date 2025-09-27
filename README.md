@@ -67,6 +67,15 @@ Sentry can be toggled via the `SENTRY_ENABLED` environment variable. Prometheus 
 - Реалистичный путь: положите локальные колёса в `wheels/` и вызовите `make qa-deps && make api-selftest`. Скрипт `tools/qa_deps_sync.py` установит минимальные зависимости через `pip --no-index --find-links wheels`, а `api-selftest` использует настоящий `TestClient` и прогонит `/healthz`, `/readyz`, `/__smoke__/warmup`.
 - Каталог `wheels/` входит в `.gitignore` — политика «no-binaries-in-git» сохраняется, артефакты берутся из локального кеша или CI-артефактов.
 
+### Offline QA stubs
+
+В офлайне запускайте:
+
+- `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make safe-import`
+- `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make api-selftest`
+
+Для реального прогона без стабов подготовьте локальные колёса в `wheels/` и выполните `make qa-deps` перед запуском целей.
+
 ## Reliability snapshot
 
 - **Single instance** — `app/runtime_lock.py` предотвращает параллельные запуски (lock в `/data/runtime.lock`).

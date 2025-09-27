@@ -34,3 +34,12 @@
 
 ## UX/Продукт
 20. «Детальный режим» с вкладом модификаторов для продвинутых пользователей?
+
+## Offline QA stubs
+
+В офлайн-режиме используйте:
+
+- `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make safe-import`
+- `USE_OFFLINE_STUBS=1 QA_STUB_SSL=1 make api-selftest`
+
+Для полноценного прогона без стабов заранее положите готовые колёса в `wheels/` и выполните `make qa-deps`.

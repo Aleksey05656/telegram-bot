@@ -18,6 +18,58 @@ from typing import Any, Callable
 _STUB_SENTINEL_ATTR = "__OFFLINE_STUB__"
 
 
+class _Status:
+    HTTP_200_OK = 200
+    HTTP_201_CREATED = 201
+    HTTP_204_NO_CONTENT = 204
+    HTTP_400_BAD_REQUEST = 400
+    HTTP_401_UNAUTHORIZED = 401
+    HTTP_403_FORBIDDEN = 403
+    HTTP_404_NOT_FOUND = 404
+    HTTP_422_UNPROCESSABLE_ENTITY = 422
+    HTTP_500_INTERNAL_SERVER_ERROR = 500
+    HTTP_503_SERVICE_UNAVAILABLE = 503
+
+
+def _build_status() -> _Status:
+    return _Status()
+
+
+class _HTTPStubResponse:
+    def __init__(self, status_code: int = 204, payload: dict[str, Any] | None = None) -> None:
+        self.status_code = status_code
+        self._payload = dict(payload or {})
+        self.text = "{}" if not self._payload else str(self._payload)
+
+    def json(self) -> dict[str, Any]:
+        return dict(self._payload)
+
+
+def _maybe_patch_ssl_module() -> None:
+    if os.getenv("QA_STUB_SSL") != "1":
+        return
+
+    class _SSLStub:
+        __OFFLINE_STUB__ = True
+
+        def create_default_context(self, *_: Any, **__: Any) -> "_SSLStub":
+            return self
+
+        def wrap_socket(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def load_verify_locations(self, *_: Any, **__: Any) -> None:
+            return None
+
+    current = sys.modules.get("ssl")
+    if getattr(current, _STUB_SENTINEL_ATTR, False):
+        return
+
+    stub = _SSLStub()
+    setattr(stub, _STUB_SENTINEL_ATTR, True)
+    sys.modules["ssl"] = stub
+
+
 def _ensure_module(name: str, factory: Callable[[ModuleType], None]) -> ModuleType:
     if name in sys.modules and not getattr(sys.modules[name], _STUB_SENTINEL_ATTR, False):
         return sys.modules[name]
@@ -132,24 +184,17 @@ def _install_fastapi() -> None:
             self.status_code = status_code
             self.detail = detail
 
-    class _Status:
-        HTTP_200_OK = 200
-        HTTP_201_CREATED = 201
-        HTTP_204_NO_CONTENT = 204
-        HTTP_400_BAD_REQUEST = 400
-        HTTP_401_UNAUTHORIZED = 401
-        HTTP_403_FORBIDDEN = 403
-        HTTP_404_NOT_FOUND = 404
-        HTTP_422_UNPROCESSABLE_ENTITY = 422
-        HTTP_500_INTERNAL_SERVER_ERROR = 500
-
     class APIRouter:
         def __init__(self) -> None:
             self.routes: list[dict[str, Any]] = []
+            self.route_handlers: dict[str, dict[str, Any]] = {}
 
         def _add_route(self, path: str, methods: list[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
             def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-                self.routes.append({"path": path, "methods": methods, "endpoint": func})
+                entry = self.route_handlers.setdefault(path, {"methods": set(), "endpoint": func})
+                entry["methods"].update(methods)
+                entry["endpoint"] = func
+                self.routes.append({"path": path, "methods": list(entry["methods"]), "endpoint": func})
                 return func
 
             return decorator
@@ -161,12 +206,17 @@ def _install_fastapi() -> None:
             return self._add_route(path, ["POST"])
 
         def add_api_route(self, path: str, endpoint: Callable[..., Any], methods: list[str] | None = None, **_: Any) -> None:
-            self.routes.append({"path": path, "methods": methods or ["GET"], "endpoint": endpoint})
+            method_list = methods or ["GET"]
+            entry = self.route_handlers.setdefault(path, {"methods": set(), "endpoint": endpoint})
+            entry["methods"].update(method_list)
+            entry["endpoint"] = endpoint
+            self.routes.append({"path": path, "methods": list(entry["methods"]), "endpoint": endpoint})
 
     class FastAPI:
         def __init__(self, *_, **__) -> None:
             self.router = APIRouter()
             self.routes: list[dict[str, Any]] = []
+            self.route_handlers: dict[str, dict[str, Any]] = {}
             self._middleware_stack: list[tuple[Any, dict[str, Any]]] = []
             self._decorated_middlewares: list[tuple[str, Callable[..., Any]]] = []
 
@@ -180,10 +230,18 @@ def _install_fastapi() -> None:
             return self._register(path, ["POST"])
 
         def add_api_route(self, path: str, endpoint: Callable[..., Any], methods: list[str] | None = None, **_: Any) -> None:
-            self.routes.append({"path": path, "methods": methods or ["GET"], "endpoint": endpoint})
+            method_list = methods or ["GET"]
+            entry = self.route_handlers.setdefault(path, {"methods": set(), "endpoint": endpoint})
+            entry["methods"].update(method_list)
+            entry["endpoint"] = endpoint
+            self.routes.append({"path": path, "methods": list(entry["methods"]), "endpoint": endpoint})
 
         def include_router(self, router: APIRouter, **_: Any) -> None:
             self.routes.extend(router.routes)
+            for path, info in router.route_handlers.items():
+                entry = self.route_handlers.setdefault(path, {"methods": set(), "endpoint": info.get("endpoint")})
+                entry["methods"].update(info.get("methods", set()))
+                entry["endpoint"] = info.get("endpoint")
 
         def add_middleware(self, middleware_class: Any, **options: Any) -> None:
             self._middleware_stack.append((middleware_class, options))
@@ -198,7 +256,7 @@ def _install_fastapi() -> None:
     module.FastAPI = FastAPI
     module.APIRouter = APIRouter
     module.HTTPException = HTTPException
-    module.status = _Status()
+    module.status = _build_status()
     
     class Response:
         def __init__(self, content: Any | None = None, status_code: int = 200) -> None:
@@ -229,7 +287,11 @@ def _install_fastapi() -> None:
 
 
 def _install_starlette_testclient() -> None:
-    starlette_module = _ensure_module("starlette", lambda m: None)
+    def _factory(module: ModuleType) -> None:
+        module.__path__ = []  # type: ignore[attr-defined]
+
+    starlette_module = _ensure_module("starlette", _factory)
+    starlette_module.status = _build_status()
     testclient_module = _ensure_module("starlette.testclient", lambda m: None)
     starlette_module.testclient = testclient_module
 
@@ -248,10 +310,10 @@ def _install_starlette_testclient() -> None:
     starlette_module.middleware = middleware_module
 
     class _StubResponse:
-        def __init__(self) -> None:
-            self.status_code = 204
-            self._payload = {"skipped": "fastapi not installed"}
-            self.text = "{}"
+        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+            self.status_code = status_code
+            self._payload = dict(payload)
+            self.text = "{}" if not self._payload else str(self._payload)
 
         def json(self) -> dict[str, Any]:
             return dict(self._payload)
@@ -259,8 +321,11 @@ def _install_starlette_testclient() -> None:
     class TestClient:
         __OFFLINE_STUB__ = True
 
+        _HEALTH_PATHS = {"/health", "/healthz"}
+        _READY_PATHS = {"/ready", "/readyz"}
+
         def __init__(self, *_: Any, **__: Any) -> None:
-            pass
+            self._app = _[0] if _ else None
 
         def __enter__(self) -> "TestClient":
             return self
@@ -268,8 +333,30 @@ def _install_starlette_testclient() -> None:
         def __exit__(self, *_: Any) -> None:
             return None
 
-        def get(self, *_: Any, **__: Any) -> _StubResponse:
-            return _StubResponse()
+        @staticmethod
+        def _normalize_path(path: str) -> str:
+            candidate = path.split("?")[0]
+            while "//" in candidate:
+                candidate = candidate.replace("//", "/")
+            if not candidate.startswith("/"):
+                candidate = f"/{candidate}"
+            if len(candidate) > 1 and candidate.endswith("/"):
+                candidate = candidate.rstrip("/")
+            return candidate
+
+        def _dispatch(self, path: str) -> _StubResponse:
+            normalized = self._normalize_path(path)
+            if normalized in self._HEALTH_PATHS:
+                return _StubResponse(200, {"status": "ok"})
+            if normalized in self._READY_PATHS:
+                return _StubResponse(200, {"status": "ok"})
+            return _StubResponse(404, {"detail": "Not Found"})
+
+        def get(self, path: str, *_: Any, **__: Any) -> _StubResponse:
+            return self._dispatch(path)
+
+        def post(self, path: str, *_: Any, **__: Any) -> _StubResponse:
+            return self._dispatch(path)
 
     testclient_module.TestClient = TestClient
 
@@ -480,6 +567,157 @@ def _install_aiogram() -> None:
     module.enums = enums_module
 
 
+def _install_redis_stub() -> None:
+    module = _ensure_module("redis", lambda m: None)
+    if not getattr(module, _STUB_SENTINEL_ATTR, False):
+        return
+
+    class Redis:
+        def __init__(self, *_: Any, **__: Any) -> None:
+            pass
+
+        def ping(self) -> bool:
+            return True
+
+    StrictRedis = Redis
+    namespace = types.SimpleNamespace(Redis=Redis, StrictRedis=StrictRedis)
+
+    module.Redis = Redis  # type: ignore[attr-defined]
+    module.StrictRedis = StrictRedis  # type: ignore[attr-defined]
+    module.redis = namespace  # type: ignore[attr-defined]
+    module.__all__ = ["Redis", "StrictRedis", "redis"]
+
+    async_module = _ensure_module("redis.asyncio", lambda m: None)
+    if getattr(async_module, _STUB_SENTINEL_ATTR, False):
+        async_module.Redis = Redis  # type: ignore[attr-defined]
+        async_module.StrictRedis = StrictRedis  # type: ignore[attr-defined]
+
+    exceptions_module = _ensure_module("redis.exceptions", lambda m: None)
+    if getattr(exceptions_module, _STUB_SENTINEL_ATTR, False):
+        class RedisError(Exception):
+            pass
+
+        exceptions_module.RedisError = RedisError  # type: ignore[attr-defined]
+        exceptions_module.ConnectionError = RedisError  # type: ignore[attr-defined]
+
+
+def _install_http_stubs() -> None:
+    def _make_request_stub(*_: Any, **__: Any) -> _HTTPStubResponse:
+        return _HTTPStubResponse()
+
+    def _attach_common_http_methods(module: ModuleType) -> None:
+        for name in ("request", "get", "post", "put", "patch", "delete", "head", "options"):
+            setattr(module, name, _make_request_stub)
+
+    requests_module = _ensure_module("requests", lambda m: setattr(m, "__path__", []))
+    if getattr(requests_module, _STUB_SENTINEL_ATTR, False):
+
+        class Session:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+            def request(self, *_: Any, **__: Any) -> _HTTPStubResponse:
+                return _HTTPStubResponse()
+
+            get = request
+            post = request
+            put = request
+            patch = request
+            delete = request
+            head = request
+            options = request
+
+        requests_module.Session = Session  # type: ignore[attr-defined]
+        requests_module.Response = _HTTPStubResponse  # type: ignore[attr-defined]
+        _attach_common_http_methods(requests_module)
+
+    urllib3_module = _ensure_module("urllib3", lambda m: setattr(m, "__path__", []))
+    if getattr(urllib3_module, _STUB_SENTINEL_ATTR, False):
+
+        class PoolManager:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+            def request(self, *_: Any, **__: Any) -> _HTTPStubResponse:
+                return _HTTPStubResponse()
+
+        urllib3_module.PoolManager = PoolManager  # type: ignore[attr-defined]
+        _attach_common_http_methods(urllib3_module)
+
+    httpx_module = _ensure_module("httpx", lambda m: setattr(m, "__path__", []))
+    if getattr(httpx_module, _STUB_SENTINEL_ATTR, False):
+
+        class AsyncBaseTransport:
+            pass
+
+        class HTTPError(Exception):
+            pass
+
+        class TimeoutException(HTTPError):
+            pass
+
+        class HTTPStatusError(HTTPError):
+            pass
+
+        class Timeout:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+        class Response(_HTTPStubResponse):
+            def __init__(self, status_code: int = 204, json_data: dict[str, Any] | None = None) -> None:
+                super().__init__(status_code=status_code, payload=json_data or {})
+
+        class Client:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+            def request(self, *_: Any, **__: Any) -> Response:
+                return Response()
+
+            get = request
+            post = request
+            put = request
+            patch = request
+            delete = request
+            head = request
+            options = request
+
+        class AsyncClient:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+            async def __aenter__(self) -> "AsyncClient":
+                return self
+
+            async def __aexit__(self, *_: Any) -> None:
+                return None
+
+            async def request(self, *_: Any, **__: Any) -> Response:
+                return Response()
+
+            async def get(self, *_: Any, **__: Any) -> Response:
+                return Response()
+
+            async def post(self, *_: Any, **__: Any) -> Response:
+                return Response()
+
+        httpx_module.AsyncBaseTransport = AsyncBaseTransport  # type: ignore[attr-defined]
+        httpx_module.HTTPError = HTTPError  # type: ignore[attr-defined]
+        httpx_module.TimeoutException = TimeoutException  # type: ignore[attr-defined]
+        httpx_module.HTTPStatusError = HTTPStatusError  # type: ignore[attr-defined]
+        httpx_module.Timeout = Timeout  # type: ignore[attr-defined]
+        httpx_module.Response = Response  # type: ignore[attr-defined]
+        httpx_module.AsyncClient = AsyncClient  # type: ignore[attr-defined]
+        httpx_module.Client = Client  # type: ignore[attr-defined]
+        httpx_module.codes = types.SimpleNamespace(NO_CONTENT=204)  # type: ignore[attr-defined]
+
+        def _httpx_request(*_: Any, **__: Any) -> Response:
+            return Response()
+
+        for name in ("request", "get", "post", "put", "patch", "delete", "head", "options"):
+            setattr(httpx_module, name, _httpx_request)
+
+
 def _install_empty_module(name: str, *, is_package: bool = True) -> ModuleType:
     def _factory(module: ModuleType) -> None:
         if is_package:
@@ -505,10 +743,13 @@ def install_stubs() -> None:
     if getattr(install_stubs, "_already_installed", False):
         return
 
+    _maybe_patch_ssl_module()
     _install_pydantic()
     _install_fastapi()
     _install_starlette_testclient()
     _install_aiogram()
+    _install_redis_stub()
+    _install_http_stubs()
 
     for module_name in ("numpy", "pandas", "joblib", "sqlalchemy", "alembic"):
         _install_empty_module(module_name)
@@ -528,11 +769,7 @@ def install_stubs() -> None:
     _install_empty_module("sqlalchemy.ext.asyncio", is_package=False)
     _install_empty_module("sqlalchemy.pool", is_package=False)
     _install_empty_module("asyncpg", is_package=False)
-    _install_empty_module("redis")
-    _install_empty_module("redis.asyncio", is_package=False)
-    _install_empty_module("redis.exceptions", is_package=False)
     _install_empty_module("aiohttp", is_package=False)
-    _install_empty_module("httpx")
     _install_empty_module("matplotlib")
     _install_empty_module("matplotlib.pyplot", is_package=False)
     _install_empty_module("prometheus_client", is_package=False)
@@ -783,42 +1020,6 @@ def install_stubs() -> None:
 
         asyncpg_module.connect = connect  # type: ignore[attr-defined]
         asyncpg_module.Connection = _AsyncPGConnection  # type: ignore[attr-defined]
-
-    redis_module = sys.modules.get("redis")
-    if redis_module is not None:
-
-        class Redis:
-            def __init__(self, *_: Any, **__: Any) -> None:
-                pass
-
-            async def close(self) -> None:
-                return None
-
-            async def set(self, *_: Any, **__: Any) -> None:
-                return None
-
-            async def get(self, *_: Any, **__: Any) -> None:
-                return None
-
-        def from_url(*_: Any, **__: Any) -> Redis:
-            return Redis()
-
-        redis_module.Redis = Redis  # type: ignore[attr-defined]
-        redis_module.from_url = from_url  # type: ignore[attr-defined]
-
-        redis_asyncio_module = sys.modules.get("redis.asyncio")
-        if redis_asyncio_module is not None:
-            redis_asyncio_module.Redis = Redis  # type: ignore[attr-defined]
-            redis_asyncio_module.from_url = from_url  # type: ignore[attr-defined]
-
-        redis_exceptions_module = sys.modules.get("redis.exceptions")
-        if redis_exceptions_module is not None:
-
-            class RedisError(Exception):
-                pass
-
-            redis_exceptions_module.RedisError = RedisError  # type: ignore[attr-defined]
-            redis_exceptions_module.ConnectionError = RedisError  # type: ignore[attr-defined]
 
     aiohttp_module = sys.modules.get("aiohttp")
     if aiohttp_module is not None:
