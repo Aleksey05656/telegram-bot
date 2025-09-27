@@ -1,3 +1,12 @@
+## Задача: QA-min офлайн профиль
+- **Статус**: Завершена
+- **Описание**: Подготовить минимальный офлайн-профиль зависимостей для FastAPI и автоматизировать установку/self-test без изменения бизнес-кода.
+- **Шаги выполнения**:
+  - [x] Создан файл `requirements-qa-min.txt` с лёгким стеком FastAPI.
+  - [x] Добавлены скрипты `tools/qa_deps_sync.py` и `tools/api_selftest.py` с офлайн-логикой установки и self-test.
+  - [x] Обновлён `Makefile` (цели `qa-deps`, `api-selftest`) и README с разделом «QA-min offline».
+- **Зависимости**: requirements-qa-min.txt, tools/qa_deps_sync.py, tools/api_selftest.py, Makefile, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Нормализация комментариев миграции 20241005_004
 - **Статус**: Завершена
 - **Описание**: Привести заголовок миграции `20241005_004_value_v1_4` к валидному Python-комментарию и подтвердить отсутствие синтаксических ошибок.

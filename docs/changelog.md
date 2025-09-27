@@ -1,3 +1,15 @@
+## [2024-05-09] - QA-min offline profile
+### Добавлено
+- Файл `requirements-qa-min.txt` с минимальным набором FastAPI-зависимостей для офлайн-аудита.
+- Скрипты `tools/qa_deps_sync.py` и `tools/api_selftest.py` для установки зависимостей из локальных wheels и проверки `/healthz`/`/readyz` через `TestClient`.
+- Makefile-цели `qa-deps` и `api-selftest`, упрощающие синхронизацию профиля и локальный self-test.
+
+### Изменено
+- README дополнен разделом «QA-min offline» с инструкциями по офлайн-установке и проверкам.
+
+### Исправлено
+- —
+
 ## [2025-11-26] - Migration comment syntax cleanup
 ### Добавлено
 - —

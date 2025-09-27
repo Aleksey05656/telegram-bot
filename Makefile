@@ -12,7 +12,8 @@ PRECOMMIT ?= pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 
 .PHONY: setup deps-fix lint lint-soft lint-strict lint-app lint-changed fmt test test-fast test-smoke test-all coverage-html \
-reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync docker-build docker-run alerts-validate warmup
+reports-gaps pre-commit-smart smoke pre-commit-offline check deps-lock deps-sync qa-deps api-selftest docker-build docker-run \
+alerts-validate warmup
 
 IMAGE_NAME ?= telegram-bot
 APP_VERSION ?= 0.0.0
@@ -125,6 +126,12 @@ deps-lock:
 
 deps-sync:
 	$(PIP) install --no-index --find-links wheels/ -r requirements.lock
+
+qa-deps:
+	$(PY) -m tools.qa_deps_sync
+
+api-selftest:
+	$(PY) -m tools.api_selftest
 
 docker-build:
 	docker build --build-arg APP_VERSION=$(APP_VERSION) --build-arg GIT_SHA=$(GIT_SHA) \
