@@ -12,11 +12,33 @@ import json
 from datetime import datetime
 from typing import Any, Iterable
 
+import os
+
 from sqlalchemy import text
 
 from config import get_settings
 from database import get_db_router
+from logger import logger
 from .schemas import Fixture, OddsQuote, StandingRow
+
+
+def _is_offline_env() -> bool:
+    for name in ("AMVERA", "USE_OFFLINE_STUBS", "FAILSAFE_MODE"):
+        value = os.getenv(name)
+        if isinstance(value, str) and value.lower() in {"1", "true", "yes"}:
+            return True
+    return False
+
+
+def _resolve_router(settings: Any):
+    if _is_offline_env():
+        logger.debug("Offline mode detected, SportMonksRepository will skip DB wiring")
+        return None
+    try:
+        return get_db_router(settings)
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Failed to initialise DB router for SportMonksRepository: %s", exc)
+        return None
 
 
 class SportMonksRepository:
@@ -24,11 +46,13 @@ class SportMonksRepository:
 
     def __init__(self) -> None:
         self._settings = get_settings()
-        self._router = get_db_router(self._settings)
+        self._router = _resolve_router(self._settings)
         self._startup_lock = asyncio.Lock()
         self._started = False
 
     async def ensure_ready(self) -> None:
+        if self._router is None:
+            return
         if self._started:
             return
         async with self._startup_lock:
@@ -37,6 +61,9 @@ class SportMonksRepository:
                 self._started = True
 
     async def upsert_fixture(self, fixture: Fixture, pulled_at: datetime | None = None) -> None:
+        if self._router is None:
+            logger.debug("Offline mode: skipping fixture upsert for %s", fixture.id)
+            return
         await self.ensure_ready()
         payload = json.dumps(fixture.model_dump(mode="json"), ensure_ascii=False)
         pulled = (pulled_at or datetime.utcnow()).isoformat()
@@ -72,8 +99,11 @@ class SportMonksRepository:
             await session.commit()
 
     async def upsert_team(self, team_payload: dict[str, Any]) -> None:
-        await self.ensure_ready()
         team_id = int(team_payload.get("id"))
+        if self._router is None:
+            logger.debug("Offline mode: skipping team upsert for %s", team_id)
+            return
+        await self.ensure_ready()
         name_norm = (team_payload.get("name") or team_payload.get("short_code") or "").lower()
         country = team_payload.get("country", {}).get("name") if isinstance(team_payload.get("country"), dict) else team_payload.get("country")
         payload = json.dumps(team_payload, ensure_ascii=False)
@@ -102,6 +132,11 @@ class SportMonksRepository:
             await session.commit()
 
     async def upsert_standings(self, season_id: int, rows: Iterable[StandingRow]) -> None:
+        if self._router is None:
+            logger.debug(
+                "Offline mode: skipping standings upsert for season %s", season_id
+            )
+            return
         await self.ensure_ready()
         pulled = datetime.utcnow().isoformat()
         async with self._router.session() as session:
@@ -142,6 +177,11 @@ class SportMonksRepository:
         model_version: str,
         features_snapshot: dict[str, Any],
     ) -> None:
+        if self._router is None:
+            logger.debug(
+                "Offline mode: skipping prediction store for fixture %s", fixture.id
+            )
+            return
         await self.ensure_ready()
         async with self._router.session() as session:
             await session.execute(
@@ -228,9 +268,16 @@ class SportMonksRepository:
             await session.commit()
 
     async def store_odds(self, quotes: Iterable[OddsQuote]) -> None:
+        payload = list(quotes)
+        if self._router is None:
+            logger.debug(
+                "Offline mode: skipping odds store for %s quotes",
+                len(payload),
+            )
+            return
         await self.ensure_ready()
         async with self._router.session() as session:
-            for quote in quotes:
+            for quote in payload:
                 await session.execute(
                     text(
                         """

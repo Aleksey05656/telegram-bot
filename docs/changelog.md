@@ -1,3 +1,27 @@
+## [2025-10-01] - Offline QA resilience polish
+### Добавлено
+- Заглушки для SportMonks-репозитория в офлайн-режиме через `_resolve_router` и диагностические сообщения.
+
+### Изменено
+- `app/__init__.py` и `app/bot/__init__.py` переведены на ленивые импорты, исключающие обязательность Pydantic/Aiogram для safe-import.
+- `scripts/prepare_datasets.py` и `data_processor.py` теперь мягко обрабатывают отсутствие pandas/numpy и предоставляют минимальные фиче-хелперы.
+- `database/db_router.py` создаёт офлайн SQLite-DSN и гарантирует наличие файла перед инициализацией.
+- `app/api.py` корректно помечает readiness как `skipped/degraded` в failsafe-профиле без 503-ответа.
+- `sportmonks/repository.py` коротит операции записи при отсутствии БД и протоколирует пропуски.
+
+### Исправлено
+- Safe-import больше не падает на `fastapi`/`aiogram` в value-сервисах; readiness-эндпоинты возвращают `200 OK` в офлайн-аудите.
+
+## [2025-09-28] - QA offline audit report
+### Добавлено
+- Файл `REPORT.md` с подробным офлайн-отчётом QA за текущий прогон (static compile, lint, safe-import, тесты, API).
+
+### Изменено
+- Обновлены артефакты в `reports/` (логи компиляции, линта, импортов, тестов, API) для документирования результатов проверки.
+
+### Исправлено
+- —
+
 ## [2025-09-28] - Offline import resilience
 ### Добавлено
 - Модуль `scripts/_optional.py` с помощниками `optional_dependency` и информативными заглушками для офлайн-аудита.

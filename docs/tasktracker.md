@@ -1,3 +1,24 @@
+## Задача: Offline QA resilience polish (2025-10-01)
+- **Статус**: Завершена
+- **Описание**: Устранить офлайн-ошибки импортов и readiness, выявленные аудитом, без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Переведены `app/__init__.py` и `app/bot/__init__.py` на ленивые импорты, убраны обязательные зависимости Pydantic/Aiogram.
+  - [x] Обновлены `scripts/prepare_datasets.py` и `data_processor.py` для мягких fallback'ов без pandas/numpy и базовых фич-хелперов.
+  - [x] `database/db_router.py` создаёт офлайн SQLite-DSN и файл, предотвращая ошибки `Unsupported driver`.
+  - [x] Readiness-проба в `app/api.py` возвращает `200 OK` в failsafe-профиле (skipped/degraded вместо 503).
+  - [x] `sportmonks/repository.py` работает без БД в офлайне, логируя пропуски операций.
+- **Зависимости**: app/__init__.py, app/bot/__init__.py, scripts/prepare_datasets.py, data_processor.py, database/db_router.py, app/api.py, sportmonks/repository.py, docs/changelog.md, docs/tasktracker.md
+
+## Задача: Offline QA regression sweep (2025-09-28)
+- **Статус**: Завершена
+- **Описание**: Провести офлайн-аудит (static compile, критичный линт, safe-import, make check/smoke, API self-test) без модификации бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Сформированы лог-файлы в `reports/` по результатам compile, lint и safe-import.
+  - [x] Запущены `make check`, `make smoke`, `pytest -q -k "health or ready or smoke"` в офлайн-режиме; зафиксированы пропуски.
+  - [x] Выполнен API self-test через FastAPI TestClient со сбором JSON-ответов.
+  - [x] Сформирован `REPORT.md` с итоговым отчётом и рекомендациями; обновлены `docs/changelog.md`, `docs/tasktracker.md`.
+- **Зависимости**: reports/*, REPORT.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline import resilience
 - **Статус**: Завершена
 - **Описание**: Обеспечить успешный офлайн safe-import скриптов и value-модулей через ленивые экспорты и мягкие зависимости.

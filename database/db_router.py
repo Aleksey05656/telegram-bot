@@ -50,6 +50,9 @@ def _offline_mode() -> bool:
 
 
 def _offline_url() -> URL:
+    _OFFLINE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not _OFFLINE_DB_PATH.exists():
+        _OFFLINE_DB_PATH.touch()
     return make_url(_OFFLINE_DEFAULT_DSN)
 
 
