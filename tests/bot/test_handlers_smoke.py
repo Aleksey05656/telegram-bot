@@ -137,3 +137,5 @@ async def test_match_returns_formatted_prediction(deps: BotDependencies) -> None
     text = await match_handler.build_match_response(deps, 77)
     assert "1X2" in text
     assert "Тоталы" in text
+
+
