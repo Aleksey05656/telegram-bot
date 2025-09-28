@@ -1,3 +1,14 @@
+## [2025-09-30] - Offline stubs import guard
+### Добавлено
+- —
+
+### Изменено
+- `tools/qa_stub_injector.py` проверяет, что реальные модули FastAPI/Starlette/Pydantic и их зависимости не перезаписываются офлайн-стабами и метит вспомогательные пакеты через `__OFFLINE_STUB__` только при отсутствии импорта.
+- `tools/safe_import_sweep.py` и `tools/api_selftest.py` вызывают установку офлайн-стабов перед остальными импортами, гарантируя ранний хук `USE_OFFLINE_STUBS`.
+
+### Исправлено
+- Повторные прогоны офлайн-аудита больше не затирают реальные библиотеки `fastapi`, `pydantic`, `httpx` или `matplotlib`, обеспечивая идемпотентность `install_stubs()`.
+
 ## [2025-09-29] - Warmup alias and offline parity
 ### Добавлено
 - Алиас `/smoke/warmup` для smoke-прогрева и проверка в `tools/api_selftest.py` и smoke-тестах.

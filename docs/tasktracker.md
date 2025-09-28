@@ -1,3 +1,12 @@
+## Задача: Offline stubs import guard
+- **Статус**: Завершена
+- **Описание**: Обеспечить идемпотентную установку офлайн-стабов без перезаписи уже импортированных библиотек и активировать их до остальных импортов QA-скриптов.
+- **Шаги выполнения**:
+  - [x] Перенесён вызов `install_stubs()` в самое начало `tools/safe_import_sweep.py` и `tools/api_selftest.py` до остальных импортов.
+  - [x] Добавлены проверки `__OFFLINE_STUB__` во всех секциях `tools/qa_stub_injector.py`, исключающие перезапись реальных модулей.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` под новые правила офлайн-аудита.
+- **Зависимости**: tools/qa_stub_injector.py, tools/safe_import_sweep.py, tools/api_selftest.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Warmup alias and offline parity
 - **Статус**: Завершена
 - **Описание**: Вернуть smoke-прогрев с best-effort логикой и алиасом без изменения бизнес-логики.
