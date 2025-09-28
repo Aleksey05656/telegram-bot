@@ -14,4 +14,4 @@
 | I3 | P1 | Remove duplicate observability module | DONE |
 | I4 | P1 | Implement model persistence and parameterization | DONE |
 | I5 | P1 | Implement worker cleanup task | DONE |
-| I6 | P2 | Replace placeholder statistics in handlers | TODO |
+| I6 | P2 | Replace placeholder statistics in handlers | DONE |
