@@ -13,6 +13,18 @@ import urllib.parse as _u
 from functools import lru_cache
 from typing import Any, Literal
 
+if os.getenv("USE_OFFLINE_STUBS") == "1":
+    os.environ.setdefault("QA_STUB_SSL", "1")
+    try:
+        from tools.qa_stub_injector import install_stubs
+    except Exception:
+        install_stubs = None  # type: ignore[assignment]
+    if callable(install_stubs):
+        try:
+            install_stubs()
+        except Exception:
+            pass
+
 from pydantic import BaseModel, Field, field_validator
 
 

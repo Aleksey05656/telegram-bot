@@ -600,6 +600,10 @@ def _install_redis_stub() -> None:
         def ping(self) -> bool:
             return True
 
+        @classmethod
+        def from_url(cls, *_: Any, **__: Any) -> "Redis":
+            return cls()
+
     StrictRedis = Redis
     namespace = types.SimpleNamespace(Redis=Redis, StrictRedis=StrictRedis)
 
@@ -612,6 +616,9 @@ def _install_redis_stub() -> None:
     if getattr(async_module, _STUB_SENTINEL_ATTR, False):
         async_module.Redis = Redis  # type: ignore[attr-defined]
         async_module.StrictRedis = StrictRedis  # type: ignore[attr-defined]
+        async_module.from_url = Redis.from_url  # type: ignore[attr-defined]
+
+    module.from_url = Redis.from_url  # type: ignore[attr-defined]
 
     exceptions_module = _ensure_module("redis.exceptions", lambda m: None)
     if getattr(exceptions_module, _STUB_SENTINEL_ATTR, False):

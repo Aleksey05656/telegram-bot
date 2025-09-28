@@ -4,6 +4,20 @@
 from datetime import datetime
 from pathlib import Path
 
+import os
+
+if os.getenv("USE_OFFLINE_STUBS") == "1":
+    os.environ.setdefault("QA_STUB_SSL", "1")
+    try:
+        from tools.qa_stub_injector import install_stubs
+    except Exception:
+        install_stubs = None  # type: ignore[assignment]
+    if callable(install_stubs):
+        try:
+            install_stubs()
+        except Exception:
+            pass
+
 from pydantic import Field, computed_field, field_validator
 
 from pydantic_settings import BaseSettings

@@ -51,16 +51,16 @@ def main() -> int:
     except Exception:
         fastapi_module = None  # type: ignore[assignment]
 
-    if (
-        fastapi_module is None
-        or TestClient is None
-        or getattr(fastapi_module, "__OFFLINE_STUB__", False)
-        or getattr(TestClient, "__OFFLINE_STUB__", False)
-    ):
+    if fastapi_module is None or TestClient is None:
         payload = {"skipped": "fastapi not installed"}
         print("API self-test results:")
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+
+    using_stub = bool(
+        getattr(fastapi_module, "__OFFLINE_STUB__", False)
+        or getattr(TestClient, "__OFFLINE_STUB__", False)
+    )
 
     try:
         from app.api import app  # type: ignore[import]
@@ -68,7 +68,11 @@ def main() -> int:
         print(f"Failed to import app.api:app -> {exc}")
         return 1
 
-    allow_degraded = os.getenv("USE_OFFLINE_STUBS") == "1" or os.getenv("API_SELFTEST_ALLOW_503") == "1"
+    allow_degraded = (
+        os.getenv("USE_OFFLINE_STUBS") == "1"
+        or os.getenv("API_SELFTEST_ALLOW_503") == "1"
+        or using_stub
+    )
     ready_paths = {"/ready", "/readyz"}
 
     results: dict[str, dict[str, Any]] = {}
@@ -96,11 +100,16 @@ def main() -> int:
                 entry["status"] = "degraded_offline"
                 degraded_ready = True
 
+            if using_stub and endpoint in ready_paths and response.status_code == 200:
+                entry["status"] = "offline_stub"
+
             results[endpoint] = entry
 
     print("API self-test results:")
     if degraded_ready:
         results["ready"] = "degraded_offline"
+    elif using_stub:
+        results["ready"] = "offline_stub"
     print(json.dumps(results, indent=2, sort_keys=True))
     return 0
 
