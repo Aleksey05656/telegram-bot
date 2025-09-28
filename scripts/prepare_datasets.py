@@ -1,18 +1,51 @@
 # scripts/prepare_datasets.py
 """Скрипт для подготовки датасетов для обучения моделей."""
+from __future__ import annotations
+
 import asyncio
 import os  # Добавленный импорт
 from datetime import datetime, timedelta
+from typing import Any, Sequence
 
-import pandas as pd
+try:  # pragma: no cover - optional dependency
+    import pandas as pd  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - offline audit fallback
+    pd = None  # type: ignore[assignment]
 
 from logger import logger
 from services.data_processor import build_features, data_processor
 from services.sportmonks_client import sportmonks_client
 
 
+_DATASET_COLUMNS: tuple[str, ...] = (
+    "match_id",
+    "match_date",
+    "league_id",
+    "home_goals",
+    "away_goals",
+    "home_xg",
+    "away_xg",
+    "home_form",
+    "away_form",
+)
+
+
+def _ensure_pandas() -> Any:
+    if pd is None:  # pragma: no cover - executed only without pandas
+        raise RuntimeError(
+            "pandas is required to run scripts.prepare_datasets; "
+            "install pandas or enable offline stubs"
+        )
+    return pd
+
+
+def _empty_dataframe(columns: Sequence[str] = _DATASET_COLUMNS) -> "pd.DataFrame":
+    frame_pd = _ensure_pandas()
+    return frame_pd.DataFrame(columns=list(columns))
+
+
 # === НОВЫЙ КОД ДЛЯ ЭТАПА 9.1 ===
-async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
+async def fetch_league_data(league_id: int, seasons: list[int]) -> "pd.DataFrame":
     """
     Получение и обработка данных для конкретной лиги за указанные сезоны.
     Args:
@@ -47,19 +80,7 @@ async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
             logger.warning(
                 f"Нет данных для лиги {league_id} после обработки всех сезонов"
             )
-            return pd.DataFrame(
-                columns=[
-                    "match_id",
-                    "match_date",
-                    "league_id",
-                    "home_goals",
-                    "away_goals",
-                    "home_xg",
-                    "away_xg",
-                    "home_form",
-                    "away_form",
-                ]
-            )
+            return _empty_dataframe()
         # Обрабатываем данные через DataProcessor
         logger.info(f"Обработка {len(all_matches)} матчей для лиги {league_id}")
         processed_results = await data_processor.process_matches_batch(all_matches)
@@ -71,19 +92,7 @@ async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
         ]
         if not successful_matches:
             logger.warning(f"Нет успешно обработанных матчей для лиги {league_id}")
-            return pd.DataFrame(
-                columns=[
-                    "match_id",
-                    "match_date",
-                    "league_id",
-                    "home_goals",
-                    "away_goals",
-                    "home_xg",
-                    "away_xg",
-                    "home_form",
-                    "away_form",
-                ]
-            )
+            return _empty_dataframe()
         logger.info(
             f"Успешно обработано {len(successful_matches)} матчей для лиги {league_id}"
         )
@@ -115,24 +124,13 @@ async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
                 continue
         if not df_records:
             logger.warning(f"Нет записей для создания DataFrame для лиги {league_id}")
-            return pd.DataFrame(
-                columns=[
-                    "match_id",
-                    "match_date",
-                    "league_id",
-                    "home_goals",
-                    "away_goals",
-                    "home_xg",
-                    "away_xg",
-                    "home_form",
-                    "away_form",
-                ]
-            )
+            return _empty_dataframe()
         # Создаем DataFrame
-        df = pd.DataFrame(df_records)
+        frame_pd = _ensure_pandas()
+        df = frame_pd.DataFrame(df_records)
         # Преобразуем дату
         if "match_date" in df.columns:
-            df["match_date"] = pd.to_datetime(df["match_date"])
+            df["match_date"] = frame_pd.to_datetime(df["match_date"])
         # Добавляем базовые фичи
         df = build_features(df)  # Исправленный вызов функции
         logger.info(f"Создан датасет для лиги {league_id} с {len(df)} записями")
@@ -141,24 +139,12 @@ async def fetch_league_data(league_id: int, seasons: list[int]) -> pd.DataFrame:
         logger.error(
             f"Ошибка при сборе данных для лиги {league_id}: {e}", exc_info=True
         )
-        return pd.DataFrame(
-            columns=[
-                "match_id",
-                "match_date",
-                "league_id",
-                "home_goals",
-                "away_goals",
-                "home_xg",
-                "away_xg",
-                "home_form",
-                "away_form",
-            ]
-        )
+        return _empty_dataframe()
 
 
 async def prepare_all_datasets(
     league_seasons: dict[int, list[int]]
-) -> dict[int, pd.DataFrame]:
+) -> dict[int, "pd.DataFrame"]:
     """
     Подготовка датасетов для всех лиг.
     Args:

@@ -9,19 +9,34 @@
 
 from __future__ import annotations
 
-from aiogram import Router
+from importlib import import_module
+from typing import Any
 
-from .routers.callbacks import callbacks_router
-from .routers.commands import commands_router
+try:  # pragma: no cover - optional dependency guard
+    from aiogram import Router
+except ModuleNotFoundError:  # pragma: no cover - offline fallback
+    class Router:  # type: ignore[override]
+        def include_router(self, *_args, **_kwargs) -> None:  # pragma: no cover - stub
+            return None
+
+
+def _load_router(name: str) -> Any | None:
+    try:
+        module = import_module(f".routers.{name}", __name__)
+    except ModuleNotFoundError:  # pragma: no cover - offline fallback
+        return None
+    return getattr(module, f"{name}_router", None)
 
 
 def build_bot_router() -> Router:
     """Return the root router that wires command and callback routers."""
 
     root = Router()
-    root.include_router(commands_router)
-    root.include_router(callbacks_router)
+    for name in ("commands", "callbacks"):
+        router = _load_router(name)
+        if router is not None:
+            root.include_router(router)
     return root
 
 
-__all__ = ["build_bot_router", "commands_router", "callbacks_router"]
+__all__ = ["build_bot_router"]

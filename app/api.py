@@ -62,8 +62,12 @@ async def _check_postgres(dsn: str, timeout: float) -> tuple[str, str | None]:
     """Run a lightweight PostgreSQL probe (SELECT 1)."""
 
     if not dsn:
+        if _is_truthy(os.getenv("FAILSAFE_MODE")) or _is_truthy(os.getenv("USE_OFFLINE_STUBS")):
+            return "skipped", "database DSN is not configured"
         return "fail", "database DSN is not configured"
     if asyncpg is None:  # pragma: no cover - dependency missing scenario
+        if _is_truthy(os.getenv("FAILSAFE_MODE")) or _is_truthy(os.getenv("USE_OFFLINE_STUBS")):
+            return "skipped", "asyncpg module is unavailable"
         return "fail", "asyncpg module is unavailable"
 
     conn: Any | None = None
@@ -73,6 +77,8 @@ async def _check_postgres(dsn: str, timeout: float) -> tuple[str, str | None]:
     except Exception as exc:  # pragma: no cover - network/connectivity issues
         detail = f"{type(exc).__name__}: {exc}"
         logger.warning("PostgreSQL readiness probe failed: %s", detail)
+        if _is_truthy(os.getenv("FAILSAFE_MODE")):
+            return "degraded", detail
         return "fail", detail
     finally:
         if conn is not None:
@@ -87,6 +93,8 @@ async def _check_redis(url: str, timeout: float) -> tuple[str, str | None]:
     if not url:
         return "skipped", "redis url not configured"
     if redis_from_url is None:  # pragma: no cover - dependency missing scenario
+        if _is_truthy(os.getenv("FAILSAFE_MODE")) or _is_truthy(os.getenv("USE_OFFLINE_STUBS")):
+            return "skipped", "redis.asyncio module is unavailable"
         return "degraded", "redis.asyncio module is unavailable"
 
     client = redis_from_url(url, encoding="utf-8", decode_responses=True)
@@ -95,6 +103,8 @@ async def _check_redis(url: str, timeout: float) -> tuple[str, str | None]:
     except Exception as exc:  # pragma: no cover - network/connectivity issues
         detail = f"{type(exc).__name__}: {exc}"
         logger.warning("Redis readiness probe failed: %s", detail)
+        if _is_truthy(os.getenv("FAILSAFE_MODE")):
+            return "skipped", detail
         return "degraded", detail
     finally:
         with contextlib.suppress(Exception):
