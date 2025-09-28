@@ -6,8 +6,8 @@
 """
 
 import sentry_sdk
-from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
+
+from .fastapi_compat import FastAPI, PlainTextResponse
 from prometheus_client import Counter, Gauge, generate_latest
 
 from .config import Settings

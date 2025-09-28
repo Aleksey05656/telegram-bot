@@ -13,8 +13,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Response, status
-from fastapi.responses import JSONResponse
+from .fastapi_compat import FastAPI, HTTPException, JSONResponse, Response, status
 
 from .config import get_settings
 from .main import app as _main_app
