@@ -13,7 +13,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-import pandas as pd
+from scripts._optional import optional_dependency
+
+pd = optional_dependency("pandas")
 
 from metrics import ece_poisson, logloss_poisson
 

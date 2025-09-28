@@ -4,13 +4,21 @@
 из config.MODEL_VERSION_FORMAT (fallback: %Y%m%d%H%M%S), далее сохраняется в .env
 и в артефакты models/model_version.txt, чтобы цепочка переобучение → деплой была согласованной.
 """
+from __future__ import annotations
+
 import argparse
 import asyncio
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandas as pd
+from scripts._optional import optional_dependency
+
+pd = optional_dependency("pandas")
+
+if TYPE_CHECKING:  # pragma: no cover - typing aid
+    import pandas as _pd
 
 from config import get_settings
 from logger import logger

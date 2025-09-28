@@ -26,13 +26,13 @@ if TYPE_CHECKING:  # pragma: no cover - assist type checkers only
 
 
 def _lazy_numpy():
-    import numpy as np  # noqa: WPS433 - local import by design
+    import numpy as np  # noqa: PLC0415 - local import by design
 
     return np
 
 
 def _lazy_pandas():
-    import pandas as pd  # noqa: WPS433 - local import by design
+    import pandas as pd  # noqa: PLC0415 - local import by design
 
     return pd
 

@@ -1,17 +1,27 @@
 # scripts/train_model.py
 """Скрипт для обучения Poisson-регрессионной модели."""
+from __future__ import annotations
+
 import asyncio
 import base64
 import io
 import json
 import os
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import joblib  # Для сохранения калибратора
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
+from scripts._optional import optional_dependency
+
+joblib = optional_dependency("joblib")
+plt = optional_dependency("matplotlib.pyplot")
+np = optional_dependency("numpy")
+pd = optional_dependency("pandas")
+
+if TYPE_CHECKING:  # pragma: no cover - typing aid
+    import joblib as _joblib
+    import matplotlib.pyplot as _plt
+    import numpy as _np
+    import pandas as _pd
 
 from logger import logger
 from ml.calibration import apply_calibration, calibrate_probs

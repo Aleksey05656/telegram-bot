@@ -10,11 +10,18 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import click
-import numpy as np
-import pandas as pd
+
+from scripts._optional import optional_dependency
+
+np = optional_dependency("numpy")
+pd = optional_dependency("pandas")
+
+if TYPE_CHECKING:  # pragma: no cover - type checkers only
+    import numpy as _np
+    import pandas as _pd
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

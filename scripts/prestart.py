@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import text
+from scripts._optional import optional_dependency
+
+command = optional_dependency("alembic", attr="command")
+Config = optional_dependency("alembic.config", attr="Config")
+text = optional_dependency("sqlalchemy", attr="text")
 
 from config import Settings, get_settings
 from database.db_router import DBRouter, get_db_router, mask_dsn

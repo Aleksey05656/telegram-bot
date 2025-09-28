@@ -11,8 +11,10 @@ import os
 from pathlib import Path
 import sys
 
-import numpy as np
-import pandas as pd
+from scripts._optional import optional_dependency
+
+np = optional_dependency("numpy")
+pd = optional_dependency("pandas")
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

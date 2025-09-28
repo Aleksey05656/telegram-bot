@@ -13,7 +13,9 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-import numpy as np
+from scripts._optional import optional_dependency
+
+np = optional_dependency("numpy")
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from app.config import get_settings  # noqa: E402
