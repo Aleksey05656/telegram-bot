@@ -17,22 +17,19 @@ from typing import Any, Callable
 
 _STUB_SENTINEL_ATTR = "__OFFLINE_STUB__"
 
+_STATUS_CODES: dict[str, int] = {
+    "HTTP_200_OK": 200,
+    "HTTP_204_NO_CONTENT": 204,
+    "HTTP_400_BAD_REQUEST": 400,
+    "HTTP_404_NOT_FOUND": 404,
+    "HTTP_422_UNPROCESSABLE_ENTITY": 422,
+    "HTTP_500_INTERNAL_SERVER_ERROR": 500,
+    "HTTP_503_SERVICE_UNAVAILABLE": 503,
+}
 
-class _Status:
-    HTTP_200_OK = 200
-    HTTP_201_CREATED = 201
-    HTTP_204_NO_CONTENT = 204
-    HTTP_400_BAD_REQUEST = 400
-    HTTP_401_UNAUTHORIZED = 401
-    HTTP_403_FORBIDDEN = 403
-    HTTP_404_NOT_FOUND = 404
-    HTTP_422_UNPROCESSABLE_ENTITY = 422
-    HTTP_500_INTERNAL_SERVER_ERROR = 500
-    HTTP_503_SERVICE_UNAVAILABLE = 503
-
-
-def _build_status() -> _Status:
-    return _Status()
+_TESTCLIENT_HEALTH_PATHS = {"/health", "/healthz"}
+_TESTCLIENT_READY_PATHS = {"/ready", "/readyz"}
+_TESTCLIENT_WARMUP_PATHS = {"/__smoke__/warmup", "/smoke/warmup"}
 
 
 class _HTTPStubResponse:
@@ -45,15 +42,53 @@ class _HTTPStubResponse:
         return dict(self._payload)
 
 
+def _install_status_module(name: str) -> ModuleType:
+    def _populate(module: ModuleType) -> None:
+        for attr, value in _STATUS_CODES.items():
+            setattr(module, attr, value)
+
+    module = _ensure_module(name, _populate)
+    if getattr(module, _STUB_SENTINEL_ATTR, False):
+        for attr, value in _STATUS_CODES.items():
+            setattr(module, attr, value)
+    return module
+
+
+def _normalize_path(path: str) -> str:
+    candidate = path.split("?")[0]
+    while "//" in candidate:
+        candidate = candidate.replace("//", "/")
+    if not candidate.startswith("/"):
+        candidate = f"/{candidate}"
+    if len(candidate) > 1 and candidate.endswith("/"):
+        candidate = candidate.rstrip("/")
+    return candidate
+
+
+def _dispatch_testclient_response(path: str) -> _HTTPStubResponse:
+    normalized = _normalize_path(path)
+    if normalized in _TESTCLIENT_HEALTH_PATHS:
+        return _HTTPStubResponse(status_code=200, payload={"status": "ok"})
+    if normalized in _TESTCLIENT_READY_PATHS:
+        return _HTTPStubResponse(status_code=200, payload={"status": "ok"})
+    if normalized in _TESTCLIENT_WARMUP_PATHS:
+        return _HTTPStubResponse(status_code=200, payload={"warmed": [], "took_ms": 0})
+    return _HTTPStubResponse(status_code=404, payload={"detail": "Not Found"})
+
+
 def _maybe_patch_ssl_module() -> None:
     if os.getenv("QA_STUB_SSL") != "1":
         return
 
-    class _SSLStub:
-        __OFFLINE_STUB__ = True
+    current = sys.modules.get("ssl")
+    if current is not None and not getattr(current, _STUB_SENTINEL_ATTR, False):
+        return
 
-        def create_default_context(self, *_: Any, **__: Any) -> "_SSLStub":
-            return self
+    module = types.ModuleType("ssl")
+
+    class SSLContext:
+        def __init__(self, *_: Any, **__: Any) -> None:
+            pass
 
         def wrap_socket(self, *_: Any, **__: Any) -> None:
             return None
@@ -61,15 +96,16 @@ def _maybe_patch_ssl_module() -> None:
         def load_verify_locations(self, *_: Any, **__: Any) -> None:
             return None
 
-    current = sys.modules.get("ssl")
-    if current is not None and not getattr(current, _STUB_SENTINEL_ATTR, False):
-        return
-    if getattr(current, _STUB_SENTINEL_ATTR, False):
-        return
 
-    stub = _SSLStub()
-    setattr(stub, _STUB_SENTINEL_ATTR, True)
-    sys.modules["ssl"] = stub
+    module.SSLContext = SSLContext  # type: ignore[attr-defined]
+    module.SSLError = SSLError  # type: ignore[attr-defined]
+    module.SSLWantReadError = SSLWantReadError  # type: ignore[attr-defined]
+    module.create_default_context = create_default_context  # type: ignore[attr-defined]
+    module.wrap_socket = wrap_socket  # type: ignore[attr-defined]
+    module.load_verify_locations = load_verify_locations  # type: ignore[attr-defined]
+
+    setattr(module, _STUB_SENTINEL_ATTR, True)
+    sys.modules["ssl"] = module
 
 
 def _ensure_module(name: str, factory: Callable[[ModuleType], None]) -> ModuleType:
@@ -162,15 +198,6 @@ def _install_fastapi_testclient(module: ModuleType) -> None:
     if not getattr(testclient_module, _STUB_SENTINEL_ATTR, False):
         return
 
-    class _StubResponse:
-        def __init__(self) -> None:
-            self.status_code = 204
-            self._payload = {"skipped": "fastapi not installed"}
-            self.text = "{}"
-
-        def json(self) -> dict[str, Any]:
-            return dict(self._payload)
-
     class TestClient:
         __OFFLINE_STUB__ = True
 
@@ -183,8 +210,11 @@ def _install_fastapi_testclient(module: ModuleType) -> None:
         def __exit__(self, *_: Any) -> None:
             return None
 
-        def get(self, *_: Any, **__: Any) -> _StubResponse:
-            return _StubResponse()
+        def get(self, path: str, *_: Any, **__: Any) -> _HTTPStubResponse:
+            return _dispatch_testclient_response(path)
+
+        def post(self, path: str, *_: Any, **__: Any) -> _HTTPStubResponse:
+            return _dispatch_testclient_response(path)
 
     testclient_module.TestClient = TestClient
     module.testclient = testclient_module
@@ -273,11 +303,11 @@ def _install_fastapi() -> None:
 
             return decorator
 
+    status_module = _install_status_module("fastapi.status")
+
     module.FastAPI = FastAPI
     module.APIRouter = APIRouter
     module.HTTPException = HTTPException
-    module.status = _build_status()
-
     class Response:
         def __init__(self, content: Any | None = None, status_code: int = 200) -> None:
             self.body = content
@@ -317,9 +347,6 @@ def _install_starlette_testclient() -> None:
         module.__path__ = []  # type: ignore[attr-defined]
 
     starlette_module = _ensure_module("starlette", _factory)
-    if not getattr(starlette_module, _STUB_SENTINEL_ATTR, False):
-        return
-    starlette_module.status = _build_status()
     testclient_module = _ensure_module("starlette.testclient", lambda m: None)
     if not getattr(testclient_module, _STUB_SENTINEL_ATTR, False):
         return
@@ -339,20 +366,8 @@ def _install_starlette_testclient() -> None:
     middleware_module.base = base_module
     starlette_module.middleware = middleware_module
 
-    class _StubResponse:
-        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
-            self.status_code = status_code
-            self._payload = dict(payload)
-            self.text = "{}" if not self._payload else str(self._payload)
-
-        def json(self) -> dict[str, Any]:
-            return dict(self._payload)
-
     class TestClient:
         __OFFLINE_STUB__ = True
-
-        _HEALTH_PATHS = {"/health", "/healthz"}
-        _READY_PATHS = {"/ready", "/readyz"}
 
         def __init__(self, *_: Any, **__: Any) -> None:
             self._app = _[0] if _ else None
@@ -363,30 +378,11 @@ def _install_starlette_testclient() -> None:
         def __exit__(self, *_: Any) -> None:
             return None
 
-        @staticmethod
-        def _normalize_path(path: str) -> str:
-            candidate = path.split("?")[0]
-            while "//" in candidate:
-                candidate = candidate.replace("//", "/")
-            if not candidate.startswith("/"):
-                candidate = f"/{candidate}"
-            if len(candidate) > 1 and candidate.endswith("/"):
-                candidate = candidate.rstrip("/")
-            return candidate
+        def get(self, path: str, *_: Any, **__: Any) -> _HTTPStubResponse:
+            return _dispatch_testclient_response(path)
 
-        def _dispatch(self, path: str) -> _StubResponse:
-            normalized = self._normalize_path(path)
-            if normalized in self._HEALTH_PATHS:
-                return _StubResponse(200, {"status": "ok"})
-            if normalized in self._READY_PATHS:
-                return _StubResponse(200, {"status": "ok"})
-            return _StubResponse(404, {"detail": "Not Found"})
-
-        def get(self, path: str, *_: Any, **__: Any) -> _StubResponse:
-            return self._dispatch(path)
-
-        def post(self, path: str, *_: Any, **__: Any) -> _StubResponse:
-            return self._dispatch(path)
+        def post(self, path: str, *_: Any, **__: Any) -> _HTTPStubResponse:
+            return _dispatch_testclient_response(path)
 
     testclient_module.TestClient = TestClient
 

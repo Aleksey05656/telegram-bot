@@ -18,10 +18,25 @@ from workers.runtime_scheduler import register as _rt_register
 from .config import get_settings
 from .middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 from .observability import init_observability
+from .smoke_warmup import router as smoke_router
 
 app = FastAPI()
 settings = get_settings()
 init_observability(app, settings=settings)
+
+if hasattr(app, "include_router"):
+    app.include_router(smoke_router, tags=["smoke"])
+else:  # pragma: no cover - fallback for lightweight FastAPI stubs
+    for route in getattr(smoke_router, "routes", []):
+        path = route.get("path")
+        endpoint = route.get("endpoint")
+        methods = route.get("methods", ["GET"])
+        if not path or endpoint is None:
+            continue
+        for method in methods:
+            registrar = getattr(app, method.lower(), None)
+            if callable(registrar):
+                registrar(path)(endpoint)
 
 if settings.rate_limit.enabled:
     app.add_middleware(

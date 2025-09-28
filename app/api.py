@@ -11,8 +11,6 @@ import asyncio
 import contextlib
 import logging
 import os
-import inspect
-import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response, status
@@ -39,17 +37,6 @@ except Exception:  # pragma: no cover - metrics will be disabled
 
     def generate_latest(*_args: Any, **_kwargs: Any) -> bytes:  # type: ignore[override]
         raise RuntimeError("prometheus_client is not installed")
-
-
-try:  # pragma: no cover - optional dependency guard
-    from database.cache_postgres import init_cache
-except Exception:  # pragma: no cover - offline fallback
-    init_cache = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency guard
-    from ml.models.poisson_regression_model import poisson_regression_model
-except Exception:  # pragma: no cover - offline fallback
-    poisson_regression_model = None  # type: ignore[assignment]
 
 
 logger = logging.getLogger(__name__)
@@ -187,81 +174,6 @@ async def readyz() -> JSONResponse:
     if _is_canary(settings):
         payload["canary"] = True
     return JSONResponse(status_code=status_code, content=payload)
-
-
-async def _maybe_warm_redis(warmed: list[str]) -> None:
-    if redis_from_url is None:
-        return
-
-    try:
-        redis_url = get_settings().get_redis_url()
-    except Exception:
-        return
-
-    if not redis_url:
-        return
-
-    client: Any | None = None
-    try:
-        client = redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
-        ping_result = client.ping()
-        if inspect.isawaitable(ping_result):
-            ping_result = await ping_result
-        if ping_result:
-            warmed.append("redis")
-    except Exception:
-        pass
-    finally:
-        if client is None:
-            return
-        close_method = getattr(client, "close", None)
-        if callable(close_method):
-            try:
-                close_result = close_method()
-                if inspect.isawaitable(close_result):
-                    await close_result
-            except Exception:
-                pass
-
-
-@app.get("/__smoke__/warmup", tags=["system"])
-@app.get("/smoke/warmup", tags=["system"])
-async def warmup() -> JSONResponse:
-    """Best-effort warmup for lightweight dependencies."""
-
-    started = time.monotonic()
-    warmed: list[str] = []
-
-    await _maybe_warm_redis(warmed)
-
-    if init_cache is not None:
-        try:
-            await init_cache()
-        except Exception:
-            pass
-        else:
-            warmed.append("cache")
-
-    if poisson_regression_model is not None:
-        try:
-            poisson_regression_model.load_ratings()
-        except Exception:
-            pass
-        else:
-            warmed.append("poisson_ratings")
-
-    try:
-        from app.ml.model_registry import LocalModelRegistry
-
-        registry = LocalModelRegistry(os.getenv("MODEL_REGISTRY_PATH", "/data/artifacts"))
-        registry.peek()
-    except Exception:
-        pass
-    else:
-        warmed.append("model_registry")
-
-    took_ms = int((time.monotonic() - started) * 1000)
-    return JSONResponse({"warmed": warmed, "took_ms": took_ms}, status_code=200)
 
 
 @app.get("/metrics", tags=["system"])
