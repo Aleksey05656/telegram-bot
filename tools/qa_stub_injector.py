@@ -80,32 +80,21 @@ def _maybe_patch_ssl_module() -> None:
     if os.getenv("QA_STUB_SSL") != "1":
         return
 
-    current = sys.modules.get("ssl")
-    if current is not None and not getattr(current, _STUB_SENTINEL_ATTR, False):
+    try:
+        import ssl as _ssl
+    except Exception:
         return
 
-    module = types.ModuleType("ssl")
+    if getattr(_ssl, _STUB_SENTINEL_ATTR, False):
+        return
 
-    class SSLContext:
-        def __init__(self, *_: Any, **__: Any) -> None:
+    if not hasattr(_ssl, "SSLWantReadError"):
+        class SSLWantReadError(_ssl.SSLError):
             pass
 
-        def wrap_socket(self, *_: Any, **__: Any) -> None:
-            return None
+        _ssl.SSLWantReadError = SSLWantReadError  # type: ignore[attr-defined]
 
-        def load_verify_locations(self, *_: Any, **__: Any) -> None:
-            return None
-
-
-    module.SSLContext = SSLContext  # type: ignore[attr-defined]
-    module.SSLError = SSLError  # type: ignore[attr-defined]
-    module.SSLWantReadError = SSLWantReadError  # type: ignore[attr-defined]
-    module.create_default_context = create_default_context  # type: ignore[attr-defined]
-    module.wrap_socket = wrap_socket  # type: ignore[attr-defined]
-    module.load_verify_locations = load_verify_locations  # type: ignore[attr-defined]
-
-    setattr(module, _STUB_SENTINEL_ATTR, True)
-    sys.modules["ssl"] = module
+    setattr(_ssl, _STUB_SENTINEL_ATTR, True)
 
 
 def _ensure_module(name: str, factory: Callable[[ModuleType], None]) -> ModuleType:
@@ -819,6 +808,13 @@ def install_stubs() -> None:
         sentry_module.capture_message = _noop  # type: ignore[attr-defined]
         sentry_module.capture_exception = _noop  # type: ignore[attr-defined]
 
+    pandas_module = sys.modules.get("pandas")
+    if pandas_module is not None and getattr(pandas_module, _STUB_SENTINEL_ATTR, False):
+        pandas_module.__version__ = "0"  # type: ignore[attr-defined]
+        pandas_module.DataFrame = object  # type: ignore[attr-defined]
+        pandas_module.Series = object  # type: ignore[attr-defined]
+        pandas_module.read_csv = lambda *_args, **_kwargs: None  # type: ignore[attr-defined]
+
     pandas_api_types = sys.modules.get("pandas.api.types")
     if pandas_api_types is not None and getattr(pandas_api_types, _STUB_SENTINEL_ATTR, False):
         pandas_api_types.is_numeric_dtype = lambda *_: True  # type: ignore[attr-defined]
@@ -826,19 +822,27 @@ def install_stubs() -> None:
     linear_model_module = sys.modules.get("sklearn.linear_model")
     if linear_model_module is not None and getattr(linear_model_module, _STUB_SENTINEL_ATTR, False):
 
-        class PoissonRegressor:
-            def fit(self, *_: Any, **__: Any) -> "PoissonRegressor":
+        class _BaseRegressor:
+            def __init__(self, *_: Any, **__: Any) -> None:
+                pass
+
+            def fit(self, *_: Any, **__: Any) -> "_BaseRegressor":
                 return self
 
-            def predict(self, *_: Any, **__: Any) -> list[float]:
-                return []
+            def _predict_zeros(self, data: Any) -> list[float]:
+                try:
+                    length = len(data)  # type: ignore[arg-type]
+                except Exception:
+                    length = 0
+                return [0.0] * max(length, 0)
 
-        class Ridge:
-            def fit(self, *_: Any, **__: Any) -> "Ridge":
-                return self
+        class PoissonRegressor(_BaseRegressor):
+            def predict(self, data: Any, *_: Any, **__: Any) -> list[float]:
+                return self._predict_zeros(data)
 
-            def predict(self, *_: Any, **__: Any) -> list[float]:
-                return []
+        class Ridge(_BaseRegressor):
+            def predict(self, data: Any, *_: Any, **__: Any) -> list[float]:
+                return self._predict_zeros(data)
 
         linear_model_module.PoissonRegressor = PoissonRegressor  # type: ignore[attr-defined]
         linear_model_module.Ridge = Ridge  # type: ignore[attr-defined]
@@ -900,52 +904,6 @@ def install_stubs() -> None:
         numpy_module.log = lambda value: value  # type: ignore[attr-defined]
         numpy_module.exp = lambda value: value  # type: ignore[attr-defined]
         numpy_module.mean = lambda *_: 0.0  # type: ignore[attr-defined]
-
-    pandas_module = sys.modules.get("pandas")
-    if pandas_module is not None and getattr(pandas_module, _STUB_SENTINEL_ATTR, False):
-
-        class DataFrame(dict):
-            def copy(self, *_: Any, **__: Any) -> "DataFrame":
-                return DataFrame(self)
-
-            def merge(self, *_: Any, **__: Any) -> "DataFrame":
-                return DataFrame()
-
-            def rename(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-            def sort_values(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-            def reset_index(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-            def drop(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-            def insert(self, *_: Any, **__: Any) -> None:
-                return None
-
-            def loc(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-            def to_numpy(self, *_: Any, **__: Any) -> list[Any]:
-                return []
-
-            def astype(self, *_: Any, **__: Any) -> "DataFrame":
-                return self
-
-        class Series(list):
-            def to_numpy(self, *_: Any, **__: Any) -> list[Any]:
-                return list(self)
-
-            def astype(self, *_: Any, **__: Any) -> "Series":
-                return self
-
-        pandas_module.DataFrame = DataFrame  # type: ignore[attr-defined]
-        pandas_module.Series = Series  # type: ignore[attr-defined]
-        pandas_module.read_csv = lambda *_: DataFrame()  # type: ignore[attr-defined]
-        pandas_module.read_parquet = lambda *_: DataFrame()  # type: ignore[attr-defined]
 
     alembic_module = sys.modules.get("alembic")
     if alembic_module is not None and getattr(alembic_module, _STUB_SENTINEL_ATTR, False):

@@ -68,9 +68,13 @@ def main() -> int:
         print(f"Failed to import app.api:app -> {exc}")
         return 1
 
+    allow_degraded = os.getenv("USE_OFFLINE_STUBS") == "1" or os.getenv("API_SELFTEST_ALLOW_503") == "1"
+    ready_paths = {"/ready", "/readyz"}
+
     results: dict[str, dict[str, Any]] = {}
+    degraded_ready = False
     with TestClient(app) as client:  # type: ignore[arg-type]
-        for endpoint in ("/healthz", "/readyz", "/__smoke__/warmup", "/smoke/warmup"):
+        for endpoint in ("/healthz", "/readyz", "/ready", "/__smoke__/warmup", "/smoke/warmup"):
             try:
                 response = client.get(endpoint)
             except Exception as exc:  # pragma: no cover - runtime failure
@@ -83,12 +87,20 @@ def main() -> int:
             except ValueError:
                 payload = {"raw": response.text}
 
-            results[endpoint] = {
+            entry = {
                 "status_code": response.status_code,
                 "payload": payload,
             }
 
+            if endpoint in ready_paths and response.status_code == 503 and allow_degraded:
+                entry["status"] = "degraded_offline"
+                degraded_ready = True
+
+            results[endpoint] = entry
+
     print("API self-test results:")
+    if degraded_ready:
+        results["ready"] = "degraded_offline"
     print(json.dumps(results, indent=2, sort_keys=True))
     return 0
 
