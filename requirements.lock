@@ -29,7 +29,10 @@ psycopg2-binary==2.9.10
 
 # Веб-фреймворк для API (если нужен)
 fastapi==0.116.1
-uvicorn==0.35.0
+starlette==0.37.2
+uvicorn[standard]==0.35.0
+anyio==4.4.0
+h11==0.14.0
 
 # Машинное обучение
 xgboost==1.7.6
