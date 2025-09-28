@@ -1,3 +1,13 @@
+## [2025-11-01] - Final readiness summary
+### Добавлено
+- Документ `reports/FINAL_SUMMARY.md` с перекрёстными ссылками на ключевые отчёты (аудит, инвентаризация, run summary, release notes).
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-10-31] - FastAPI compatibility shims
 ### Добавлено
 - Модуль `app/fastapi_compat.py`, предоставляющий лёгкие шины FastAPI/Starlette, TestClient и HTTP-ответы при отсутствии рантайм-зависимостей.
