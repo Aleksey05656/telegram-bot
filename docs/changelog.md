@@ -1,3 +1,13 @@
+## [2025-10-07] - Pytest asyncio compatibility shim
+### Добавлено
+- Регистрация ini-опции `asyncio_mode` в `tests/conftest.py`, чтобы офлайн-профили без `pytest-asyncio` оставались бесшумными.
+
+### Изменено
+- —
+
+### Исправлено
+- Устранено предупреждение `PytestConfigWarning` об неизвестной опции `asyncio_mode` при запуске тестов.
+
 ## [2025-10-01] - Offline QA resilience polish
 ### Добавлено
 - Заглушки для SportMonks-репозитория в офлайн-режиме через `_resolve_router` и диагностические сообщения.
