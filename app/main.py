@@ -8,7 +8,7 @@
 import os
 from typing import Any
 
-from fastapi import FastAPI
+from .fastapi_compat import FastAPI
 
 from workers.retrain_scheduler import schedule_retrain  # type: ignore
 from workers.runtime_scheduler import jobs_registered_total as _rt_jobs_total  # type: ignore

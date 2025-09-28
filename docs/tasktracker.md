@@ -1,3 +1,12 @@
+## Задача: FastAPI runtime shim (2025-10-31)
+- **Статус**: Завершена
+- **Описание**: Обеспечить импорт FastAPI-приложения и middleware без установки полноценных зависимостей, чтобы readiness-пробы работали в ограниченных окружениях.
+- **Шаги выполнения**:
+  - [x] Добавлен модуль `app/fastapi_compat.py` с шинами FastAPI/Starlette/TestClient.
+  - [x] Переведены `app/main.py`, `app/api.py`, `app/middlewares.py`, `app/observability.py` и `app/smoke_warmup.py` на использование совместимых импортов.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` с описанием шима.
+- **Зависимости**: app/fastapi_compat.py, app/main.py, app/api.py, app/middlewares.py, app/observability.py, app/smoke_warmup.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Replace placeholder statistics in start menu (2025-10-21)
 - **Статус**: Завершена
 - **Описание**: Подключить реальные метрики БД к стартовому меню бота и устранить заглушечные значения.

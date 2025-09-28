@@ -11,39 +11,7 @@ import os
 import time
 from typing import Any, Callable
 
-try:  # pragma: no cover - optional dependency guard
-    from fastapi import APIRouter
-except Exception:  # pragma: no cover - fallback for offline stubs
-    class APIRouter:  # type: ignore[override]
-        def __init__(self) -> None:
-            self.routes: list[dict[str, Any]] = []
-
-        def get(self, path: str, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            tags = list(kwargs.get("tags", []) or [])
-
-            def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-                self.routes.append(
-                    {"path": path, "methods": ["GET"], "endpoint": func, "tags": tags}
-                )
-                return func
-
-            return decorator
-
-        def add_api_route(
-            self,
-            path: str,
-            endpoint: Callable[..., Any],
-            *,
-            methods: list[str] | None = None,
-            tags: list[str] | None = None,
-            **__: Any,
-        ) -> None:
-            method_list = methods or ["GET"]
-            self.routes.append(
-                {"path": path, "methods": list(method_list), "endpoint": endpoint, "tags": list(tags or [])}
-            )
-
-from fastapi.responses import JSONResponse
+from .fastapi_compat import APIRouter, JSONResponse
 
 try:  # pragma: no cover - optional dependency guard
     from redis.asyncio import from_url as redis_from_url

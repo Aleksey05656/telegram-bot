@@ -1,3 +1,13 @@
+## [2025-10-31] - FastAPI compatibility shims
+### Добавлено
+- Модуль `app/fastapi_compat.py`, предоставляющий лёгкие шины FastAPI/Starlette, TestClient и HTTP-ответы при отсутствии рантайм-зависимостей.
+
+### Изменено
+- `app/main.py`, `app/api.py`, `app/middlewares.py`, `app/observability.py` и `app/smoke_warmup.py` используют совместимые импорты FastAPI, чтобы импорт приложения не падал без реального пакета.
+
+### Исправлено
+- Импорт готовности и middleware больше не завершается ошибкой `ModuleNotFoundError` при отсутствии FastAPI/Starlette на прод-окружении.
+
 ## [2025-10-07] - Pytest asyncio compatibility shim
 ### Добавлено
 - Регистрация ini-опции `asyncio_mode` в `tests/conftest.py`, чтобы офлайн-профили без `pytest-asyncio` оставались бесшумными.

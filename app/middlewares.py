@@ -8,8 +8,7 @@
 import time
 from collections.abc import Callable
 
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from .fastapi_compat import BaseHTTPMiddleware, Request
 
 
 class ProcessingTimeMiddleware(BaseHTTPMiddleware):
