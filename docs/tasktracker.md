@@ -1,3 +1,12 @@
+## Задача: Offline stub auto-bootstrap
+- **Статус**: Завершена
+- **Описание**: Автоматически активировать офлайн-стабы для CLI/скриптов и self-test без установки тяжёлых зависимостей.
+- **Шаги выполнения**:
+  - [x] Добавлен `sitecustomize.py`, который подхватывает `USE_OFFLINE_STUBS` и включает заглушки при старте интерпретатора.
+  - [x] Обновлены `config.py` и `app/config.py`, чтобы вызывать `install_stubs()` до импортов Pydantic.
+  - [x] Доработаны `tools/api_selftest.py` и `tools/qa_stub_injector.py` для поддержки офлайн-ответов `/ready*` и `redis.from_url`.
+- **Зависимости**: sitecustomize.py, config.py, app/config.py, tools/api_selftest.py, tools/qa_stub_injector.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline audit adjustments
 - **Статус**: Завершена
 - **Описание**: Актуализировать офлайн-аудит: исправить конфиг Ruff, офлайн-стабы и self-test без изменения бизнес-логики.

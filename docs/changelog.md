@@ -21,6 +21,18 @@
 ### Исправлено
 - Офлайн прогрев в стабе больше не пропускается и всегда возвращает валидный JSON `{"warmed": [], "took_ms": N}`.
 
+## [2025-09-28] - Offline stub auto-bootstrap
+### Добавлено
+- `sitecustomize.py` автоматически активирует офлайн-стабы при старте интерпретатора, исключая пропущенный импорт заглушек.
+
+### Изменено
+- `config.py` и `app/config.py` вызывают `tools.qa_stub_injector.install_stubs()` перед импортами Pydantic, поэтому CLI и сервисы работают в офлайн-профиле без внешних зависимостей.
+- `tools/api_selftest.py` распознаёт офлайн TestClient и помечает `/ready*` как `offline_stub`, сохраняя полноценный отчёт вместо пропуска.
+- `tools/qa_stub_injector.py` дополнил Redis-стаб методом `from_url` для синхронного и асинхронного API.
+
+### Исправлено
+- Офлайн safe-import и API self-test больше не падают из-за отсутствия Pydantic/FastAPI/Redis; readiness-эндпоинты отвечают `200 OK` с пометкой `offline_stub`.
+
 ## [2025-09-28] - Safe-import subprocess allowlist
 ### Добавлено
 - Флаг `QA_ALLOW_SUBPROCESS=deps_lock` для `tools/safe_import_sweep.py`, разрешающий `subprocess.check_output` во время импорта `scripts.deps_lock`.
