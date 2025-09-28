@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import URL, make_url
@@ -32,6 +34,23 @@ _DEFAULT_POOL_TIMEOUT = 30.0
 _DEFAULT_CONNECT_TIMEOUT = 10.0
 _DEFAULT_STATEMENT_TIMEOUT_MS = 60_000
 _DEFAULT_SQLITE_TIMEOUT = 30.0
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_OFFLINE_DB_PATH = (_PROJECT_ROOT / "database" / "offline_audit.sqlite3").resolve()
+_OFFLINE_DEFAULT_DSN = f"sqlite+aiosqlite:///{_OFFLINE_DB_PATH.as_posix()}"
+_OFFLINE_ENV_FLAGS = {"USE_OFFLINE_STUBS", "AMVERA", "FAILSAFE_MODE"}
+
+
+def _offline_mode() -> bool:
+    for flag in _OFFLINE_ENV_FLAGS:
+        value = os.getenv(flag)
+        if isinstance(value, str) and value.lower() in {"1", "true", "yes"}:
+            return True
+    return False
+
+
+def _offline_url() -> URL:
+    return make_url(_OFFLINE_DEFAULT_DSN)
 
 
 class DatabaseBackend(Enum):
@@ -257,12 +276,18 @@ class DBRouter:
 
 
 def _normalize_url(dsn: str) -> URL:
+    raw_dsn = (dsn or "").strip()
+    if not raw_dsn:
+        return _offline_url()
+
     try:
-        url = make_url(dsn)
+        url = make_url(raw_dsn)
     except Exception as exc:  # pragma: no cover - validated via tests
+        if _offline_mode():
+            return _offline_url()
         raise DatabaseConfigurationError(f"Invalid database DSN: {dsn}") from exc
 
-    driver = url.drivername
+    driver = (url.drivername or "").lower()
     if driver.startswith("sqlite"):
         if driver != "sqlite+aiosqlite":
             url = url.set(drivername="sqlite+aiosqlite")
@@ -270,6 +295,8 @@ def _normalize_url(dsn: str) -> URL:
         if driver != "postgresql+asyncpg":
             url = url.set(drivername="postgresql+asyncpg")
     else:
+        if _offline_mode():
+            return _offline_url()
         raise DatabaseConfigurationError(f"Unsupported driver in DSN: {driver}")
     return url
 

@@ -12,7 +12,9 @@ import asyncio
 import json
 from typing import Any
 
-from sqlalchemy import text
+from scripts._optional import optional_dependency
+
+text = optional_dependency("sqlalchemy", attr="text")
 
 from config import get_settings
 from database import get_db_router

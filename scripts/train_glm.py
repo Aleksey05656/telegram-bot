@@ -12,10 +12,19 @@ import os
 from pathlib import Path
 import sys
 
-import joblib
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import PoissonRegressor
+from typing import TYPE_CHECKING
+
+from scripts._optional import optional_dependency
+
+joblib = optional_dependency("joblib")
+np = optional_dependency("numpy")
+pd = optional_dependency("pandas")
+PoissonRegressor = optional_dependency("sklearn.linear_model", attr="PoissonRegressor")
+
+if TYPE_CHECKING:  # pragma: no cover - typing aid
+    import joblib as _joblib
+    import numpy as _np
+    import pandas as _pd
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

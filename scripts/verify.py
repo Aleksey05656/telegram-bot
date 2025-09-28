@@ -5,7 +5,9 @@
 @created: 2025-09-10
 """
 
-from fastapi.testclient import TestClient
+from scripts._optional import optional_dependency
+
+TestClient = optional_dependency("fastapi.testclient", attr="TestClient")
 
 from app.api import app
 

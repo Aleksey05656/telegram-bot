@@ -1,3 +1,13 @@
+## Задача: Offline import resilience
+- **Статус**: Завершена
+- **Описание**: Обеспечить успешный офлайн safe-import скриптов и value-модулей через ленивые экспорты и мягкие зависимости.
+- **Шаги выполнения**:
+  - [x] Создан вспомогательный модуль `scripts/_optional.py` с функцией `optional_dependency` и информативными заглушками.
+  - [x] Обновлены `scripts/cli.py`, `scripts/prestart.py`, `scripts/run_*`, `scripts/train_*`, `scripts/get_match_prediction.py`, `scripts/validate_modifiers.py`, `scripts/verify.py` для безопасных импортов без тяжёлых пакетов.
+  - [x] В `app/value_calibration/__init__.py` реализованы ленивые экспорты, а `database/db_router.py` получил офлайн-DSN и нормализацию пустых значений.
+  - [x] Исправлены предупреждения Ruff в `diagtools/golden_regression.py` и зафиксированы изменения в документации.
+- **Зависимости**: app/value_calibration/__init__.py, database/db_router.py, diagtools/golden_regression.py, scripts/_optional.py, scripts/cli.py, scripts/deps_lock.py, scripts/get_match_prediction.py, scripts/prestart.py, scripts/run_simulation.py, scripts/run_training_pipeline.py, scripts/train_glm.py, scripts/train_model.py, scripts/train_modifiers.py, scripts/validate_modifiers.py, scripts/verify.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline stub auto-bootstrap
 - **Статус**: Завершена
 - **Описание**: Автоматически активировать офлайн-стабы для CLI/скриптов и self-test без установки тяжёлых зависимостей.

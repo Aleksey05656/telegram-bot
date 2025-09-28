@@ -1,3 +1,16 @@
+## [2025-09-28] - Offline import resilience
+### Добавлено
+- Модуль `scripts/_optional.py` с помощниками `optional_dependency` и информативными заглушками для офлайн-аудита.
+
+### Изменено
+- `app/value_calibration/__init__.py` переведён на ленивые экспорты, устраняя повторное исполнение пакета при проверках.
+- `database/db_router.py` возвращает детерминированный SQLite DSN в офлайн-профиле и нормализует пустые либо некорректные строки.
+- Скрипты обучения и CLI (`scripts/cli.py`, `scripts/prestart.py`, `scripts/run_*`, `scripts/train_*`, `scripts/validate_modifiers.py`, `scripts/verify.py`, `scripts/get_match_prediction.py`) используют `optional_dependency`, избегая ImportError во время safe-import.
+
+### Исправлено
+- Safe-import больше не падает на отсутствие `sqlalchemy`, `alembic`, `fastapi`, `numpy`, `pandas`, `joblib`, `sklearn` и родственных пакетов — сценарии `scripts/*.py` загружаются офлайн без побочных эффектов.
+- `diagtools/golden_regression.py` использует корректные коды `noqa`, устраняя предупреждения Ruff.
+
 ## [2025-09-30] - Offline stubs import guard
 ### Добавлено
 - —

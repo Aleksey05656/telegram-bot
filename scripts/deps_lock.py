@@ -5,25 +5,44 @@
 @created: 2025-09-15
 """
 
+from __future__ import annotations
+
 import re
 import subprocess
 from pathlib import Path
+from typing import Iterable
 
-reqs = Path("requirements.txt").read_text().splitlines()
-freeze_output = subprocess.check_output(["python", "-m", "pip", "freeze"], text=True)
-freeze = {
-    line.split("==")[0].lower().replace("-", "_"): line.split("==")[1].strip()
-    for line in freeze_output.splitlines()
-    if "==" in line
-}
-lines = []
-for r in reqs:
-    r = r.strip()
-    if not r or r.startswith("#"):
-        lines.append(r)
-        continue
-    name_raw = re.split(r"[<>=!; ]", r)[0]
-    key = name_raw.lower().replace("-", "_")
-    ver = freeze.get(key)
-    lines.append(f"{name_raw}=={ver}" if ver else r)
-Path("requirements.lock").write_text("\n".join(lines) + "\n")
+
+def _read_requirements(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def _freeze() -> Iterable[str]:
+    output = subprocess.check_output(["python", "-m", "pip", "freeze"], text=True)
+    return output.splitlines()
+
+
+def generate_lock(requirements: Path, destination: Path | None = None) -> Path:
+    lines = _read_requirements(requirements)
+    frozen = {
+        line.split("==")[0].lower().replace("-", "_"): line.split("==")[1].strip()
+        for line in _freeze()
+        if "==" in line
+    }
+    resolved: list[str] = []
+    for entry in lines:
+        token = entry.strip()
+        if not token or token.startswith("#"):
+            resolved.append(entry)
+            continue
+        name_raw = re.split(r"[<>=!; ]", token)[0]
+        key = name_raw.lower().replace("-", "_")
+        version = frozen.get(key)
+        resolved.append(f"{name_raw}=={version}" if version else entry)
+    target = destination or Path("requirements.lock")
+    target.write_text("\n".join(resolved) + "\n", encoding="utf-8")
+    return target
+
+
+if __name__ == "__main__":
+    generate_lock(Path("requirements.txt"))
