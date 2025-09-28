@@ -1311,6 +1311,19 @@
 - Синхронизация `.env.example` и `config.Settings` новыми флагами диагностики/алертов.
 - `.gitignore` покрывает runtime-артефакты (`reports/`, `data/`, бинарные форматы).
 
+## [2025-09-28] - Offline audit adjustments
+### Добавлено
+- API self-test помечает агрегированный статус `"ready": "degraded_offline"` при допустимом ответе 503 в офлайне.
+
+### Изменено
+- `tools/qa_stub_injector` бережно дополняет стандартный модуль `ssl` и использует лёгкие заглушки для `pandas` и `sklearn`.
+- Конфиг `ruff.toml` упорядочен для совместимости с `lint.*`-неймспейсом и корректного разбора `extend-exclude`.
+- `tools/api_selftest` рассматривает эндпоинты `/ready` и `/readyz`, поддерживая разрешённый деградированный ответ 503.
+
+### Исправлено
+- Удалён несуществующий экспорт `warmup` из `app/api.__all__`, устраняя предупреждение F822.
+- Заглушки QA перестали обращаться к несуществующему `load_verify_locations`, что закрывает F821.
+
 ## [2025-10-20] - Value calibration gate
 ### Добавлено
 - GitHub Actions job `value-calibration-gate`, запускающий `python -m diagtools.value_check --calibrate --days ${BACKTEST_DAYS}` и выгружающий `value_calibration.{json,md}` как артефакты.

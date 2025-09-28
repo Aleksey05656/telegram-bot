@@ -198,4 +198,4 @@ async def metrics() -> Response:
     return response
 
 
-__all__ = ["app", "healthz", "readyz", "metrics", "warmup"]
+__all__ = ["app", "healthz", "readyz", "metrics"]

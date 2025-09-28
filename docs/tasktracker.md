@@ -1,3 +1,14 @@
+## Задача: Offline audit adjustments
+- **Статус**: Завершена
+- **Описание**: Актуализировать офлайн-аудит: исправить конфиг Ruff, офлайн-стабы и self-test без изменения бизнес-логики.
+- **Шаги выполнения**:
+  - [x] Поправлен `ruff.toml`, чтобы `extend-exclude` корректно парсился в неймспейсе `lint.*`.
+  - [x] Удалён несуществующий экспорт `warmup` из `app/api.__all__` (устранение F822).
+  - [x] Обновлён `tools/qa_stub_injector.py` для безопасного патча `ssl` и лёгких стабов `pandas`/`sklearn`.
+  - [x] `tools/api_selftest.py` допускает `503` для `/ready`/`/readyz` в офлайне и помечает статус `degraded_offline`.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` под свежие офлайн-правки.
+- **Зависимости**: ruff.toml, app/api.py, tools/qa_stub_injector.py, tools/api_selftest.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline stubs import guard
 - **Статус**: Завершена
 - **Описание**: Обеспечить идемпотентную установку офлайн-стабов без перезаписи уже импортированных библиотек и активировать их до остальных импортов QA-скриптов.
