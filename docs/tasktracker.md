@@ -1,3 +1,12 @@
+## Задача: Pytest asyncio compatibility shim (2025-10-07)
+- **Статус**: Завершена
+- **Описание**: Устранить предупреждение PytestConfigWarning об неизвестной опции `asyncio_mode` в офлайн-профилях без `pytest-asyncio`.
+- **Шаги выполнения**:
+  - [x] Добавлен `pytest_addoption` в `tests/conftest.py`, регистрирующий ini-опцию `asyncio_mode`.
+  - [x] Обновлён `docs/changelog.md` с записью о совместимости Pytest.
+  - [x] Подтверждён чистый запуск `pytest -q` без предупреждения.
+- **Зависимости**: tests/conftest.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Offline QA resilience polish (2025-10-01)
 - **Статус**: Завершена
 - **Описание**: Устранить офлайн-ошибки импортов и readiness, выявленные аудитом, без изменения бизнес-логики.

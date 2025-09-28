@@ -88,3 +88,16 @@ def pytest_pyfunc_call(pyfuncitem):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "asyncio: mark async test for the local loop runner")
+
+
+def pytest_addoption(parser):
+    """Register compatibility ini options expected by pytest-asyncio."""
+
+    parser.addini(
+        "asyncio_mode",
+        (
+            "Compatibility shim for environments without pytest-asyncio where the "
+            "ini option is still referenced."
+        ),
+        default="auto",
+    )
