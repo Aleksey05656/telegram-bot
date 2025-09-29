@@ -5,26 +5,30 @@
 @created: 2025-09-10
 """
 
-"""
-@file: tests/conftest.py
-@description: Pytest fixtures with numpy/pandas guard, asyncio fallback runner and stub loaders
-@dependencies: app/config.py, tests/_stubs, tests/conftest_np_guard.py, asyncio
-@created: 2025-09-10
-"""
+from __future__ import annotations
 
 import asyncio
 import importlib.util
 import os
 import pathlib
 import sys
+from importlib import import_module
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pytest
+ensure_stubs = import_module("tests._stubs").ensure_stubs
+cfg = import_module("app.config")
+alembic_stub = import_module("tests._stubs.alembic")
 
-from tests._stubs import ensure_stubs
+_alembic_module = sys.modules.get("alembic")
+if _alembic_module is None or not hasattr(_alembic_module, "command"):
+    sys.modules["alembic"] = alembic_stub
+    sys.modules["alembic.command"] = import_module("tests._stubs.alembic.command")
+    sys.modules["alembic.config"] = import_module("tests._stubs.alembic.config")
 
 pytest_plugins = ["conftest_np_guard"]
 
@@ -41,6 +45,7 @@ ensure_stubs(
         "httpx",
         "aiogram",
         "prometheus_client",
+        "alembic",
         "redis",
         "rq",
         "starlette",
@@ -61,9 +66,6 @@ def _force_sportmonks_stub():
     if (not key) or (key.lower() == "dummy"):
         os.environ["SPORTMONKS_STUB"] = "1"
     return
-
-
-from app import config as cfg  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

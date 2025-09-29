@@ -1,3 +1,13 @@
+## [2025-09-29] - Pytest stub import hygiene
+### Добавлено
+- Пакет `tests/_stubs/alembic` с заглушками `command` и `Config` для офлайн-прогонов.
+
+### Изменено
+- `tests/conftest.py` регистрирует alembic-стабы до загрузки модулей и выстраивает импорты в верхней части файла.
+
+### Исправлено
+- Ошибка Ruff E402 в `tests/conftest.py`, вызванная импортами после исполняемого кода.
+
 ## [2025-11-05] - Optional Alembic migrations & CI autoformat
 ### Добавлено
 - Скрипт `scripts/migrations.py` с ленивой загрузкой Alembic и строгим режимом для продакшена.
