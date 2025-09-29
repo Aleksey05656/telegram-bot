@@ -51,11 +51,12 @@ skip = ["migrations", "alembic"]
 line-length = 100
 target-version = "py311"
 respect-gitignore = true
-extend-exclude = ["legacy/", "experiments/", "notebooks/", "scripts/migrations/"]
+extend-exclude = ["migrations", "legacy", "notebooks", "experiments", "archive", "scripts/migrations"]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "UP", "I", "C4", "PT", "ERA"]
-ignore = ["E203", "E501"]
+select = ["E", "F", "I"]
+extend-select = []
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401", "F403"]

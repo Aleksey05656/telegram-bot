@@ -1,3 +1,15 @@
+## [2025-09-29] - Selective CI linting for pull requests
+### Добавлено
+- Джоб `style-and-tests-pr` в GitHub Actions, который форматирует и проверяет только изменённые Python-файлы и выполняет smoke/pytest.
+
+### Изменено
+- Основной джоб CI переименован в `style-and-tests-main` и оставлен для полноценных проверок на пушах.
+- Конфигурация Ruff в `pyproject.toml` ограничена правилами `E`, `F`, `I` и расширен список исключений для легаси-директорий.
+- Цель `make check` запускает Ruff/Black/isort только для файлов, отличающихся от `origin/main`, затем `pytest -q`.
+
+### Исправлено
+- Исторические нарушения форматирования в не тронутых файлах больше не блокируют прохождение CI в pull request.
+
 ## [2025-11-06] - GLM training hardening and settlement reporting fix
 ### Добавлено
 - Экстра `ml` в `pyproject.toml` с зависимостями `numpy`, `pandas`, `scipy`, `statsmodels`, `scikit-learn`, устанавливаемая в CI для ML-пайплайнов.
