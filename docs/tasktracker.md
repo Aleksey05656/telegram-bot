@@ -1,3 +1,14 @@
+## Задача: Amvera deployment bootstrap (2025-11-08)
+- **Статус**: Завершена
+- **Описание**: Обеспечить успешный деплой Amvera с длительным HTTP-процессом, диагностикой запуска и предсказуемыми логами.
+- **Шаги выполнения**:
+  - [x] Реализован `scripts/api_server.py` с конфигурацией uvicorn, логированием и дефолтным `API_ENABLED`.
+  - [x] Перестроен `app/main.py` для принудительного `basicConfig`, условной инициализации FastAPI и health-роутов.
+  - [x] Обновлены `amvera.yaml` и `Dockerfile`, разделив release-процессы и задав `LOG_LEVEL=INFO` в окружении.
+  - [x] Дополнён `scripts/role_dispatch.py` диагностикой роли и корректной обработкой неизвестных значений.
+  - [x] Задокументированы изменения в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: scripts/api_server.py, app/main.py, scripts/role_dispatch.py, amvera.yaml, Dockerfile, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: API health endpoints and role preflight (2025-11-08)
 - **Статус**: Завершена
 - **Описание**: Добавить минимальные health-эндпоинты FastAPI, усилить префлайт-проверки ролей и синхронизировать конфигурацию запуска Amvera.

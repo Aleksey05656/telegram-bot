@@ -51,17 +51,11 @@ def _maybe_run_preflight(role: str) -> None:
 def _run_api() -> int:
     _maybe_run_preflight("api")
     _run_subprocess((sys.executable, "-m", "app.migrations.up"), allow_failure=True)
-    port = os.getenv("PORT", "80")
     return _run_subprocess(
         (
             sys.executable,
             "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            port,
+            "scripts.api_server",
         ),
         extra_env={"API_ENABLED": "true"},
     )
@@ -98,8 +92,13 @@ def main() -> None:
     handler = _COMMANDS.get(role)
     if handler is None:
         valid = ", ".join(sorted(_COMMANDS))
-        raise SystemExit(f"Unknown ROLE={role!r}. Use one of: {valid}")
+        message = f"Unknown ROLE={role!r}. Use one of: {valid}"
+        print(message, file=sys.stderr)
+        raise SystemExit(2)
 
+    logger.info(
+        "boot: role=%s api=%s", role, os.getenv("API_ENABLED", "<unset>"),
+    )
     logger.info("Выбран режим запуска ROLE=%s", role)
     exit_code = handler()
     if exit_code is None:

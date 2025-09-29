@@ -1,0 +1,91 @@
+"""
+@file: scripts/api_server.py
+@description: Dedicated API server bootstrap for Amvera with uvicorn lifecycle management.
+@dependencies: scripts.role_dispatch, app.main, uvicorn
+@created: 2025-11-08
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+
+import uvicorn
+
+
+def _resolve_log_level(raw: str | None) -> int:
+    if not raw:
+        return logging.INFO
+    if raw.isdigit():
+        try:
+            return max(0, min(50, int(raw)))
+        except ValueError:
+            return logging.INFO
+    level = logging.getLevelName(raw.upper())
+    return level if isinstance(level, int) else logging.INFO
+
+
+def _configure_logging() -> logging.Logger:
+    level = _resolve_log_level(os.getenv("LOG_LEVEL", "INFO"))
+    logging.basicConfig(
+        level=level,
+        force=True,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    logger = logging.getLogger("boot")
+    logger.setLevel(level)
+    return logger
+
+
+def _ensure_api_flag(logger: logging.Logger) -> str:
+    api_enabled = os.environ.get("API_ENABLED")
+    if not api_enabled:
+        os.environ["API_ENABLED"] = "true"
+        api_enabled = "true"
+        logger.info("API_ENABLED not set, forcing to true for Amvera")
+    return api_enabled
+
+
+def _resolve_port(logger: logging.Logger) -> int:
+    raw_port = os.getenv("PORT", "8000").strip()
+    try:
+        port = int(raw_port)
+    except ValueError:
+        logger.warning("Invalid PORT=%s, falling back to 8000", raw_port)
+        port = 8000
+    if port <= 0:
+        logger.warning("Non-positive PORT=%s, resetting to 8000", raw_port)
+        port = 8000
+    return port
+
+
+def main(argv: list[str] | None = None) -> None:  # noqa: D401 - CLI entrypoint
+    _ = argv  # CLI compatibility, currently unused
+    logger = _configure_logging()
+    api_enabled = _ensure_api_flag(logger)
+    port = _resolve_port(logger)
+
+    logger.info(
+        "boot: role=%s api=%s port=%s", os.getenv("ROLE", "api"), api_enabled, port
+    )
+
+    config = uvicorn.Config(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        log_level=logging.getLevelName(logger.getEffectiveLevel()).lower(),
+        reload=False,
+        workers=1,
+        proxy_headers=True,
+    )
+    server = uvicorn.Server(config)
+    try:
+        server.run()
+    except Exception:  # pragma: no cover - defensive logging for prod incidents
+        logger.exception("uvicorn server crashed")
+        raise
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -16,6 +16,22 @@ from .config import get_settings
 from .middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 from .smoke_warmup import router as smoke_router
 
+
+
+def _resolve_log_level(raw: str | None) -> int:
+    if not raw:
+        return logging.INFO
+    if raw.isdigit():
+        try:
+            return int(raw)
+        except ValueError:
+            return logging.INFO
+    level = logging.getLevelName(raw.upper())
+    return level if isinstance(level, int) else logging.INFO
+
+
+LOG_LEVEL = _resolve_log_level(os.getenv("LOG_LEVEL"))
+logging.basicConfig(level=LOG_LEVEL, force=True)
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +47,7 @@ SCHEDULES_ENABLED = _flag("SCHEDULES_ENABLED", default=False)
 EXTERNAL_CLIENTS_ENABLED = _flag("EXTERNAL_CLIENTS_ENABLED", default=False)
 API_ENABLED = _flag("API_ENABLED", default=False)
 
-app = FastAPI()
+app: FastAPI | None = FastAPI() if API_ENABLED else None
 settings = get_settings()
 
 def _include_router(router: Any, *, tags: list[str]) -> None:
@@ -54,30 +70,28 @@ def _include_router(router: Any, *, tags: list[str]) -> None:
                     handler.tags = route_tags  # type: ignore[attr-defined]
 
 
-_include_router(smoke_router, tags=["smoke"])
-
-if API_ENABLED:
+if app is not None:
+    _include_router(smoke_router, tags=["smoke"])
     _include_router(health_router, tags=["system"])
 
-if settings.rate_limit.enabled:
-    app.add_middleware(
-        RateLimitMiddleware,
-        requests=settings.rate_limit.requests,
-        per_seconds=settings.rate_limit.per_seconds,
-    )
-app.add_middleware(ProcessingTimeMiddleware)
+    if settings.rate_limit.enabled:
+        app.add_middleware(
+            RateLimitMiddleware,
+            requests=settings.rate_limit.requests,
+            per_seconds=settings.rate_limit.per_seconds,
+        )
+    app.add_middleware(ProcessingTimeMiddleware)
 
-
-@app.get("/", tags=["system"])
-def index() -> dict[str, Any]:
-    current = get_settings()
-    payload: dict[str, Any] = {
-        "service": current.app_name,
-        "version": current.git_sha,
-    }
-    if getattr(current, "canary", False):
-        payload["canary"] = True
-    return payload
+    @app.get("/", tags=["system"])
+    def index() -> dict[str, Any]:
+        current = get_settings()
+        payload: dict[str, Any] = {
+            "service": current.app_name,
+            "version": current.git_sha,
+        }
+        if getattr(current, "canary", False):
+            payload["canary"] = True
+        return payload
 
 
 _rt_list_jobs: Callable[[], list[dict[str, Any]]] | None = None
@@ -88,6 +102,9 @@ _effective_cron: str | None = None
 
 def _init_metrics() -> None:
     if not METRICS_ENABLED:
+        return
+    if app is None:
+        logger.debug("Skipping metrics init: API disabled")
         return
     try:
         from .observability import init_observability
@@ -143,46 +160,49 @@ def main() -> None:
     _init_external_clients()
 
 
-@app.get("/__smoke__/retrain")
-def retrain_smoke():
-    """Report retrain registration status and configured crons."""
-    jobs: list[dict[str, Any]]
-    if _rt_list_jobs is None:
-        jobs = []
-    else:
-        try:
-            jobs = list(_rt_list_jobs())
-        except Exception as exc:  # pragma: no cover - runtime scheduler optional
-            logger.warning("Failed to list retrain jobs: %s", exc)
+if app is not None:
+
+    @app.get("/__smoke__/retrain")
+    def retrain_smoke():
+        """Report retrain registration status and configured crons."""
+        jobs: list[dict[str, Any]]
+        if _rt_list_jobs is None:
             jobs = []
-    total_jobs = 0
-    if _rt_jobs_total is not None:
-        try:
-            total_jobs = int(_rt_jobs_total())
-        except Exception as exc:  # pragma: no cover - optional metric
-            logger.warning("Failed to fetch retrain job total: %s", exc)
-            total_jobs = 0
-    return {
-        "enabled": _retrain_enabled,
-        "count": len(jobs),
-        "crons": [j["cron"] for j in jobs],
-        "effective_cron": _effective_cron,
-        "jobs_registered_total": total_jobs,
-    }
+        else:
+            try:
+                jobs = list(_rt_list_jobs())
+            except Exception as exc:  # pragma: no cover - runtime scheduler optional
+                logger.warning("Failed to list retrain jobs: %s", exc)
+                jobs = []
+        total_jobs = 0
+        if _rt_jobs_total is not None:
+            try:
+                total_jobs = int(_rt_jobs_total())
+            except Exception as exc:  # pragma: no cover - optional metric
+                logger.warning("Failed to fetch retrain job total: %s", exc)
+                total_jobs = 0
+        return {
+            "enabled": _retrain_enabled,
+            "count": len(jobs),
+            "crons": [j["cron"] for j in jobs],
+            "effective_cron": _effective_cron,
+            "jobs_registered_total": total_jobs,
+        }
 
 
-@app.get("/__smoke__/sentry")
-def sentry_smoke():
-    # отправим тестовое событие, если настроен DSN
-    import sentry_sdk
+    @app.get("/__smoke__/sentry")
+    def sentry_smoke():
+        # отправим тестовое событие, если настроен DSN
+        import sentry_sdk
 
-    from .config import get_settings
+        from .config import get_settings
 
-    s = get_settings()
-    if s.sentry.dsn:
-        sentry_sdk.capture_message("smoke-test")
-        return {"sent": True}
-    return {"sent": False, "reason": "dsn not configured"}
+        s = get_settings()
+        if s.sentry.dsn:
+            sentry_sdk.capture_message("smoke-test")
+            return {"sent": True}
+        return {"sent": False, "reason": "dsn not configured"}
 
 
-main()
+if app is not None:
+    main()
