@@ -1,3 +1,15 @@
+## [2025-11-05] - Optional Alembic migrations & CI autoformat
+### Добавлено
+- Скрипт `scripts/migrations.py` с ленивой загрузкой Alembic и строгим режимом для продакшена.
+- Экстра `migrations` в `pyproject.toml`, подключающая `alembic>=1.13`, и dev-набор инструментов форматирования.
+
+### Изменено
+- `scripts/role_dispatch.py` поддерживает роль `migrate` с возвратом целочисленных кодов завершения.
+- GitHub Actions workflow `CI` выстраивает автофикс Ruff → Black → isort перед проверочными шагами.
+
+### Исправлено
+- `tests/conftest.py` пропускает Alembic-тесты, если пакет не установлен, и регистрирует новый маркер.
+
 ## [2025-11-04] - CI lint/test stabilization
 ### Добавлено
 - Конфигурация pytest-маркеров в `pyproject.toml` для единого управления офлайн-прогонами.

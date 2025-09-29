@@ -15,6 +15,15 @@ dependencies = [
     "pyarrow>=15.0",
 ]
 
+[project.optional-dependencies]
+migrations = ["alembic>=1.13"]
+dev = [
+    "ruff>=0.6.0",
+    "black>=24.4.0",
+    "isort>=5.13.0",
+    "pytest>=8.0.0",
+]
+
 [project.scripts]
 diag-drift = "diagtools.drift:main"
 diag-run = "diagtools.run_diagnostics:main"
@@ -56,5 +65,6 @@ markers = [
     "slow: long-running tests skipped in fast profiles",
     "e2e: end-to-end scenarios involving external integrations",
     "requires_fastapi: test depends on FastAPI stack",
+    "requires_alembic: test depends on Alembic stack",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]

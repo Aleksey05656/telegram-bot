@@ -42,15 +42,21 @@ jobs:
         run: scripts/run_start_check.sh
 
       - name: Ruff autofix
-        run: |
-          python -m ruff check . --fix
-          python -m ruff format
-          python -m ruff check .
+        run: python -m ruff check . --fix
 
-      - name: Black
+      - name: Black format
+        run: python -m black .
+
+      - name: isort format
+        run: python -m isort .
+
+      - name: Ruff check
+        run: python -m ruff check .
+
+      - name: Black check
         run: python -m black --check .
 
-      - name: isort
+      - name: isort check
         run: python -m isort --check-only .
 
       - name: Pytest
