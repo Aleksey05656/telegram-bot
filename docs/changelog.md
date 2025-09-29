@@ -1,3 +1,15 @@
+## [2025-11-08] - API health gating and role preflight
+### Добавлено
+- Минимальный модуль `api.health` с эндпоинтами `/healthz` и `/readyz`, подключаемый через `API_ENABLED`.
+- Значения по умолчанию `API_ENABLED` и `STRICT_MIGRATIONS` в `.env.example` для локальной настройки.
+
+### Изменено
+- `app/main.py` подключает health-роутер через общий helper и управляет им флагом окружения.
+- `scripts/role_dispatch.py`, `scripts/run_start_check.sh` и `amvera.yaml` выстраивают роли `api`/`bot` в exec-формате без shell-интерполяции.
+
+### Исправлено
+- `scripts/preflight.py` валидирует обязательные переменные и завершается кодом `EX_CONFIG` при отсутствии `TELEGRAM_BOT_TOKEN` для роли бота.
+
 ## [2025-11-07] - Minimal startup mode and CI split
 ### Добавлено
 - Флаги окружения `METRICS_ENABLED`, `SCHEDULES_ENABLED`, `EXTERNAL_CLIENTS_ENABLED` для безопасного запуска FastAPI без тяжёлых зависимостей.

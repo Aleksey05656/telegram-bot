@@ -12,9 +12,34 @@ build:
   requirementsPath: requirements.txt
 
 run:
-  command:
-    - python
-    - -m
-    - scripts.role_dispatch
   containerPort: 80
   persistenceMount: /data
+  processes:
+    preflight:
+      command:
+        - python
+        - -m
+        - scripts.preflight
+        - --role
+        - api
+    migrate:
+      env:
+        ROLE: migrate
+      command:
+        - python
+        - -m
+        - scripts.role_dispatch
+    api:
+      env:
+        ROLE: api
+      command:
+        - python
+        - -m
+        - scripts.role_dispatch
+    bot:
+      env:
+        ROLE: bot
+      command:
+        - python
+        - -m
+        - scripts.role_dispatch

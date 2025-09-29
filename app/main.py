@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 from .fastapi_compat import FastAPI
 
+from api.health import router as health_router
 from .config import get_settings
 from .middlewares import ProcessingTimeMiddleware, RateLimitMiddleware
 from .smoke_warmup import router as smoke_router
@@ -28,23 +29,35 @@ def _flag(name: str, default: bool = False) -> bool:
 METRICS_ENABLED = _flag("METRICS_ENABLED", default=False)
 SCHEDULES_ENABLED = _flag("SCHEDULES_ENABLED", default=False)
 EXTERNAL_CLIENTS_ENABLED = _flag("EXTERNAL_CLIENTS_ENABLED", default=False)
+API_ENABLED = _flag("API_ENABLED", default=False)
 
 app = FastAPI()
 settings = get_settings()
 
-if hasattr(app, "include_router"):
-    app.include_router(smoke_router, tags=["smoke"])
-else:  # pragma: no cover - fallback for lightweight FastAPI stubs
-    for route in getattr(smoke_router, "routes", []):
+def _include_router(router: Any, *, tags: list[str]) -> None:
+    if hasattr(app, "include_router"):
+        app.include_router(router, tags=tags)
+        return
+    for route in getattr(router, "routes", []):  # pragma: no cover - shim fallback
         path = route.get("path")
         endpoint = route.get("endpoint")
         methods = route.get("methods", ["GET"])
+        route_tags = route.get("tags") or tags
         if not path or endpoint is None:
             continue
         for method in methods:
             registrar = getattr(app, method.lower(), None)
             if callable(registrar):
-                registrar(path)(endpoint)
+                handler = registrar(path)
+                handler(endpoint)
+                if hasattr(handler, "tags"):
+                    handler.tags = route_tags  # type: ignore[attr-defined]
+
+
+_include_router(smoke_router, tags=["smoke"])
+
+if API_ENABLED:
+    _include_router(health_router, tags=["system"])
 
 if settings.rate_limit.enabled:
     app.add_middleware(

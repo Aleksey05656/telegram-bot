@@ -1,3 +1,14 @@
+## Задача: API health endpoints and role preflight (2025-11-08)
+- **Статус**: Завершена
+- **Описание**: Добавить минимальные health-эндпоинты FastAPI, усилить префлайт-проверки ролей и синхронизировать конфигурацию запуска Amvera.
+- **Шаги выполнения**:
+  - [x] Создан модуль `api/health.py` и подключён через флаг `API_ENABLED` в `app/main.py`.
+  - [x] Переписан `scripts/preflight.py` под проверку обязательных переменных окружения и обновлён `scripts/role_dispatch.py`.
+  - [x] Усилен smoke-скрипт старта, обновлены `.env.example` и `amvera.yaml` для exec-команд и ролей.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: api/health.py, app/main.py, scripts/preflight.py, scripts/role_dispatch.py, scripts/run_start_check.sh, .env.example, amvera.yaml, docs/changelog.md, docs/tasktracker.md
+
+
 ## Задача: Stabilize smoke startup and CI (2025-11-07)
 - **Статус**: Завершена
 - **Описание**: Ввести минимальный режим запуска с флагами отключения тяжёлых зависимостей и разделить CI на обязательный smoke и необязательный полный прогон.

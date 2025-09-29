@@ -1,59 +1,76 @@
 """
-/**
- * @file: scripts/preflight.py
- * @description: Deployment preflight checks for Amvera roles.
- * @dependencies: app.config, scripts.prestart, logger
- * @created: 2025-10-29
- */
+@file: scripts/preflight.py
+@description: Validate environment prerequisites before launching Amvera roles.
+@dependencies: logger
+@created: 2025-11-07
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
-from typing import Sequence
+import os
+from typing import Iterable, Mapping, Sequence
 
-from app.config import get_settings
 from logger import logger
-from scripts import prestart
+
+REQUIRED_ENV: Mapping[str, tuple[str, ...]] = {
+    "bot": ("TELEGRAM_BOT_TOKEN",),
+}
+
+
+def _missing_variables(names: Iterable[str]) -> list[str]:
+    missing = []
+    for name in names:
+        value = os.getenv(name, "")
+        if value.strip() == "":
+            missing.append(name)
+    return missing
+
+
+def _validate_role(role: str) -> int:
+    required = REQUIRED_ENV.get(role.lower(), ())
+    if not required:
+        logger.bind(role=role).info("No preflight requirements for role")
+        return 0
+
+    missing = _missing_variables(required)
+    if missing:
+        logger.bind(role=role, missing=missing).error(
+            "Preflight validation failed: required environment variables are absent",
+        )
+        return os.EX_CONFIG
+
+    logger.bind(role=role).info("Preflight validation successful")
+    return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="scripts.preflight",
-        description="Run preflight checks before launching a service role.",
+        description="Validate runtime prerequisites for service roles.",
     )
     parser.add_argument(
-        "--mode",
-        choices=("strict", "health"),
-        default="strict",
-        help="Preflight mode: 'strict' runs migrations and health probes, 'health' only runs probes.",
+        "--role",
+        help="Role name to validate (falls back to ROLE environment variable).",
     )
     return parser
 
 
-async def _run_checks(mode: str) -> None:
-    settings = get_settings()
-    logger.bind(event="preflight.start", mode=mode).info("Starting preflight checks")
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
 
-    if mode == "strict":
-        prestart.run_migrations(settings)
+    role = (args.role or os.getenv("ROLE", "")).strip()
+    if not role:
+        logger.error("ROLE is required for preflight validation")
+        return os.EX_USAGE
 
-    await prestart.run_health_checks(settings)
-    logger.bind(event="preflight.ok", mode=mode).info("Preflight checks completed")
+    exit_code = _validate_role(role)
+    if exit_code != 0:
+        return exit_code
 
-
-def main(argv: Sequence[str] | None = None) -> None:
-    args = _build_parser().parse_args(argv)
-
-    try:
-        asyncio.run(_run_checks(args.mode))
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.bind(event="preflight.failed", mode=args.mode, error=str(exc)).error(
-            "Preflight checks failed"
-        )
-        raise SystemExit(1) from exc
+    return 0
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":  # pragma: no cover - CLI execution
+    raise SystemExit(main())
