@@ -14,9 +14,10 @@ from collections.abc import Callable, Sequence
 from typing import Final
 
 from logger import logger
+from scripts.migrations import run_migrations
 
 
-def _run_subprocess(argv: Sequence[str], *, allow_failure: bool = False) -> None:
+def _run_subprocess(argv: Sequence[str], *, allow_failure: bool = False) -> int:
     """Execute a subprocess with the provided argv."""
     import subprocess
 
@@ -29,6 +30,7 @@ def _run_subprocess(argv: Sequence[str], *, allow_failure: bool = False) -> None
             )
         else:
             raise SystemExit(result.returncode)
+    return result.returncode
 
 
 def _maybe_run_preflight() -> None:
@@ -36,11 +38,11 @@ def _maybe_run_preflight() -> None:
         _run_subprocess((sys.executable, "-m", "scripts.preflight", "--mode", "strict"))
 
 
-def _run_api() -> None:
+def _run_api() -> int:
     _maybe_run_preflight()
     _run_subprocess((sys.executable, "-m", "app.migrations.up"), allow_failure=True)
     port = os.getenv("PORT", "80")
-    _run_subprocess(
+    return _run_subprocess(
         (
             sys.executable,
             "-m",
@@ -54,19 +56,24 @@ def _run_api() -> None:
     )
 
 
-def _run_worker() -> None:
+def _run_worker() -> int:
     _maybe_run_preflight()
-    _run_subprocess((sys.executable, "-m", "scripts.worker"))
+    return _run_subprocess((sys.executable, "-m", "scripts.worker"))
 
 
-def _run_tg_bot() -> None:
-    _run_subprocess((sys.executable, "-m", "scripts.tg_bot"))
+def _run_tg_bot() -> int:
+    return _run_subprocess((sys.executable, "-m", "scripts.tg_bot"))
 
 
-_COMMANDS: Final[dict[str, Callable[[], None]]] = {
+def _run_migrations() -> int:
+    return run_migrations(strict=True)
+
+
+_COMMANDS: Final[dict[str, Callable[[], int | None]]] = {
     "api": _run_api,
     "worker": _run_worker,
     "tgbot": _run_tg_bot,
+    "migrate": _run_migrations,
 }
 
 
@@ -81,7 +88,10 @@ def main() -> None:
         raise SystemExit(f"Unknown ROLE={role!r}. Use one of: {valid}")
 
     logger.info("Выбран режим запуска ROLE=%s", role)
-    handler()
+    exit_code = handler()
+    if exit_code is None:
+        exit_code = 0
+    raise SystemExit(int(exit_code))
 
 
 if __name__ == "__main__":

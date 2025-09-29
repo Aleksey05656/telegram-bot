@@ -1,3 +1,14 @@
+## Задача: Optional Alembic migrations & CI autoformat (2025-11-05)
+- **Статус**: Завершена
+- **Описание**: Стандартизировать автоформатирование CI и сделать миграции опциональными с ленивой загрузкой Alembic.
+- **Шаги выполнения**:
+  - [x] Обновлён workflow `CI` для последовательности Ruff fix → Black → isort и проверочных шагов.
+  - [x] Добавлен модуль `scripts/migrations.py` с строгим режимом для роли миграций.
+  - [x] Расширен `scripts/role_dispatch.py` новой ролью `migrate` и корректными кодами завершения.
+  - [x] Зарегистрирован маркер `requires_alembic` и пропуск тестов без Alembic.
+  - [x] В `pyproject.toml` добавлены extras `migrations` и `dev`, обновлена документация (changelog, tasktracker).
+- **Зависимости**: .github/workflows/ci.yml, scripts/migrations.py, scripts/role_dispatch.py, tests/conftest.py, pyproject.toml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: CI lint/test stabilization (2025-11-04)
 - **Статус**: Завершена
 - **Описание**: Упростить GitHub Actions под временный lint/test профиль, настроить общий pyproject и пропуски FastAPI-тестов.

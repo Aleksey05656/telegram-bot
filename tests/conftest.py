@@ -22,13 +22,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests._stubs import ensure_stubs
-
 import pytest
+
+from tests._stubs import ensure_stubs
 
 pytest_plugins = ["conftest_np_guard"]
 
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
+ALEMBIC_AVAILABLE = importlib.util.find_spec("alembic") is not None
 
 
 # Ensure offline stubs are visible only when optional dependencies are missing or
@@ -99,6 +100,7 @@ def pytest_pyfunc_call(pyfuncitem):
 def pytest_configure(config):
     config.addinivalue_line("markers", "asyncio: mark async test for the local loop runner")
     config.addinivalue_line("markers", "requires_fastapi: test depends on FastAPI stack")
+    config.addinivalue_line("markers", "requires_alembic: test depends on Alembic stack")
 
 
 def pytest_addoption(parser):
@@ -117,10 +119,14 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     del config  # unused but required by pytest signature
 
-    if FASTAPI_AVAILABLE:
-        return
+    if not FASTAPI_AVAILABLE:
+        skip_fastapi = pytest.mark.skip(reason="FastAPI is not installed")
+        for item in items:
+            if item.get_closest_marker("requires_fastapi"):
+                item.add_marker(skip_fastapi)
 
-    skip_marker = pytest.mark.skip(reason="FastAPI is not installed")
-    for item in items:
-        if item.get_closest_marker("requires_fastapi"):
-            item.add_marker(skip_marker)
+    if not ALEMBIC_AVAILABLE:
+        skip_alembic = pytest.mark.skip(reason="Alembic is not installed")
+        for item in items:
+            if item.get_closest_marker("requires_alembic"):
+                item.add_marker(skip_alembic)
