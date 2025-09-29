@@ -10,8 +10,15 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from importlib import import_module
+from pathlib import Path
 
 import uvicorn
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _resolve_log_level(raw: str | None) -> int:
@@ -60,11 +67,37 @@ def _resolve_port(logger: logging.Logger) -> int:
     return port
 
 
+def _resolve_asgi_app(logger: logging.Logger):
+    candidates = (
+        "app.api:app",
+        "app.main:app",
+        "api:app",
+        "main:app",
+    )
+    for target in candidates:
+        module_name, attribute = target.split(":", 1)
+        try:
+            module = import_module(module_name)
+            app = getattr(module, attribute)
+        except ImportError as exc:
+            logger.debug("Failed to import %s (%s)", module_name, exc)
+            continue
+        except AttributeError:
+            logger.debug("Module %s lacks attribute %s", module_name, attribute)
+            continue
+        logger.info("Resolved ASGI application from %s", target)
+        return app
+    raise RuntimeError(
+        "Unable to locate ASGI application; checked: " + ", ".join(candidates)
+    )
+
+
 def main(argv: list[str] | None = None) -> None:  # noqa: D401 - CLI entrypoint
     _ = argv  # CLI compatibility, currently unused
     logger = _configure_logging()
     api_enabled = _ensure_api_flag(logger)
     port = _resolve_port(logger)
+    asgi_app = _resolve_asgi_app(logger)
 
     logger.info(
         "boot: role=%s api=%s port=%s", os.getenv("ROLE", "api"), api_enabled, port
@@ -72,7 +105,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: D401 - CLI entrypoint
 
     try:
         uvicorn.run(
-            "app.api:app",
+            app=asgi_app,
             host="0.0.0.0",
             port=port,
             workers=1,
