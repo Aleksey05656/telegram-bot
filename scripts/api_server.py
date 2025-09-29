@@ -39,24 +39,24 @@ def _configure_logging() -> logging.Logger:
 
 
 def _ensure_api_flag(logger: logging.Logger) -> str:
-    api_enabled = os.environ.get("API_ENABLED")
-    if not api_enabled:
-        os.environ["API_ENABLED"] = "true"
+    api_enabled = os.environ.setdefault("API_ENABLED", "true")
+    if api_enabled.lower() != "true":
+        logger.warning("Overriding API_ENABLED=%s to true for Amvera", api_enabled)
         api_enabled = "true"
-        logger.info("API_ENABLED not set, forcing to true for Amvera")
+        os.environ["API_ENABLED"] = api_enabled
     return api_enabled
 
 
 def _resolve_port(logger: logging.Logger) -> int:
-    raw_port = os.getenv("PORT", "8000").strip()
+    raw_port = os.getenv("PORT", "80").strip()
     try:
         port = int(raw_port)
     except ValueError:
-        logger.warning("Invalid PORT=%s, falling back to 8000", raw_port)
-        port = 8000
+        logger.warning("Invalid PORT=%s, falling back to 80", raw_port)
+        port = 80
     if port <= 0:
-        logger.warning("Non-positive PORT=%s, resetting to 8000", raw_port)
-        port = 8000
+        logger.warning("Non-positive PORT=%s, resetting to 80", raw_port)
+        port = 80
     return port
 
 
@@ -70,18 +70,14 @@ def main(argv: list[str] | None = None) -> None:  # noqa: D401 - CLI entrypoint
         "boot: role=%s api=%s port=%s", os.getenv("ROLE", "api"), api_enabled, port
     )
 
-    config = uvicorn.Config(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        log_level=logging.getLevelName(logger.getEffectiveLevel()).lower(),
-        reload=False,
-        workers=1,
-        proxy_headers=True,
-    )
-    server = uvicorn.Server(config)
     try:
-        server.run()
+        uvicorn.run(
+            "app.api:app",
+            host="0.0.0.0",
+            port=port,
+            workers=1,
+            log_level=logging.getLevelName(logger.getEffectiveLevel()).lower(),
+        )
     except Exception:  # pragma: no cover - defensive logging for prod incidents
         logger.exception("uvicorn server crashed")
         raise

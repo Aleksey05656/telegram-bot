@@ -1,3 +1,15 @@
+## [2025-11-09] - Amvera API logging and runtime alignment
+### Добавлено
+- —
+
+### Изменено
+- `scripts/api_server.py` запускает uvicorn через `app.api:app`, фиксирует `API_ENABLED=true` и принимает порт из `PORT` с дефолтом 80.
+- `app/api.py` принудительно конфигурирует `logging.basicConfig` и печатает стартовую строку с ролью, флагом API и портом.
+- `amvera.yaml` переводит toolchain на Python 3.11, добавляет `PYTHONUNBUFFERED`, `LOG_LEVEL`, `PORT` и перенастраивает preflight через `scripts.role_dispatch`.
+
+### Исправлено
+- Гарантировано раннее появление логов запуска и единый порт API/контейнера в профиле Amvera.
+
 ## [2025-11-08] - Amvera API bootstrap hardening
 ### Добавлено
 - Скрипт `scripts/api_server.py`, запускающий uvicorn с диагностикой запуска и принудительной активацией `API_ENABLED`.

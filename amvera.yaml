@@ -6,7 +6,7 @@ meta:
   environment: python
   toolchain:
     name: pip
-    version: 3.10
+    version: 3.11
 
 build:
   requirementsPath: requirements.txt
@@ -16,12 +16,12 @@ run:
   persistenceMount: /data
   release:
     preflight:
+      env:
+        ROLE: preflight
       cmd:
         - python
         - -m
-        - scripts.preflight
-        - --role
-        - api
+        - scripts.role_dispatch
     migrate:
       env:
         ROLE: migrate
@@ -33,6 +33,9 @@ run:
     api:
       env:
         API_ENABLED: "true"
+        PYTHONUNBUFFERED: "1"
+        LOG_LEVEL: INFO
+        PORT: "80"
       cmd:
         - python
         - -m
@@ -40,6 +43,8 @@ run:
     bot:
       env:
         ROLE: bot
+        PYTHONUNBUFFERED: "1"
+        LOG_LEVEL: INFO
       cmd:
         - python
         - -m

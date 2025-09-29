@@ -13,6 +13,13 @@ import logging
 import os
 from typing import Any
 
+logging.basicConfig(
+    level=logging.getLevelName(os.getenv("LOG_LEVEL", "INFO").upper()),
+    force=True,
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+)
+
+
 from .fastapi_compat import FastAPI, HTTPException, JSONResponse, Response, status
 
 from .config import get_settings
@@ -39,6 +46,12 @@ except Exception:  # pragma: no cover - metrics will be disabled
 
 
 logger = logging.getLogger(__name__)
+logger.info(
+    "boot: role=%s api_enabled=%s port=%s",
+    os.getenv("ROLE", "api"),
+    os.getenv("API_ENABLED", "false"),
+    os.getenv("PORT", "80"),
+)
 READINESS_TIMEOUT = float(os.getenv("READINESS_TIMEOUT_SEC", "1.5"))
 
 # Reuse FastAPI app from app.main to keep routers/middleware intact.
