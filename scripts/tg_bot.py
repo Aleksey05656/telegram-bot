@@ -8,10 +8,52 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import logging
 import signal
+import sys
 from contextlib import suppress
+from pathlib import Path
 
-from logger import logger
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _resolve_logger() -> logging.Logger:
+    candidates = (
+        ("logger", "logger"),
+        ("app.logger", "logger"),
+        ("common.logger", "logger"),
+        ("app.utils.logger", "logger"),
+    )
+
+    for module_name, attribute_name in candidates:
+        try:
+            module = importlib.import_module(module_name)
+            candidate = getattr(module, attribute_name)
+        except ModuleNotFoundError:
+            continue
+        except AttributeError:
+            continue
+        else:
+            if isinstance(candidate, logging.Logger):
+                candidate.info("custom logger resolved from %s.%s", module_name, attribute_name)
+                return candidate
+            if callable(candidate):
+                resolved = candidate()
+                if isinstance(resolved, logging.Logger):
+                    resolved.info("custom logger resolved from %s.%s", module_name, attribute_name)
+                    return resolved
+
+    logging.basicConfig()
+    fallback_logger = logging.getLogger("tg_bot")
+    fallback_logger.warning("fallback logger activated")
+    return fallback_logger
+
+
+logger = _resolve_logger()
+
 from telegram.bot import TelegramBot
 
 

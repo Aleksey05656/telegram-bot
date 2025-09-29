@@ -1,3 +1,12 @@
+## Задача: Harden Telegram bot logger resolution (2025-09-29)
+- **Статус**: Завершена
+- **Описание**: Обеспечить запуск воркера Amvera без ошибок импорта, расширив поиск логгера и добавив корень проекта в `sys.path`.
+- **Шаги выполнения**:
+  - [x] Добавлен корневой путь проекта в `sys.path` внутри `scripts/tg_bot.py` до загрузки зависимостей.
+  - [x] Реализован многоступенчатый резолвер логгера с перебором `logger`, `app.logger`, `common.logger`, `app.utils.logger` и fallback на `logging.basicConfig`.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для фиксации изменений.
+- **Зависимости**: scripts/tg_bot.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Resolve ASGI target for Amvera Configurator (2025-11-10)
 - **Статус**: Завершена
 - **Описание**: Обеспечить корректный запуск uvicorn в окружении Amvera, добавив корень проекта в `sys.path` и явное разрешение ASGI-приложения.

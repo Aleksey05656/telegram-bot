@@ -1,3 +1,14 @@
+## [2025-09-29] - Telegram bot logger resolution hardening
+### Добавлено
+- —
+
+### Изменено
+- `scripts/tg_bot.py` добавляет корень проекта в `sys.path` перед загрузкой зависимостей Telegram-бота.
+- Реализовано последовательное разрешение логгера из `logger`, `app.logger`, `common.logger`, `app.utils.logger` с сообщением об успешном импорте.
+
+### Исправлено
+- Исключён `ModuleNotFoundError` при запуске Amvera worker за счёт резервного `logging.basicConfig` и fallback-логгера.
+
 ## [2025-11-10] - ASGI resolution hardening for Amvera
 ### Добавлено
 - —
