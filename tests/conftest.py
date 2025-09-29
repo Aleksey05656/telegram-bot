@@ -5,7 +5,15 @@
 @created: 2025-09-10
 """
 
+"""
+@file: tests/conftest.py
+@description: Pytest fixtures with numpy/pandas guard, asyncio fallback runner and stub loaders
+@dependencies: app/config.py, tests/_stubs, tests/conftest_np_guard.py, asyncio
+@created: 2025-09-10
+"""
+
 import asyncio
+import importlib.util
 import os
 import pathlib
 import sys
@@ -19,6 +27,8 @@ from tests._stubs import ensure_stubs
 import pytest
 
 pytest_plugins = ["conftest_np_guard"]
+
+FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
 
 
 # Ensure offline stubs are visible only when optional dependencies are missing or
@@ -88,6 +98,7 @@ def pytest_pyfunc_call(pyfuncitem):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "asyncio: mark async test for the local loop runner")
+    config.addinivalue_line("markers", "requires_fastapi: test depends on FastAPI stack")
 
 
 def pytest_addoption(parser):
@@ -101,3 +112,15 @@ def pytest_addoption(parser):
         ),
         default="auto",
     )
+
+
+def pytest_collection_modifyitems(config, items):
+    del config  # unused but required by pytest signature
+
+    if FASTAPI_AVAILABLE:
+        return
+
+    skip_marker = pytest.mark.skip(reason="FastAPI is not installed")
+    for item in items:
+        if item.get_closest_marker("requires_fastapi"):
+            item.add_marker(skip_marker)
