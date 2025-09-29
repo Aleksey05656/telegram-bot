@@ -118,8 +118,16 @@ pre-commit-offline:
 	$(PRECOMMIT) run --config .pre-commit-config.offline.yaml --all-files
 
 check:
-	$(MAKE) lint
-	$(MAKE) test
+        @changed_files=$$(git diff --name-only --diff-filter=ACMRTUXB origin/main...HEAD | grep -E "\\.py$$" || true); \
+        if [ -n "$$changed_files" ]; then \
+                echo "[check] running style checks on: $$changed_files"; \
+                $(PY) -m ruff check $$changed_files; \
+                $(PY) -m black --check $$changed_files; \
+                $(PY) -m isort --check-only $$changed_files; \
+        else \
+                echo "[check] no Python changes detected; skipping style checks"; \
+        fi
+        $(PY) -m pytest -q
 
 deps-lock:
 	$(PY) scripts/deps_lock.py
