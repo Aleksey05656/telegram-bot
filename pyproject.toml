@@ -20,38 +20,41 @@ diag-drift = "diagtools.drift:main"
 diag-run = "diagtools.run_diagnostics:main"
 
 [tool.black]
-line-length = 88
-target-version = ["py310"]
-include = "\.pyi?$"
-# Внимание: extend-exclude — это ОДНА regex-строка (без многострочного тела).
-# Мы будем программно дописывать сюда пути через пайпы `|`.
+line-length = 100
+target-version = ["py311"]
+include = "\\.pyi?$"
 extend-exclude = "(^app/config\\.py$|^app/data_processor/__init__\\.py$|^app/data_processor/feature_engineering\\.py$|^app/data_processor/io\\.py$|^app/data_processor/transformers\\.py$|^app/data_processor/validators\\.py$|^experiments/|^legacy/|^ml/base_poisson_glm\\.py$|^ml/calibration\\.py$|^ml/modifiers_model\\.py$|^ml/montecarlo_simulator\\.py$|^notebooks/|^scripts/fix_headers\\.py$|^scripts/migrations/|^telegram/middlewares\\.py$|^telegram/models\\.py$)"
-
-[tool.ruff]
-target-version = "py310"
-line-length = 88
-respect-gitignore = true
-exclude = [
-    ".git",
-    ".venv",
-    "venv",
-    "build",
-    "dist",
-    "__pycache__",
-    "migrations",
-    "alembic",
-]
-
-[tool.ruff.lint]
-select = ["E", "F", "B", "UP"]
-ignore = ["E203", "W503"]
-
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-
 
 [tool.isort]
 profile = "black"
-py_version = 310
-line_length = 88
+py_version = 311
+line_length = 100
 skip = ["migrations", "alembic"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+respect-gitignore = true
+extend-exclude = ["legacy/", "experiments/", "notebooks/", "scripts/migrations/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "UP", "I", "C4", "PT", "ERA"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]
+"tests/**" = ["F401", "F403", "F841", "B018"]
+"scripts/train_model.py" = ["E402"]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "needs_np: test requires working numpy/pandas stack",
+    "bot_smoke: lightweight Telegram handler checks",
+    "slow: long-running tests skipped in fast profiles",
+    "e2e: end-to-end scenarios involving external integrations",
+    "requires_fastapi: test depends on FastAPI stack",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

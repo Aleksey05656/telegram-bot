@@ -1,3 +1,14 @@
+## [2025-11-04] - CI lint/test stabilization
+### Добавлено
+- Конфигурация pytest-маркеров в `pyproject.toml` для единого управления офлайн-прогонами.
+
+### Изменено
+- `pyproject.toml` перенесён на единую конфигурацию Black/isort/Ruff с `line-length=100` и `py311`.
+- GitHub Actions workflow `CI` упрощён до шагов smoke, Ruff autofix/format, Black, isort и `pytest -q`.
+
+### Исправлено
+- `tests/conftest.py` автоматически помечает тесты с `@pytest.mark.requires_fastapi` как пропущенные без установленного FastAPI.
+
 ## [2025-11-03] - Safe ROLE dispatch without shells
 ### Добавлено
 - Python-диспетчер `scripts.role_dispatch`, который запускает роли Amvera без `bash -lc` и соблюдает preflight/migrations.

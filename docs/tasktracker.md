@@ -1,3 +1,13 @@
+## Задача: CI lint/test stabilization (2025-11-04)
+- **Статус**: Завершена
+- **Описание**: Упростить GitHub Actions под временный lint/test профиль, настроить общий pyproject и пропуски FastAPI-тестов.
+- **Шаги выполнения**:
+  - [x] Перенесены настройки Ruff/Black/isort/pytest в `pyproject.toml` с параметрами `py311` и `line-length=100`.
+  - [x] Добавлена автопометка `requires_fastapi` в `tests/conftest.py` и зарегистрирован маркер в конфиге pytest.
+  - [x] Обновлён workflow `CI` для последовательности smoke → Ruff autofix/format → black/isort checks → `pytest -q`.
+  - [x] Задокументированы изменения в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: pyproject.toml, tests/conftest.py, pytest.ini, .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Safe ROLE dispatch without shells (2025-11-03)
 - **Статус**: Завершена
 - **Описание**: Устранить ошибку кавычек при запуске ролей на Amvera и закрепить проверку в CI.
