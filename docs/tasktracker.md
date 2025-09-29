@@ -1,3 +1,12 @@
+## Задача: Resolve ASGI target for Amvera Configurator (2025-11-10)
+- **Статус**: Завершена
+- **Описание**: Обеспечить корректный запуск uvicorn в окружении Amvera, добавив корень проекта в `sys.path` и явное разрешение ASGI-приложения.
+- **Шаги выполнения**:
+  - [x] Добавлен корневой путь проекта в `sys.path` внутри `scripts/api_server.py` перед загрузкой модулей.
+  - [x] Реализован перебор целей `app.api:app`, `app.main:app`, `api:app`, `main:app` с возвратом найденного объекта приложения uvicorn.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для фиксации улучшений.
+- **Зависимости**: scripts/api_server.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Align Amvera deployment runtime (2025-11-09)
 - **Статус**: Завершена
 - **Описание**: Синхронизировать сервер API Amvera с портом контейнера, ранними логами и настройками Python 3.11.

@@ -1,3 +1,13 @@
+## [2025-11-10] - ASGI resolution hardening for Amvera
+### Добавлено
+- —
+
+### Изменено
+- `scripts/api_server.py` добавляет корень проекта в `sys.path`, выбирает первый доступный ASGI-тартет из `app.api:app`, `app.main:app`, `api:app`, `main:app` и передаёт объект приложения в `uvicorn.run`.
+
+### Исправлено
+- Исключена ошибка `ModuleNotFoundError` при запуске через Amvera Configurator благодаря явной загрузке ASGI-приложения.
+
 ## [2025-11-09] - Amvera API logging and runtime alignment
 ### Добавлено
 - —
