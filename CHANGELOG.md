@@ -1,3 +1,13 @@
+## [2025-09-29] - Build tooling maintenance
+### Added
+- —
+
+### Changed
+- —
+
+### Fixed
+- Aligned all mypy pins to 1.7.1 to resolve pip resolution conflicts observed on Amvera builds.
+
 ## [2025-10-05] - Value v1.4 audit
 ### Added
 - Multi-provider odds aggregation (`app/lines/aggregator.py`, `app/lines/movement.py`) with weighted consensus and closing line tracking.

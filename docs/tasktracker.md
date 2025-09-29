@@ -1,3 +1,12 @@
+## Задача: Align mypy pins (2025-09-29)
+- **Статус**: Завершена
+- **Описание**: Снять конфликт зависимостей pip, выровняв все жёсткие пины mypy до версии 1.7.1 и синхронизировав конфигурацию pre-commit.
+- **Шаги выполнения**:
+  - [x] Просканированы requirements, constraints и конфиги на предмет жёстких пинов mypy.
+  - [x] Обновлены `requirements.lock`, `requirements.txt` и `constraints.txt`, установив `mypy==1.7.1`.
+  - [x] Обновлена ревизия хука mypy в `.pre-commit-config.yaml` и зафиксированы изменения в документации.
+- **Зависимости**: requirements.lock, requirements.txt, constraints.txt, .pre-commit-config.yaml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Final readiness summary (2025-11-01)
 - **Статус**: Завершена
 - **Описание**: Сконсолидировать итоговое резюме с точными ссылками на ключевые отчёты перед завершением работ.
