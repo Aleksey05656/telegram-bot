@@ -1,3 +1,13 @@
+## Задача: Align Amvera deployment runtime (2025-11-09)
+- **Статус**: Завершена
+- **Описание**: Синхронизировать сервер API Amvera с портом контейнера, ранними логами и настройками Python 3.11.
+- **Шаги выполнения**:
+  - [x] Обновлён `scripts/api_server.py` для чтения `PORT=80`, установки `API_ENABLED` и запуска `app.api:app` через uvicorn.
+  - [x] Доработан `app/api.py` принудительным `logging.basicConfig` и стартовым логом с ROLE/API_ENABLED/PORT.
+  - [x] Переконфигурирован `amvera.yaml` с toolchain Python 3.11 и переменными окружения `PYTHONUNBUFFERED`, `LOG_LEVEL`, `PORT`.
+  - [x] Задокументированы изменения в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: scripts/api_server.py, app/api.py, amvera.yaml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Amvera deployment bootstrap (2025-11-08)
 - **Статус**: Завершена
 - **Описание**: Обеспечить успешный деплой Amvera с длительным HTTP-процессом, диагностикой запуска и предсказуемыми логами.
