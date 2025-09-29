@@ -139,8 +139,12 @@ def main(argv: list[str] | None = None) -> None:
         print("settlement_check: no picks")
         raise SystemExit(1)
     print(
-        "settlement_check: total={total} settled={settled} coverage={coverage:.2f} avg_roi={avg_roi:.2f}% window_roi={window_roi:.2f}%".format(
-            **summary.__dict__,
+        "settlement_check: total={t} settled={s} coverage={c:.2f} avg_roi={a:.2f}% window_roi={w:.2f}%".format(
+            t=summary.total,
+            s=summary.settled,
+            c=summary.coverage,
+            a=summary.avg_roi,
+            w=summary.window_roi,
         )
     )
     if summary.coverage < float(args.min_coverage) or summary.window_roi < float(args.roi_threshold):
