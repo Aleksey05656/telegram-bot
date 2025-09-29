@@ -1,3 +1,14 @@
+## [2025-09-29] - Regression guardrails refresh
+### Добавлено
+- In-memory TTL backend `database.cache_postgres` для unit-тестов и офлайн-запуска без внешних сервисов.
+
+### Изменено
+- Класс `app/value_detector.ValuePick` получил значения по умолчанию и авторасчёт `edge_weighted_pct` для старых вызовов.
+- `.env.example` синхронизирован с настройками через переменные `CANARY` и `PGHOST` по умолчанию.
+
+### Исправлено
+- `diagtools.provider_quality` использует новую схему `provider_stats`, пишет отчёты и возвращает предсказуемые коды выхода.
+
 ## [2025-09-29] - Selective CI linting for pull requests
 ### Добавлено
 - Джоб `style-and-tests-pr` в GitHub Actions, который форматирует и проверяет только изменённые Python-файлы и выполняет smoke/pytest.

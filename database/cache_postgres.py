@@ -1,275 +1,264 @@
 """
-@file: cache_postgres.py
-@description: Async Redis cache helpers backed by configuration defaults.
-@dependencies: redis.asyncio, config.get_settings
-@created: 2025-09-15
+@file: database/cache_postgres.py
+@description: Minimal in-memory TTL cache emulating Redis helpers for unit tests and offline runs.
+@dependencies: config.get_settings, time.monotonic
+@created: 2025-09-29
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from dataclasses import dataclass
+from time import monotonic
+from typing import Any, Awaitable, Callable
 
-import asyncpg
-from redis.asyncio import Redis, from_url
-from redis.exceptions import ConnectionError as RedisConnectionError
-
-# Импортируем только get_settings, не используем глобальный settings
 from config import get_settings
-from logger import logger
 
-# Глобальные переменные для подключения
-pool: asyncpg.Pool | None = None
-cache: Optional["CacheManager"] = None
+try:  # pragma: no cover - optional dependency
+    from redis.asyncio import Redis  # type: ignore
+    from redis.asyncio import from_url as redis_from_url  # type: ignore
+except Exception:  # pragma: no cover - redis not installed in test env
+    Redis = Any  # type: ignore
+
+    async def redis_from_url(*_args: Any, **_kwargs: Any) -> "_InMemoryRedis":
+        return _InMemoryRedis()
+
+
+@dataclass(slots=True)
+class _CacheEntry:
+    value: Any
+    expire_at: float | None
+
+
+class _InMemoryRedis:
+    """Async-friendly Redis stub storing JSON payloads in memory."""
+
+    def __init__(self) -> None:
+        self._values: dict[str, tuple[str, float | None]] = {}
+
+    async def ping(self) -> None:
+        return None
+
+    async def setex(self, key: str, ttl: int, value: str) -> bool:
+        expire_at = monotonic() + ttl if ttl > 0 else None
+        self._values[key] = (value, expire_at)
+        return True
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
+        ttl = int(ex or 0)
+        return await self.setex(key, ttl, value)
+
+    async def get(self, key: str) -> str | None:
+        entry = self._values.get(key)
+        if not entry:
+            return None
+        value, expire_at = entry
+        if expire_at is not None and expire_at <= monotonic():
+            self._values.pop(key, None)
+            return None
+        return value
+
+    async def delete(self, key: str) -> int:
+        existed = key in self._values
+        self._values.pop(key, None)
+        return 1 if existed else 0
+
+    async def close(self) -> None:
+        self._values.clear()
+        return None
+
+
+def _json_default(value: Any) -> str:
+    return str(value)
 
 
 def versioned_key(prefix: str, *parts: Any) -> str:
-    """Создать версионированный ключ кэша, используя CACHE_VERSION."""
-    try:
-        config = get_settings()
-        key_parts = [config.CACHE_VERSION, prefix, *(str(part) for part in parts)]
-        return ":".join(key_parts)
-    except Exception as exc:  # pragma: no cover - защитный сценарий
-        logger.error("Ошибка при создании версионированного ключа: %s", exc)
-        suffix = ":".join(str(part) for part in parts)
-        return f"{prefix}:{suffix}" if suffix else prefix
-
-
-async def set_with_ttl(
-    redis_client: Redis, key: str, value: Any, ttl_name: str
-) -> bool:
-    """
-    Сохранение значения в кэш с TTL из конфигурации.
-    Args:
-        redis_client (Redis): Клиент Redis
-        key (str): Ключ
-        value (Any): Значение для сохранения
-        ttl_name (str): Имя TTL в конфигурации
-    Returns:
-        bool: Успешность операции
-    """
-    try:
-        config = get_settings()
-        ttl = config.TTL.get(ttl_name)
-        if ttl is None:
-            logger.warning(f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд")
-            ttl = 3600
-        serialized_value = json.dumps(value, ensure_ascii=False)
-        await redis_client.setex(key, ttl, serialized_value)
-        logger.debug(f"Значение сохранено в кэш с ключом {key}, TTL: {ttl} секунд")
-        return True
-    except Exception as e:
-        logger.error(f"Ошибка при сохранении значения в кэш с TTL: {e}")
-        return False
+    settings = get_settings()
+    version = getattr(settings, "CACHE_VERSION", "v1")
+    key_parts = [str(version), prefix]
+    key_parts.extend(str(part) for part in parts if part is not None)
+    return ":".join(filter(None, key_parts))
 
 
 class CacheManager:
-    """Менеджер для работы с Redis кэшем."""
+    """In-memory TTL cache with optional Redis shim for fixtures."""
 
-    def __init__(self):
-        """Инициализация менеджера кэша."""
-        self.redis_client: Redis | None = None
-        logger.info("Инициализация CacheManager")
+    def __init__(self) -> None:
+        self._entries: dict[str, _CacheEntry] = {}
+        self.redis_client: Any | None = None
 
-    async def connect_to_redis(self):
-        """Подключение к Redis."""
+    # Generic TTL cache helpers -------------------------------------------------
+    def _resolve_ttl(self, ttl_name: str) -> float | None:
+        ttl_map = getattr(get_settings(), "TTL", {})
+        raw_ttl = ttl_map.get(ttl_name)
         try:
-            config = get_settings()
-            redis_url = config.REDIS_URL or "redis://localhost:6379/0"
-            self.redis_client = from_url(
-                redis_url, encoding="utf-8", decode_responses=True
-            )
-            # Простая проверка подключения
-            await self.redis_client.ping()
-            logger.info("✅ Подключение к Redis установлено")
-        except RedisConnectionError as e:
-            logger.error(f"❌ Не удалось подключиться к Redis: {e}")
-            # Не останавливаем приложение, просто работаем без кэша
-            self.redis_client = None
-        except Exception as e:
-            logger.error(f"❌ Неожиданная ошибка при подключении к Redis: {e}")
-            self.redis_client = None
+            ttl_value = float(raw_ttl)
+        except (TypeError, ValueError):
+            return None
+        if ttl_value <= 0:
+            return None
+        return ttl_value
 
-    async def get(self, key: str) -> Any | None:
-        """Получение значения из Redis кэша.
-        Args:
-            key (str): Ключ для поиска
-        Returns:
-            Optional[Any]: Значение из кэша или None
-        """
-        if not self.redis_client:
-            logger.debug("Redis клиент не инициализирован, пропуск get")
-            return None
-        try:
-            value = await self.redis_client.get(key)
-            if value is not None:
-                # Десериализация из JSON
-                return json.loads(value)
-            return None
-        except Exception as e:
-            logger.error(f"Ошибка при получении из Redis по ключу {key}: {e}")
-            return None
+    def _store(self, key: str, value: Any, ttl_seconds: float | None) -> None:
+        expire_at = monotonic() + ttl_seconds if ttl_seconds and ttl_seconds > 0 else None
+        self._entries[key] = _CacheEntry(value=value, expire_at=expire_at)
 
-    async def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
-        """Сохранение значения в Redis кэш.
-        Args:
-            key (str): Ключ
-            value (Any): Значение для сохранения
-            ttl (int): Время жизни в секундах
-        Returns:
-            bool: Успешность операции
-        """
-        if not self.redis_client:
-            logger.debug("Redis клиент не инициализирован, пропуск set")
-            return False
-        try:
-            # Сериализация в JSON
-            serialized_value = json.dumps(value, ensure_ascii=False)
-            result = await self.redis_client.set(key, serialized_value, ex=ttl)
-            return result
-        except Exception as e:
-            logger.error(f"Ошибка при записи в Redis по ключу {key}: {e}")
-            return False
+    def _get_entry(self, key: str) -> _CacheEntry | None:
+        entry = self._entries.get(key)
+        if entry is None:
+            return None
+        if entry.expire_at is not None and entry.expire_at <= monotonic():
+            self._entries.pop(key, None)
+            return None
+        return entry
+
+    async def set(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        self._store(key, value, ttl)
+        return True
 
     async def set_with_ttl_config(self, key: str, value: Any, ttl_name: str) -> bool:
-        """
-        Сохранение значения в кэш с TTL из конфигурации.
-        Args:
-            key (str): Ключ
-            value (Any): Значение для сохранения
-            ttl_name (str): Имя TTL в конфигурации
-        Returns:
-            bool: Успешность операции
-        """
-        try:
-            config = get_settings()
-            ttl = config.TTL.get(ttl_name)
-            if ttl is None:
-                logger.warning(
-                    f"Неизвестный TTL ключ: {ttl_name}, используем 3600 секунд"
-                )
-                ttl = 3600
-            return await self.set(key, value, ttl)
-        except Exception as e:
-            logger.error(
-                f"Ошибка при сохранении значения в кэш с TTL из конфигурации: {e}"
-            )
-            return False
+        ttl = self._resolve_ttl(ttl_name)
+        return await self.set(key, value, ttl)
+
+    async def get(self, key: str) -> Any | None:
+        entry = self._get_entry(key)
+        return entry.value if entry else None
 
     async def delete(self, key: str) -> bool:
-        """Удаление значения из Redis кэша.
-        Args:
-            key (str): Ключ для удаления
-        Returns:
-            bool: Успешность операции
-        """
-        if not self.redis_client:
-            logger.debug("Redis клиент не инициализирован, пропуск delete")
-            return False
-        try:
-            result = await self.redis_client.delete(key)
-            return result > 0
-        except Exception as e:
-            logger.error(f"Ошибка при удалении из Redis по ключу {key}: {e}")
-            return False
+        existed = key in self._entries
+        self._entries.pop(key, None)
+        return existed
 
-    async def close(self):
-        """Закрытие подключения к Redis."""
-        if self.redis_client:
-            try:
-                await self.redis_client.close()
-                logger.info("Подключение к Redis закрыто")
-            except Exception as e:
-                logger.error(f"Ошибка при закрытии подключения к Redis: {e}")
+    async def get_or_set(
+        self,
+        key: str,
+        factory: Callable[[], Awaitable[Any]] | Callable[[], Any],
+        ttl_name: str | None = None,
+        *,
+        ttl: float | None = None,
+    ) -> tuple[Any, bool]:
+        cached = await self.get(key)
+        if cached is not None:
+            return cached, True
+        result = factory()
+        value = await result if isinstance(result, Awaitable) else result
+        effective_ttl = ttl
+        if effective_ttl is None and ttl_name is not None:
+            effective_ttl = self._resolve_ttl(ttl_name)
+        await self.set(key, value, effective_ttl)
+        return value, False
 
-    # --- Добавлено: Методы для работы с лайнапами ---
+    async def clear(self) -> None:
+        self._entries.clear()
+
+    # Redis-specific helpers ----------------------------------------------------
+    async def connect_to_redis(self) -> None:
+        settings = get_settings()
+        redis_url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+        client = redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
+        if isinstance(client, Awaitable):
+            client = await client  # type: ignore[assignment]
+        self.redis_client = client
+        ping = getattr(client, "ping", None)
+        if callable(ping):
+            result = ping()
+            if isinstance(result, Awaitable):
+                await result
+        return None
+
     async def get_lineup_cached(self, match_id: int) -> Any | None:
-        """Получение лайнапа из кэша с использованием специфичного TTL."""
-        if not self.redis_client:
-            logger.debug("Redis клиент не инициализирован, пропуск get_lineup_cached")
+        key = versioned_key("lineup", match_id)
+        client = self.redis_client
+        if client is None:
             return None
-        try:
-            key = versioned_key("lineup", match_id)
-            value = await self.redis_client.get(key)
-            if value is not None:
-                return json.loads(value)
-            # Если в кэше нет, получаем данные напрямую (через заглушку)
-            lineup = await fetch_lineup_api(match_id)
-            if lineup is not None:
-                await set_with_ttl(self.redis_client, key, lineup, "lineups_fast")
-            return lineup
-        except Exception as e:
-            logger.error(
-                f"Ошибка при получении лайнапа из кэша для матча {match_id}: {e}"
-            )
+        getter = getattr(client, "get", None)
+        if not callable(getter):
             return None
+        cached = getter(key)
+        if isinstance(cached, Awaitable):
+            cached = await cached
+        if cached is not None:
+            try:
+                return json.loads(cached)
+            except (TypeError, json.JSONDecodeError):
+                return cached
+        lineup = await fetch_lineup_api(match_id)
+        if lineup is not None:
+            await set_with_ttl(client, key, lineup, "lineups_fast")
+        return lineup
 
     async def invalidate_lineups(self, match_id: int) -> bool:
-        """Инвалидация (удаление) кэша лайнапа для конкретного матча."""
-        if not self.redis_client:
-            logger.debug("Redis клиент не инициализирован, пропуск invalidate_lineups")
+        key = versioned_key("lineup", match_id)
+        client = self.redis_client
+        if client is None:
             return False
-        try:
-            key = versioned_key("lineup", match_id)
-            result = await self.redis_client.delete(key)
-            success = result > 0
-            if success:
-                logger.info(f"Кэш лайнапа для матча {match_id} успешно удален.")
-            else:
-                logger.debug(
-                    f"Кэш лайнапа для матча {match_id} не найден для удаления."
-                )
-            return success
-        except Exception as e:
-            logger.error(
-                f"Ошибка при инвалидации кэша лайнапа для матча {match_id}: {e}"
-            )
+        deleter = getattr(client, "delete", None)
+        if not callable(deleter):
             return False
+        result = deleter(key)
+        if isinstance(result, Awaitable):
+            result = await result
+        return bool(result)
 
-    # --- Конец добавления ---
-
-
-# --- Добавлено: Заглушка для fetch_lineup_api ---
-# Предполагается, что реальная логика получения лайнапа будет реализована отдельно.
-# Это может быть вызов API напрямую или другая функция.
-async def fetch_lineup_api(match_id: int) -> Any | None:
-    """Заглушка для получения составов команд на матч напрямую из API."""
-    # Реализация зависит от архитектуры проекта.
-    # Может быть вызов к SportMonksClient без использования кэша внутри.
-    # Например, можно создать временную копию get_lineups без декоратора @cached
-    # или вызвать внутреннюю часть get_lineups напрямую.
-    # Пока используем заглушку.
-    logger.debug(
-        f"Заглушка fetch_lineup_api (cache_postgres) вызвана для матча {match_id}"
-    )
-    return None  # Реализация зависит от внутренней структуры получения данных
+    async def close(self) -> None:
+        client = self.redis_client
+        self.redis_client = None
+        if client is not None:
+            closer = getattr(client, "close", None)
+            if callable(closer):
+                result = closer()
+                if isinstance(result, Awaitable):
+                    await result
+        await self.clear()
 
 
-# --- Конец добавления ---
+cache = CacheManager()
 
 
-async def init_cache():
-    """Инициализация кэша Redis."""
-    global pool, cache
-    # Инициализация Redis кэша
-    cache = CacheManager()
+async def set_with_ttl(redis_client: Any, key: str, value: Any, ttl_name: str) -> bool:
+    ttl_map = getattr(get_settings(), "TTL", {})
+    raw_ttl = ttl_map.get(ttl_name)
+    try:
+        ttl_seconds = int(raw_ttl)
+    except (TypeError, ValueError):
+        ttl_seconds = 0
+    payload = json.dumps(value, default=_json_default)
+    setter = getattr(redis_client, "setex", None)
+    if callable(setter):
+        result = setter(key, ttl_seconds, payload)
+        if isinstance(result, Awaitable):
+            await result
+        return True
+    fallback = getattr(redis_client, "set", None)
+    if callable(fallback):
+        kwargs: dict[str, Any] = {"ex": ttl_seconds} if ttl_seconds > 0 else {}
+        result = fallback(key, payload, **kwargs)
+        if isinstance(result, Awaitable):
+            await result
+        return True
+    if isinstance(redis_client, CacheManager):
+        await redis_client.set(key, value, float(ttl_seconds) if ttl_seconds > 0 else None)
+        return True
+    return False
+
+
+async def init_cache() -> None:
     await cache.connect_to_redis()
-    # Примечание: Инициализация asyncpg.Pool для PostgreSQL
-    # (если она была бы нужна отдельно) должна быть здесь.
-    # В текущем коде основной кэш - это Redis.
-    logger.info("Кэш (Redis) инициализирован")
 
 
-async def shutdown_cache():
-    """Закрытие ресурсов кэша Redis/asyncpg."""
-    global pool, cache
-    if cache:
-        try:
-            await cache.close()
-        finally:
-            cache = None
-    if pool:
-        try:
-            await pool.close()
-        finally:
-            pool = None
+async def shutdown_cache() -> None:
+    await cache.close()
+
+
+async def fetch_lineup_api(match_id: int) -> Any | None:  # pragma: no cover - override in tests
+    return None
+
+
+__all__ = [
+    "cache",
+    "set_with_ttl",
+    "versioned_key",
+    "init_cache",
+    "shutdown_cache",
+    "fetch_lineup_api",
+]

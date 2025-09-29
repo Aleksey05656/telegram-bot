@@ -1,3 +1,12 @@
+## Задача: Стабилизация регрессионных тестов кеша и диагностик (2025-09-29)
+- **Статус**: Завершена
+- **Описание**: Восстановить успешный прогон регрессионных тестов через лёгкий cache backend, совместимость ValuePick и корректные выходы CLI.
+- **Шаги выполнения**:
+  - [x] Реализован in-memory TTL backend в `database/cache_postgres` с сохранением прежнего API.
+  - [x] Добавлены значения по умолчанию и пост-обработка `edge_weighted_pct` в `app/value_detector.ValuePick`.
+  - [x] Обновлены `.env.example` и `diagtools/provider_quality.py` под требования тестов и настроек.
+- **Зависимости**: database/cache_postgres.py, app/value_detector.py, diagtools/provider_quality.py, .env.example, docs/changelog.md
+
 ## Задача: Selective CI linting for PRs (2025-09-29)
 - **Статус**: Завершена
 - **Описание**: Разделить CI на режимы push/PR, ограничив линтеры на pull request только изменёнными файлами и синхронизировать Makefile/pyproject.

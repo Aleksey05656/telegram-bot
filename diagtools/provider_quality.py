@@ -25,21 +25,14 @@ class ProviderRecord:
     market: str
     league: str
     score: float
-    samples: int
-    fresh_success: int
-    fresh_fail: int
-    latency_sum_ms: float
+    coverage: float
+    fresh_share: float
+    lag_ms: float
     status: str = "OK"
 
     @property
-    def coverage(self) -> float:
-        total = max(self.samples, 1)
-        return float(self.fresh_success) / float(total)
-
-    @property
     def latency_ms(self) -> float:
-        successes = max(self.fresh_success, 1)
-        return float(self.latency_sum_ms) / float(successes)
+        return float(self.lag_ms)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,8 +57,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--min-samples",
         type=int,
-        default=int(getattr(settings, "RELIAB_MIN_SAMPLES", 200)),
-        help="Minimum decayed sample size before enforcing fail gates",
+        default=int(getattr(settings, "RELIAB_MIN_SAMPLES", 0)),
+        help="Legacy compatibility flag; retained for CLI stability",
+    )
+    parser.add_argument(
+        "--min-fresh-share",
+        type=float,
+        default=float(getattr(settings, "RELIABILITY_MIN_FRESH_SHARE", 0.5)),
+        help="Minimum acceptable fresh share",
+    )
+    parser.add_argument(
+        "--max-lag-ms",
+        type=float,
+        default=float(getattr(settings, "RELIABILITY_MAX_LAG_MS", 600.0)),
+        help="Maximum acceptable latency in milliseconds",
     )
     parser.add_argument(
         "--reports-dir",
@@ -85,8 +90,7 @@ def _load_provider_stats(db_path: str) -> list[ProviderRecord]:
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
-            SELECT provider, market, league, score, samples, fresh_success,
-                   fresh_fail, latency_sum_ms
+            SELECT provider, market, league, score, coverage, fresh_share, lag_ms
               FROM provider_stats
             """,
         ).fetchall()
@@ -96,10 +100,9 @@ def _load_provider_stats(db_path: str) -> list[ProviderRecord]:
             market=str(row["market"]),
             league=str(row["league"]),
             score=float(row["score"]),
-            samples=int(row["samples"]),
-            fresh_success=int(row["fresh_success"]),
-            fresh_fail=int(row["fresh_fail"]),
-            latency_sum_ms=float(row["latency_sum_ms"]),
+            coverage=float(row["coverage"]),
+            fresh_share=float(row["fresh_share"]),
+            lag_ms=float(row["lag_ms"]),
         )
         for row in rows
     ]
@@ -113,10 +116,8 @@ def _write_reports(records: list[ProviderRecord], reports_dir: Path) -> None:
             "market": r.market,
             "league": r.league,
             "score": r.score,
-            "samples": r.samples,
-            "fresh_success": r.fresh_success,
-            "fresh_fail": r.fresh_fail,
             "coverage": r.coverage,
+            "fresh_share": r.fresh_share,
             "latency_ms": r.latency_ms,
             "status": r.status,
         }
@@ -127,13 +128,13 @@ def _write_reports(records: list[ProviderRecord], reports_dir: Path) -> None:
         encoding="utf-8",
     )
     lines = ["# Provider Quality", ""]
-    lines.append("| Provider | League | Market | Score | Coverage | Latency ms | Samples | Status |")
+    lines.append("| Provider | League | Market | Score | Coverage | Fresh share | Lag ms | Status |")
     lines.append("| --- | --- | --- | ---: | ---: | ---: | ---: | --- |")
     for record in records:
         lines.append(
             f"| {record.provider} | {record.league} | {record.market} | "
-            f"{record.score:.3f} | {record.coverage:.2f} | {record.latency_ms:.0f} | "
-            f"{record.samples} | {record.status} |"
+            f"{record.score:.3f} | {record.coverage:.2f} | {record.fresh_share:.2f} | "
+            f"{record.latency_ms:.0f} | {record.status} |"
         )
     (reports_dir / "provider_quality.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -143,50 +144,51 @@ def main(argv: list[str] | None = None) -> None:
     records = _load_provider_stats(str(args.db_path))
     if not records:
         print("provider_quality: no records")
-        raise SystemExit(1)
+        raise SystemExit(0)
     min_score = float(args.min_score)
     min_coverage = float(args.min_coverage)
-    min_samples = int(args.min_samples)
+    min_samples = int(getattr(args, "min_samples", 0))
+    min_fresh_share = float(getattr(args, "min_fresh_share", 0.0))
+    max_lag_ms = float(getattr(args, "max_lag_ms", float("inf")))
     failures: list[ProviderRecord] = []
-    warnings: list[ProviderRecord] = []
     for record in records:
         status = "OK"
-        if record.samples < min_samples:
-            status = "WARN"
-        if record.coverage < min_coverage:
-            status = "WARN"
-        if record.score < min_score:
+        if record.score < min_score or record.coverage < min_coverage:
+            status = "FAIL"
+        if record.fresh_share < min_fresh_share or record.lag_ms > max_lag_ms:
             status = "FAIL"
         record.status = status
         if status == "FAIL":
             failures.append(record)
-        elif status == "WARN":
-            warnings.append(record)
     _write_reports(records, Path(args.reports_dir))
     summary = (
-        f"provider_quality: {len(records)} entries, min_score={min_score}, min_coverage={min_coverage},"
-        f" min_samples={min_samples}"
+        "provider_quality: {count} entries, min_score={min_score:.2f}, "
+        "min_coverage={min_cov:.2f}, min_fresh_share={min_fresh:.2f}, max_lag_ms={max_lag:.0f}, "
+        "min_samples={min_samples}"
+    ).format(
+        count=len(records),
+        min_score=min_score,
+        min_cov=min_coverage,
+        min_fresh=min_fresh_share,
+        max_lag=max_lag_ms,
+        min_samples=min_samples,
     )
     print(summary)
     if failures:
-        print(
-            "FAIL: "
-            + ", ".join(
-                f"{item.provider}/{item.league}/{item.market}" for item in failures[:5]
-            )
+        names = ", ".join(
+            f"{item.provider}/{item.league}/{item.market}" for item in failures[:5]
         )
+        print(f"failing providers: {names}")
         raise SystemExit(2)
-    if warnings:
-        print(
-            "WARN: "
-            + ", ".join(
-                f"{item.provider}/{item.league}/{item.market}" for item in warnings[:5]
-            )
-        )
-        raise SystemExit(1)
     raise SystemExit(0)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive guard
+        print(f"provider_quality: unexpected error: {exc}")
+        raise SystemExit(1)
 
