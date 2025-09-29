@@ -12,28 +12,9 @@ build:
   requirementsPath: requirements.txt
 
 run:
-  command: >
-    bash -lc '
-    case "$ROLE" in
-      api)
-        if [ "${PRESTART_PREFLIGHT:-0}" = "1" ]; then
-          python -m scripts.preflight --mode strict || exit 1;
-        fi;
-        python -m app.migrations.up || true;
-        uvicorn app.api:app --host 0.0.0.0 --port ${PORT:-80}
-        ;;
-      worker)
-        if [ "${PRESTART_PREFLIGHT:-0}" = "1" ]; then
-          python -m scripts.preflight --mode strict || exit 1;
-        fi;
-        python -m scripts.worker
-        ;;
-      tgbot)
-        python -m scripts.tg_bot
-        ;;
-      *)
-        echo "Unknown ROLE=$ROLE. Use api|worker|tgbot" && exit 1
-        ;;
-    esac'
+  command:
+    - python
+    - -m
+    - scripts.role_dispatch
   containerPort: 80
   persistenceMount: /data

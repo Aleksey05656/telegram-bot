@@ -1,3 +1,15 @@
+## [2025-11-03] - Safe ROLE dispatch without shells
+### Добавлено
+- Python-диспетчер `scripts.role_dispatch`, который запускает роли Amvera без `bash -lc` и соблюдает preflight/migrations.
+- Скрипт `scripts/run_start_check.sh` и GitHub Actions шаг с проверкой `ROLE="O'Reilly"`.
+
+### Изменено
+- `amvera.yaml` переключён на exec-форму `python -m scripts.role_dispatch`.
+- README дополнили инструкцией по smoke-check и пояснением про безопасный запуск ролей.
+
+### Исправлено
+- Ошибка `unexpected EOF while looking for matching '\''` при запуске служб с кавычками в `ROLE`.
+
 ## [2025-09-29] - Align mypy pins
 ### Добавлено
 - —
