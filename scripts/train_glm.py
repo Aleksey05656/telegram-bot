@@ -11,6 +11,11 @@ import json
 import os
 from pathlib import Path
 import sys
+import traceback
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from typing import TYPE_CHECKING
 
@@ -25,10 +30,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing aid
     import joblib as _joblib
     import numpy as _np
     import pandas as _pd
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from app.data_processor import build_features, to_model_matrix, validate_input
 
@@ -90,6 +91,7 @@ def main() -> None:
     model_home, model_away, info = train_models(raw_df, args.alpha, args.l2)
     data_root = Path(os.getenv("DATA_ROOT", "/data"))
     registry_root = Path(os.getenv("MODEL_REGISTRY_PATH", str(data_root / "artifacts")))
+    registry_root.mkdir(parents=True, exist_ok=True)
     out_dir = registry_root / str(args.season_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(model_home, out_dir / "glm_home.pkl")
@@ -99,4 +101,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)

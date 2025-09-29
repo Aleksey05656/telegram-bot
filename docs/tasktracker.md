@@ -1,3 +1,13 @@
+## Задача: Harden GLM pipeline and settlement summary (2025-11-06)
+- **Статус**: Завершена
+- **Описание**: Обеспечить корректное форматирование отчёта по расчётам, стабилизировать обучение GLM и подключить ML-зависимости в CI.
+- **Шаги выполнения**:
+  - [x] Исправлен вывод `diagtools/settlement_check.py`, избегая обращения к `__dict__` у dataclass со `slots`.
+  - [x] Доработан `scripts/train_glm.py` с созданием корневого каталога реестра и печатью traceback при ошибках.
+  - [x] Добавлена экстра `ml` в `pyproject.toml` и установка `pip install -e .[dev,ml,migrations]` в CI.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для фиксации правок.
+- **Зависимости**: diagtools/settlement_check.py, scripts/train_glm.py, pyproject.toml, .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Fix Ruff E402 in tests/conftest.py (2025-09-29)
 - **Статус**: Завершена
 - **Описание**: Перевести импорты `tests/conftest.py` в верх файла, сохранив офлайн-стабы и регистрацию маркеров, и стабилизировать Alembic-заглушки.

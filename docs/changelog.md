@@ -1,3 +1,14 @@
+## [2025-11-06] - GLM training hardening and settlement reporting fix
+### Добавлено
+- Экстра `ml` в `pyproject.toml` с зависимостями `numpy`, `pandas`, `scipy`, `statsmodels`, `scikit-learn`, устанавливаемая в CI для ML-пайплайнов.
+
+### Изменено
+- GitHub Actions workflow `CI` устанавливает проект через `pip install -e .[dev,ml,migrations]`, гарантируя доступность инструментов и ML-стека.
+
+### Исправлено
+- `diagtools/settlement_check.py` выводит итоги с явным обращением к полям `SettlementSummary`, корректно работая с dataclass `slots`.
+- `scripts/train_glm.py` создаёт корневой каталог реестра моделей и печатает traceback при сбоях, завершаясь кодом 1.
+
 ## [2025-09-29] - Pytest stub import hygiene
 ### Добавлено
 - Пакет `tests/_stubs/alembic` с заглушками `command` и `Config` для офлайн-прогонов.
