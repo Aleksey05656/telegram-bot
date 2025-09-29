@@ -1,3 +1,13 @@
+## [2025-11-13] - Telegram package relative imports
+### Добавлено
+- —
+
+### Изменено
+- `telegram/bot.py` использует относительные импорты для внутренних модулей пакета Telegram.
+
+### Исправлено
+- Исключён `ModuleNotFoundError` при импорте `telegram.bot` в воркерах за счёт корректного разрешения пакета.
+
 ## [2025-09-29] - Telegram bot logger resolution hardening
 ### Добавлено
 - —
