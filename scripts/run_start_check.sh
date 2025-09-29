@@ -7,10 +7,16 @@
 #  */
 set -euo pipefail
 
+export METRICS_ENABLED="false"
+export SCHEDULES_ENABLED="false"
+export EXTERNAL_CLIENTS_ENABLED="false"
+
 ROLE_VALUE="${ROLE:-}"
 
 echo "[run_start_check] ROLE=${ROLE_VALUE}"
 
-env ROLE="${ROLE_VALUE}" USE_OFFLINE_STUBS="${USE_OFFLINE_STUBS:-1}" python -m main --help >/dev/null
+env ROLE="${ROLE_VALUE}" \
+    USE_OFFLINE_STUBS="${USE_OFFLINE_STUBS:-1}" \
+    python -m app.main --help >/dev/null
 
 echo "[run_start_check] Success"

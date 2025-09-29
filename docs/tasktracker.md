@@ -1,3 +1,13 @@
+## Задача: Stabilize smoke startup and CI (2025-11-07)
+- **Статус**: Завершена
+- **Описание**: Ввести минимальный режим запуска с флагами отключения тяжёлых зависимостей и разделить CI на обязательный smoke и необязательный полный прогон.
+- **Шаги выполнения**:
+  - [x] Добавлены флаги `METRICS_ENABLED`, `SCHEDULES_ENABLED`, `EXTERNAL_CLIENTS_ENABLED` и ленивые импорты в `app/main.py`.
+  - [x] Переведён `scripts/run_start_check.sh` на запуск `python -m app.main --help` с отключёнными флагами.
+  - [x] Разделён GitHub Actions на `pr-smoke` и `main-full` с отдельными профилями pytest.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` под новые проверки.
+- **Зависимости**: app/main.py, scripts/run_start_check.sh, .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Стабилизация регрессионных тестов кеша и диагностик (2025-09-29)
 - **Статус**: Завершена
 - **Описание**: Восстановить успешный прогон регрессионных тестов через лёгкий cache backend, совместимость ValuePick и корректные выходы CLI.
