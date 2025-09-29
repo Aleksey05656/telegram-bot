@@ -39,20 +39,25 @@ class ValuePick:
     match_key: str
     market: str
     selection: str
-    league: str | None
     fair_price: float
     market_price: float
     edge_pct: float
     model_probability: float
     market_probability: float
     confidence: float
-    edge_weighted_pct: float
-    edge_threshold_pct: float
-    confidence_threshold: float
-    calibrated: bool
     provider: str
     pulled_at: datetime
     kickoff_utc: datetime
+    league: str | None = "UNKNOWN"
+    edge_weighted_pct: float | None = None
+    edge_threshold_pct: float = 0.0
+    confidence_threshold: float = 0.0
+    calibrated: bool = False
+
+    def __post_init__(self) -> None:
+        if self.edge_weighted_pct is None:
+            multiplier = max(float(self.confidence), float(self.confidence_threshold))
+            self.edge_weighted_pct = float(self.edge_pct) * multiplier
 
 
 class ValueDetector:
