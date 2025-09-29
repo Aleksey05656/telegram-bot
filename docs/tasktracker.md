@@ -1,3 +1,12 @@
+## Задача: Safe ROLE dispatch without shells (2025-11-03)
+- **Статус**: Завершена
+- **Описание**: Устранить ошибку кавычек при запуске ролей на Amvera и закрепить проверку в CI.
+- **Шаги выполнения**:
+  - [x] Реализован Python-диспетчер `scripts.role_dispatch` и обновлён `amvera.yaml` на exec-форму.
+  - [x] Добавлен smoke-скрипт `scripts/run_start_check.sh` и шаг GitHub Actions с `ROLE="O'Reilly"`.
+  - [x] Обновлены README, changelog и tasktracker под новые правила запуска.
+- **Зависимости**: scripts/role_dispatch.py, amvera.yaml, scripts/run_start_check.sh, .github/workflows/ci.yml, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Align mypy pins (2025-09-29)
 - **Статус**: Завершена
 - **Описание**: Снять конфликт зависимостей pip, выровняв все жёсткие пины mypy до версии 1.7.1 и синхронизировав конфигурацию pre-commit.

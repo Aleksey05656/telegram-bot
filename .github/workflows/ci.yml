@@ -79,6 +79,10 @@ jobs:
           python -m black --check .
           python -m isort --check-only .
 
+      - name: ROLE launch smoke
+        run: |
+          ROLE="O'Reilly" scripts/run_start_check.sh
+
       - name: alerts-validate
         run: make alerts-validate
         continue-on-error: true
