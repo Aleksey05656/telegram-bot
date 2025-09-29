@@ -14,9 +14,9 @@ build:
 run:
   containerPort: 80
   persistenceMount: /data
-  processes:
+  release:
     preflight:
-      command:
+      cmd:
         - python
         - -m
         - scripts.preflight
@@ -25,21 +25,22 @@ run:
     migrate:
       env:
         ROLE: migrate
-      command:
+      cmd:
         - python
         - -m
         - scripts.role_dispatch
+  processes:
     api:
       env:
-        ROLE: api
-      command:
+        API_ENABLED: "true"
+      cmd:
         - python
         - -m
-        - scripts.role_dispatch
+        - scripts.api_server
     bot:
       env:
         ROLE: bot
-      command:
+      cmd:
         - python
         - -m
         - scripts.role_dispatch
