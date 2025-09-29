@@ -1,3 +1,15 @@
+## [2025-11-07] - Minimal startup mode and CI split
+### Добавлено
+- Флаги окружения `METRICS_ENABLED`, `SCHEDULES_ENABLED`, `EXTERNAL_CLIENTS_ENABLED` для безопасного запуска FastAPI без тяжёлых зависимостей.
+
+### Изменено
+- `app/main.py` лениво инициализирует метрики, планировщик и внешние клиенты под управлением новых флагов и логирует ошибки.
+- `scripts/run_start_check.sh` переводит smoke-проверку в минимальный режим `python -m app.main --help`.
+- `.github/workflows/ci.yml` разделяет обязательный PR smoke и необязательный полный прогон на ветке `main`.
+
+### Исправлено
+- Исключены падения старого старта из-за `AttributeError` при отсутствии модулей метрик и планировщика.
+
 ## [2025-09-29] - Regression guardrails refresh
 ### Добавлено
 - In-memory TTL backend `database.cache_postgres` для unit-тестов и офлайн-запуска без внешних сервисов.
