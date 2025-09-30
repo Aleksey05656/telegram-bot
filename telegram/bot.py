@@ -14,7 +14,7 @@ from app.utils import retry_async
 from config import settings
 from database.cache_postgres import init_cache
 from logger import logger
-from telegram.middlewares import (
+from .middlewares import (
     IdempotencyMiddleware,
     ProcessingTimeMiddleware,
     RateLimitMiddleware,
@@ -81,7 +81,7 @@ class TelegramBot:
         if not self.dp:
             raise RuntimeError("Диспетчер не инициализирован")
         try:
-            from telegram.handlers import register_handlers
+            from .handlers import register_handlers
 
             register_handlers(self.dp)
             logger.info("✅ Роутеры зарегистрированы")

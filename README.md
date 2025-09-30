@@ -145,6 +145,13 @@ git push amvera main
 Для оффлайн-прогона value-фич установите `ENABLE_VALUE_FEATURES=1`, `ODDS_PROVIDER=csv` и
 `ODDS_FIXTURES_PATH=tests/fixtures/odds`. Так `diagtools.value_check` и тесты будут работать без внешнего API.
 
+## Amvera worker
+
+- **Script:** `scripts/tg_bot.py`
+- **Runtime:** Python 3.11 (pip toolchain)
+- **Required env:** `ROLE=bot`, `TELEGRAM_BOT_TOKEN`, `PYTHONUNBUFFERED=1`, `LOG_LEVEL=INFO`, `PYTHONPATH=.`
+- **Optional preflight:** `python scripts/preflight_worker.py`
+
 ### Хранилище
 
 Amvera монтирует постоянный том в `/data`. Все изменяемые файлы (SQLite, отчёты, артефакты моделей, логи) сохраняются в этом каталоге, код и артефакты сборки остаются неизменными.
