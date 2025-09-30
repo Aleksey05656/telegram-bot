@@ -1,3 +1,14 @@
+## [2025-11-14] - Telegram bot startup diagnostics
+### Добавлено
+- Диагностический вывод `scripts/tg_bot.py` печатает `sys.path` и содержимое каталога `telegram` при запуске.
+- Встроенная заглушка `telegram.middlewares` регистрируется динамически при отсутствии файла `middlewares.py`.
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-11-13] - Telegram package relative imports
 ### Добавлено
 - —

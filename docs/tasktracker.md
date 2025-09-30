@@ -1,3 +1,12 @@
+## Задача: Telegram bot diagnostics for Amvera (2025-11-14)
+- **Статус**: Завершена
+- **Описание**: Добавить диагностический вывод и заглушку middleware для запуска воркера Amvera без ошибок импорта.
+- **Шаги выполнения**:
+  - [x] Вывел список `sys.path` и содержимое каталога `telegram` в `scripts/tg_bot.py` перед импортами.
+  - [x] Добавил динамическую заглушку `telegram.middlewares` с `register_middlewares`, если отсутствует файл `middlewares.py`.
+  - [x] Обновил документацию (changelog, tasktracker) согласно правилам проекта.
+- **Зависимости**: scripts/tg_bot.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Resolve Telegram worker imports (2025-11-13)
 - **Статус**: Завершена
 - **Описание**: Сделать локальный пакет `telegram` корректно резолвимым в воркере Amvera через относительные импорты.
