@@ -1,3 +1,15 @@
+## [2025-09-30] - Telegram worker bootstrap hardening
+### Добавлено
+- `scripts/preflight_worker.py` выполняет проверку импортов `telegram.bot` и `telegram.middlewares` перед запуском воркера.
+
+### Изменено
+- `scripts/tg_bot.py` добавляет корень проекта в `sys.path`, включает fallback-логгер и выводит диагностику наличия `telegram.middlewares`.
+- `telegram/bot.py` переключён на относительные импорты, исключая конфликты с PyPI-пакетом `telegram`.
+- `README.md` документирует профиль воркера Amvera и preflight-скрипт.
+
+### Исправлено
+- Исключено переопределение `telegram.middlewares` в рантайме и падения воркера из-за неправильных путей импорта.
+
 ## [2025-11-10] - ASGI resolution hardening for Amvera
 ### Добавлено
 - —

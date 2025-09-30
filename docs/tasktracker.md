@@ -1,3 +1,13 @@
+## Задача: Harden Telegram worker imports (2025-09-30)
+- **Статус**: Завершена
+- **Описание**: Удалить стабы `telegram.middlewares`, выровнять импорты и добавить префлайт Amvera-воркера.
+- **Шаги выполнения**:
+  - [x] Доработан `scripts/tg_bot.py` с вставкой корня проекта в `sys.path`, fallback-логгером и диагностикой наличия `telegram.middlewares`.
+  - [x] Переключён `telegram/bot.py` на относительные импорты middlewares и роутеров.
+  - [x] Добавлен `scripts/preflight_worker.py` для проверки импортов перед запуском воркера.
+  - [x] Обновлены `README.md`, `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: scripts/tg_bot.py, telegram/bot.py, scripts/preflight_worker.py, README.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Resolve ASGI target for Amvera Configurator (2025-11-10)
 - **Статус**: Завершена
 - **Описание**: Обеспечить корректный запуск uvicorn в окружении Amvera, добавив корень проекта в `sys.path` и явное разрешение ASGI-приложения.

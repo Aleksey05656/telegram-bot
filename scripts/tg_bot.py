@@ -8,10 +8,52 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
+import logging
+import os
 import signal
+import sys
 from contextlib import suppress
+from pathlib import Path
 
-from logger import logger
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+_fallback_logger = logging.getLogger("tg_bot")
+
+try:
+    from logger import logger as _logger
+
+    logger = _logger
+except Exception:  # pragma: no cover - defensive
+    logger = _fallback_logger
+    logger.warning("tg_bot: fallback logger activated")
+
+logger.info(
+    "telegram.middlewares present? %s",
+    importlib.util.find_spec("telegram.middlewares") is not None,
+)
+
+try:  # pragma: no cover - optional build metadata logging
+    from app.build_meta import get_build_meta
+
+    _build_meta = get_build_meta()
+    logger.info(
+        "build: repo=%s branch=%s commit=%s built_at=%s",
+        _build_meta.get("repo"),
+        _build_meta.get("branch"),
+        _build_meta.get("commit"),
+        _build_meta.get("built_at"),
+    )
+except Exception:
+    pass
+
 from telegram.bot import TelegramBot
 
 
