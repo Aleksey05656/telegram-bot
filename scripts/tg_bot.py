@@ -12,12 +12,40 @@ import importlib
 import logging
 import signal
 import sys
+import types
 from contextlib import suppress
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+TELEGRAM_DIR = PROJECT_ROOT / "telegram"
+
+print("[tg_bot] sys.path entries:")
+for index, entry in enumerate(sys.path):
+    print(f"  [{index}] {entry}")
+
+if TELEGRAM_DIR.exists():
+    telegram_contents = sorted(item.name for item in TELEGRAM_DIR.iterdir())
+    print("[tg_bot] telegram package contents:")
+    for name in telegram_contents:
+        print(f"  - {name}")
+else:
+    print(f"[tg_bot] telegram directory missing at {TELEGRAM_DIR}")
+
+middlewares_module_path = TELEGRAM_DIR / "middlewares.py"
+if not middlewares_module_path.exists():
+    print("[tg_bot] middlewares.py not found, installing stub telegram.middlewares")
+
+    stub_module = types.ModuleType("telegram.middlewares")
+
+    def register_middlewares(dispatcher):  # type: ignore[unused-arg]
+        print("[tg_bot] register_middlewares stub invoked")
+        return dispatcher
+
+    stub_module.register_middlewares = register_middlewares  # type: ignore[attr-defined]
+    sys.modules["telegram.middlewares"] = stub_module
 
 
 def _resolve_logger() -> logging.Logger:
