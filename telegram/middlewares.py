@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import logging
+import os
 import statistics
 import time
 from collections import deque
@@ -14,10 +16,36 @@ from typing import Any, Awaitable, Callable, Deque, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
-from app.metrics import handler_latency, record_command, record_update
-from logger import logger
-from telegram.utils.idempotency import CommandDeduplicator
-from telegram.utils.token_bucket import TokenBucket
+try:  # logger fallback: prefer project logger, otherwise configure basic logging
+    from logger import logger  # type: ignore
+except Exception:  # pragma: no cover - defensive fallback
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logger = logging.getLogger("tg-bot")
+
+try:  # metrics can live under app.metrics or top-level metrics
+    from app.metrics import handler_latency, record_command, record_update  # type: ignore
+except Exception:  # pragma: no cover - defensive fallback
+    try:
+        from metrics import handler_latency, record_command, record_update  # type: ignore
+    except Exception:  # pragma: no cover - fallback to no-op metrics
+        class _NoopLatency:
+            def observe(self, *_args: Any, **_kwargs: Any) -> None:
+                return None
+
+        handler_latency = _NoopLatency()
+
+        def record_command(*_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def record_update(*_args: Any, **_kwargs: Any) -> None:
+            return None
+
+from .utils.idempotency import CommandDeduplicator
+from .utils.token_bucket import TokenBucket
 
 
 class RateLimitMiddleware(BaseMiddleware):

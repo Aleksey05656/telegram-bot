@@ -1,3 +1,15 @@
+## [2025-11-11] - Telegram worker import resilience
+### Добавлено
+- Документация `docs/deploy-amvera.md` описывает профиль запуска воркера и опциональный префлайт.
+
+### Изменено
+- `scripts/tg_bot.py` логирует корень репозитория и `PYTHONPATH` перед загрузкой бота.
+- `telegram/middlewares.py` использует безопасные импорты логгера и метрик с no-op fallback.
+- `scripts/preflight_worker.py` печатает детальную диагностику импортов и трассирует ошибки.
+
+### Исправлено
+- Исключены падения воркера из-за отсутствующих метрик/логгера и скрытых проблем импортов.
+
 ## [2025-09-30] - Telegram worker bootstrap hardening
 ### Добавлено
 - `scripts/preflight_worker.py` выполняет проверку импортов `telegram.bot` и `telegram.middlewares` перед запуском воркера.

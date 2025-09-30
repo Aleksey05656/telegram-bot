@@ -36,6 +36,11 @@ except Exception:  # pragma: no cover - defensive
     logger.warning("tg_bot: fallback logger activated")
 
 logger.info(
+    "tg_bot bootstrap: ROOT=%s PYTHONPATH=%s",
+    ROOT,
+    os.getenv("PYTHONPATH", ""),
+)
+logger.info(
     "telegram.middlewares present? %s",
     importlib.util.find_spec("telegram.middlewares") is not None,
 )
