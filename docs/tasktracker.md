@@ -1,3 +1,13 @@
+## Задача: Telegram worker import resilience (2025-11-11)
+- **Статус**: Завершена
+- **Описание**: Усилить устойчивость воркера к отсутствующим зависимостям, обеспечить диагностику импортов и обновить документацию.
+- **Шаги выполнения**:
+  - [x] Добавлен стартовый лог `tg_bot bootstrap` с путями окружения в `scripts/tg_bot.py`.
+  - [x] Переведены `telegram/middlewares.py` на безопасные импорты логгера/метрик с no-op fallback и относительные утилиты.
+  - [x] Обновлён `scripts/preflight_worker.py` для печати статуса импортов и трассировки ошибок.
+  - [x] Документирован профиль Telegram-воркера в `docs/deploy-amvera.md`, обновлены `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: scripts/tg_bot.py, telegram/middlewares.py, scripts/preflight_worker.py, docs/deploy-amvera.md, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Harden Telegram worker imports (2025-09-30)
 - **Статус**: Завершена
 - **Описание**: Удалить стабы `telegram.middlewares`, выровнять импорты и добавить префлайт Amvera-воркера.
