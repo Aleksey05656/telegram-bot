@@ -2,7 +2,7 @@
 /**
  * @file: app/bot/services.py
  * @description: Domain services for predictions, explainability and exports.
- * @dependencies: datetime, pathlib, csv, math, telegram.services
+ * @dependencies: datetime, pathlib, csv, math, tgbotapp.services
  * @created: 2025-09-23
  */
 """
@@ -31,7 +31,7 @@ from config import settings
 from logger import logger
 
 try:
-    from telegram.services import DeterministicPredictorService, SportMonksFixturesRepository
+    from tgbotapp.services import DeterministicPredictorService, SportMonksFixturesRepository
 except ModuleNotFoundError:  # pragma: no cover - offline stub
 
     class SportMonksFixturesRepository:  # type: ignore[override]

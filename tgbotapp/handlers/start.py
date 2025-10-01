@@ -1,5 +1,5 @@
 """
-@file: telegram/handlers/start.py
+@file: tgbotapp/handlers/start.py
 @description: Обработчик команды /start и главного меню.
 @dependencies: aiogram, asyncio, sqlite3, config
 @created: 2025-09-19
@@ -20,8 +20,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import settings
 from logger import logger
-from telegram.handlers.terms import DISCLAIMER_TEXT
-from telegram.models import CommandWithoutArgs
+from tgbotapp.handlers.terms import DISCLAIMER_TEXT
+from tgbotapp.models import CommandWithoutArgs
 
 
 @dataclass(slots=True)

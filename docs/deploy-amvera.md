@@ -162,4 +162,4 @@
 - **Исполняемый скрипт**: `python scripts/tg_bot.py`
 - **Префлайт перед релизом** (опционально): `python scripts/preflight_worker.py`
 - **Ключевые переменные окружения**: `ROLE=bot`, `TELEGRAM_BOT_TOKEN`, `PYTHONUNBUFFERED=1`, `LOG_LEVEL=INFO`, `PYTHONPATH=.`
-- **Ожидаемые стартовые логи**: строка `tg_bot bootstrap: ROOT=... PYTHONPATH=...` и отсутствие ошибок `ModuleNotFoundError: telegram.middlewares`.
+- **Ожидаемые стартовые логи**: строка `tg_bot bootstrap: ROOT=... PYTHONPATH=...` и отсутствие ошибок `ModuleNotFoundError: tgbotapp.middlewares (ранее telegram middlewares)`.

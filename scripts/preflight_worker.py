@@ -1,7 +1,7 @@
 """
 @file: scripts/preflight_worker.py
 @description: Preflight check ensuring worker dependencies are importable.
-@dependencies: telegram.bot, telegram.middlewares
+@dependencies: tgbotapp.bot, tgbotapp.middlewares
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ def _check(module_name: str) -> None:
 
 def main() -> None:
     try:
-        _check("telegram.bot")
-        _check("telegram.middlewares")
+        _check("tgbotapp.bot")
+        _check("tgbotapp.middlewares")
         print("[preflight] OK", flush=True)
     except Exception:
         traceback.print_exc()

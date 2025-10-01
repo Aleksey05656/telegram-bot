@@ -1,7 +1,7 @@
 """
 @file: test_start_stats.py
 @description: Coverage for start menu statistics rendering.
-@dependencies: sqlite3, telegram.handlers.start
+@dependencies: sqlite3, tgbotapp.handlers.start
 @created: 2025-10-21
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import sqlite3
 import pytest
 
 from config import settings
-from telegram.handlers import start as start_handler
+from tgbotapp.handlers import start as start_handler
 
 
 @pytest.mark.asyncio

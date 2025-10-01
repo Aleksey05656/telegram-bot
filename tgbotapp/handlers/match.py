@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/match.py
+@file: tgbotapp/handlers/match.py
 @description: Handler for /match command performing synchronous prediction.
-@dependencies: aiogram, telegram.dependencies, telegram.widgets, telegram.services
+@dependencies: aiogram, tgbotapp.dependencies, tgbotapp.widgets, tgbotapp.services
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -11,9 +11,9 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from logger import logger
-from telegram.dependencies import BotDependencies
-from telegram.services import MatchNotFoundError
-from telegram.widgets import format_prediction
+from tgbotapp.dependencies import BotDependencies
+from tgbotapp.services import MatchNotFoundError
+from tgbotapp.widgets import format_prediction
 
 
 async def build_match_response(deps: BotDependencies, fixture_id: int) -> str:

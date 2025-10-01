@@ -1,4 +1,4 @@
-# telegram/utils/formatter.py
+# tgbotapp/utils/formatter.py
 """Утилиты для форматирования прогнозов."""
 # Добавлен Union в импорт typing на случай использования в этом модуле или при импорте
 from typing import Any

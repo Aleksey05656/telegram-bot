@@ -1,6 +1,6 @@
 """
 /**
- * @file: telegram/utils/token_bucket.py
+ * @file: tgbotapp/utils/token_bucket.py
  * @description: Simple token bucket rate limiter utility.
  * @dependencies: time
  * @created: 2025-09-30

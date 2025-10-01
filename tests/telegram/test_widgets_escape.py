@@ -1,13 +1,13 @@
 """
 @file: tests/telegram/test_widgets_escape.py
-@description: Validation for Telegram widget formatting helpers.
-@dependencies: telegram.widgets
+@description: Validation for tgbotapp widget formatting helpers.
+@dependencies: tgbotapp.widgets
 @created: 2025-09-23
 """
 
 from __future__ import annotations
 
-from telegram.widgets import format_fixture_list, format_prediction
+from tgbotapp.widgets import format_fixture_list, format_prediction
 
 
 def test_format_fixture_list_escapes_html() -> None:

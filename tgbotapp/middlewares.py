@@ -1,5 +1,5 @@
 """
-@file: telegram/middlewares.py
+@file: tgbotapp/middlewares.py
 @description: Custom middlewares for Telegram bot.
 @dependencies: aiogram
 @created: 2025-08-24

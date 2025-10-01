@@ -1,7 +1,7 @@
 """
 @file: tests/bot/test_handlers_smoke.py
-@description: Smoke tests for Telegram handlers.
-@dependencies: telegram.handlers, telegram.widgets
+@description: Smoke tests for tgbotapp handlers.
+@dependencies: tgbotapp.handlers, tgbotapp.widgets
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -10,12 +10,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from telegram.dependencies import BotDependencies, CommandInfo, ModelMetadata
-from telegram.handlers import help as help_handler
-from telegram.handlers import match as match_handler
-from telegram.handlers import model as model_handler
-from telegram.handlers import predict as predict_handler
-from telegram.handlers import today as today_handler
+from tgbotapp.dependencies import BotDependencies, CommandInfo, ModelMetadata
+from tgbotapp.handlers import help as help_handler
+from tgbotapp.handlers import match as match_handler
+from tgbotapp.handlers import model as model_handler
+from tgbotapp.handlers import predict as predict_handler
+from tgbotapp.handlers import today as today_handler
 
 
 class DummyQueue:

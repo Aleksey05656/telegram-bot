@@ -1,7 +1,7 @@
 """
 @file: tests/bot/test_handlers_errors.py
-@description: Edge-case coverage for Telegram bot command handlers.
-@dependencies: telegram.handlers.predict, telegram.handlers.match, telegram.handlers.today
+@description: Edge-case coverage for tgbotapp bot command handlers.
+@dependencies: tgbotapp.handlers.predict, tgbotapp.handlers.match, tgbotapp.handlers.today
 @created: 2025-09-23
 """
 
@@ -11,16 +11,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from telegram.dependencies import BotDependencies, ModelMetadata
-from telegram.handlers.match import build_match_response, create_router
-from telegram.handlers.predict import (
+from tgbotapp.dependencies import BotDependencies, ModelMetadata
+from tgbotapp.handlers.match import build_match_response, create_router
+from tgbotapp.handlers.predict import (
     _MISSING_TEAMS_MESSAGE,
     _QUEUE_ERROR_MESSAGE,
     _USAGE_MESSAGE,
     build_predict_response,
 )
-from telegram.handlers.today import build_today_response
-from telegram.services import MatchNotFoundError
+from tgbotapp.handlers.today import build_today_response
+from tgbotapp.services import MatchNotFoundError
 
 
 class DummyQueue:

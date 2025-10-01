@@ -1,5 +1,5 @@
 """
-@file: telegram/models.py
+@file: tgbotapp/models.py
 @description: Pydantic models for Telegram command arguments.
 @dependencies: pydantic
 @created: 2025-08-24

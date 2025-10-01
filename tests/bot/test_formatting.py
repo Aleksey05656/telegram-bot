@@ -1,14 +1,14 @@
 """
 @file: tests/bot/test_formatting.py
-@description: Tests for formatting helpers used by Telegram handlers.
-@dependencies: telegram.widgets
+@description: Tests for formatting helpers used by tgbotapp handlers.
+@dependencies: tgbotapp.widgets
 @created: 2025-09-19
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from telegram.widgets import format_fixture_list, format_prediction
+from tgbotapp.widgets import format_fixture_list, format_prediction
 
 
 def test_format_fixture_list_html_escape() -> None:

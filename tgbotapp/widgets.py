@@ -1,5 +1,5 @@
 """
-@file: telegram/widgets.py
+@file: tgbotapp/widgets.py
 @description: Rendering helpers for Telegram bot responses.
 @dependencies: datetime, html
 @created: 2025-09-19
