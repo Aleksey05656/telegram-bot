@@ -1,80 +1,114 @@
 """
-@file: sportmonks_client.py
-@description: SportMonks client with optional stub mode for testing
-@dependencies: requests (real mode)
-@created: 2025-09-15
-SportMonks client with STUB mode.
-- Если переменная окружения SPORTMONKS_STUB=1 или SPORTMONKS_API_KEY пустой/равен "dummy",
-  используется заглушка без реальных сетевых вызовов.
-- Это позволяет запускать тесты и сервис локально без реального API-ключа.
+/**
+ * @file: sportmonks_client.py
+ * @description: SportMonks football client with strict date handling and diagnostics.
+ * @dependencies: requests, logger
+ * @created: 2025-09-15
+ */
 """
 from __future__ import annotations
 
+import datetime as _dt
 import os
-from dataclasses import dataclass
 from typing import Any
 
+import requests
 
-@dataclass
-class SportMonksConfig:
-    api_key: str | None
-    stub: bool
-    base_url: str = "https://api.sportmonks.com/v3"
+from logger import logger
 
-    @classmethod
-    def from_env(cls) -> SportMonksConfig:
-        key = os.getenv("SPORTMONKS_API_KEY")
-        stub_flag = os.getenv("SPORTMONKS_STUB", "0") == "1" or not key or key.lower() == "dummy"
-        return cls(api_key=key, stub=stub_flag)
+BASE_URL = "https://api.sportmonks.com/v3/football"
+TOKEN_ENV = "SPORTMONKS_API_TOKEN"
+LEGACY_ENV = "SPORTMONKS_API_KEY"
+INCLUDES_ENV = "SPORTMONKS_INCLUDES"
+STUB_ENV = "SPORTMONKS_STUB"
+
+
+def _bootstrap_token() -> None:
+    if TOKEN_ENV in os.environ:
+        return
+    legacy = os.environ.get(LEGACY_ENV)
+    if not legacy:
+        return
+    logger.warning(
+        "SPORTMONKS_API_KEY is deprecated; please migrate to SPORTMONKS_API_TOKEN",
+    )
+    os.environ[TOKEN_ENV] = legacy
+
+
+_bootstrap_token()
+
+
+def _mask_token(value: str) -> str:
+    token = os.environ.get(TOKEN_ENV)
+    if not token:
+        return value
+    return value.replace(token, "***")
+
+
+def _should_stub() -> bool:
+    if os.getenv(STUB_ENV, "0") == "1":
+        return True
+    token = os.environ.get(TOKEN_ENV, "").strip()
+    return not token or token.lower() == "dummy"
+
+
+def _get(url: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+    merged = {**(params or {}), "api_token": os.environ[TOKEN_ENV]}
+    response = requests.get(url, params=merged, timeout=10)
+    if response.status_code >= 400:
+        masked_url = _mask_token(response.url)
+        logger.error(
+            "sportmonks HTTP %s at %s; body=%s",
+            response.status_code,
+            masked_url,
+            response.text[:2000],
+        )
+        response.raise_for_status()
+    return response.json()
 
 
 class SportMonksClient:
-    def __init__(self, cfg: SportMonksConfig | None = None):
-        self.cfg = cfg or SportMonksConfig.from_env()
+    """HTTP client for SportMonks football API with optional stub responses."""
+
+    def __init__(self, *, stub: bool | None = None, includes: str | None = None) -> None:
+        self._stub = _should_stub() if stub is None else bool(stub)
+        self._includes = includes if includes is not None else os.getenv(INCLUDES_ENV)
 
     def leagues(self) -> list[dict[str, Any]]:
-        if self.cfg.stub:
+        if self._stub:
             return [
                 {"id": 1, "name": "Stub Premier League", "country": "GB"},
                 {"id": 2, "name": "Stub La Liga", "country": "ES"},
             ]
-        return _real_leagues(self.cfg)
+
+        payload = _get(f"{BASE_URL}/leagues")
+        data = payload.get("data", []) if isinstance(payload, dict) else []
+        return data if isinstance(data, list) else []
 
     def fixtures_by_date(self, date_iso: str) -> list[dict[str, Any]]:
-        if self.cfg.stub:
+        _dt.date.fromisoformat(date_iso)
+        if self._stub:
             return [
                 {"id": 101, "home": "Stub FC", "away": "Mock United", "date": date_iso},
                 {"id": 102, "home": "Sample City", "away": "Example Town", "date": date_iso},
             ]
-        return _real_fixtures_by_date(self.cfg, date_iso)
+
+        params: dict[str, str] = {}
+        if self._includes:
+            params["include"] = self._includes
+        payload = _get(f"{BASE_URL}/fixtures/date/{date_iso}", params or None)
+        data = payload.get("data", []) if isinstance(payload, dict) else []
+        return data if isinstance(data, list) else []
+
+    def fixtures_between(self, start_iso: str, end_iso: str) -> list[dict[str, Any]]:
+        _dt.date.fromisoformat(start_iso)
+        _dt.date.fromisoformat(end_iso)
+        if self._stub:
+            return self.fixtures_by_date(start_iso)
+
+        payload = _get(f"{BASE_URL}/fixtures/between/{start_iso}/{end_iso}")
+        data = payload.get("data", []) if isinstance(payload, dict) else []
+        return data if isinstance(data, list) else []
 
 
-def _require_requests():
-    try:
-        import requests  # type: ignore
-
-        return requests
-    except Exception as e:  # pragma: no cover - defensive
-        raise RuntimeError("requests library required for real SportMonks calls") from e
-
-
-def _real_headers(cfg: SportMonksConfig) -> dict[str, str]:
-    if not cfg.api_key or cfg.api_key.lower() == "dummy":
-        raise RuntimeError("SPORTMONKS_API_KEY missing. Enable stub or set real key.")
-    return {"Authorization": f"Bearer {cfg.api_key}"}
-
-
-def _real_leagues(cfg: SportMonksConfig) -> list[dict[str, Any]]:
-    requests = _require_requests()
-    url = f"{cfg.base_url}/football/leagues"
-    r = requests.get(url, headers=_real_headers(cfg), timeout=10)
-    r.raise_for_status()
-    return r.json().get("data", [])
-
-
-def _real_fixtures_by_date(cfg: SportMonksConfig, date_iso: str) -> list[dict[str, Any]]:
-    requests = _require_requests()
-    url = f"{cfg.base_url}/football/fixtures/date/{date_iso}"
-    r = requests.get(url, headers=_real_headers(cfg), timeout=10)
-    r.raise_for_status()
-    return r.json().get("data", [])
+__all__ = ["SportMonksClient"]

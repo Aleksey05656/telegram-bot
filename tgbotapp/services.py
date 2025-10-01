@@ -28,7 +28,10 @@ class SportMonksFixturesRepository:
         self._cache: dict[int, dict[str, Any]] = {}
 
     async def list_fixtures_for_date(self, target_date: date) -> list[dict[str, Any]]:
-        raw = await asyncio.to_thread(self._client.fixtures_by_date, target_date.isoformat())
+        raw = await asyncio.to_thread(
+            self._client.fixtures_by_date,
+            target_date.strftime("%Y-%m-%d"),
+        )
         fixtures = [self._normalize_fixture(item) for item in raw]
         for fixture in fixtures:
             self._cache[fixture["id"]] = fixture

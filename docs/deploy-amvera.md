@@ -27,6 +27,7 @@
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` | Fallback-параметры для сборки `REDIS_URL`. | — |
 | `SPORTMONKS_API_TOKEN` | Основной API-токен SportMonks | — |
 | `SPORTMONKS_TOKEN` / `SPORTMONKS_API_KEY` | Устаревшие синонимы токена (при использовании логируется предупреждение) | — |
+| `SPORTMONKS_INCLUDES` | Дополнительные `include` для `fixtures/*` (через запятую) | `participants,scores` |
 | `APP_VERSION` | Версия релиза (для логов/метрик) | — |
 | `GIT_SHA` | Commit SHA (для трассировки) | — |
 | `LOG_LEVEL` | Уровень логирования | `INFO` |
@@ -160,6 +161,8 @@
 
 ## 17. Профиль Telegram-воркера
 - **Исполняемый скрипт**: `python scripts/tg_bot.py`
-- **Префлайт перед релизом** (опционально): `python scripts/preflight_worker.py`
+- **Префлайт перед релизом** (опционально):
+  `python scripts/preflight_worker.py`, `python scripts/preflight_redis.py`,
+  `python scripts/preflight_sportmonks.py`
 - **Ключевые переменные окружения**: `ROLE=bot`, `TELEGRAM_BOT_TOKEN`, `PYTHONUNBUFFERED=1`, `LOG_LEVEL=INFO`, `PYTHONPATH=.`
 - **Ожидаемые стартовые логи**: строка `tg_bot bootstrap: ROOT=... PYTHONPATH=...` и отсутствие ошибок `ModuleNotFoundError: tgbotapp.middlewares (ранее telegram middlewares)`.

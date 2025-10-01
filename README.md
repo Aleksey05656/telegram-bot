@@ -118,8 +118,10 @@ git push amvera main
 - `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` / `PGPORT` — компоненты для сборки DSN, когда явный `DATABASE_URL*` отсутствует.
 - `REDIS_URL` — URL управляемого Redis (приоритетный способ настройки; worker больше не использует localhost по умолчанию).
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` — fallback-поля для сборки `REDIS_URL`, если он не задан; `REDIS_SSL=1` переключает схему на `rediss://`.
-- `SPORTMONKS_API_TOKEN` — основной API-токен SportMonks.
-- `SPORTMONKS_TOKEN` / `SPORTMONKS_API_KEY` — устаревшие синонимы токена (при использовании логируется предупреждение).
+- `SPORTMONKS_API_TOKEN` — основной API-токен SportMonks v3 (обязателен для боевого режима).
+- `SPORTMONKS_API_KEY` / `SPORTMONKS_TOKEN` — устаревшие синонимы токена, автоматически
+  маппятся в `SPORTMONKS_API_TOKEN` с предупреждением в логах.
+- `SPORTMONKS_INCLUDES` — опциональные `include` (через запятую) для `fixtures/date` / `fixtures/between`.
 - `ENABLE_METRICS` — включает `/metrics` на порту API (`METRICS_PORT` оставлен для внутренних скрейпов и не прокидывается наружу).
 - `DB_PATH` — путь к SQLite-фолбэку (по умолчанию `/data/bot.sqlite3`).
 - `MODEL_REGISTRY_PATH` — каталог артефактов моделей (по умолчанию `/data/artifacts`).
@@ -150,7 +152,9 @@ git push amvera main
 - **Script:** `scripts/tg_bot.py`
 - **Runtime:** Python 3.11 (pip toolchain)
 - **Required env:** `ROLE=bot`, `TELEGRAM_BOT_TOKEN`, `PYTHONUNBUFFERED=1`, `LOG_LEVEL=INFO`, `PYTHONPATH=.`
-- **Optional preflight:** `python scripts/preflight_worker.py` (импорт бота) и `python scripts/preflight_redis.py` (ping Redis)
+- **Optional preflight:** `python scripts/preflight_worker.py` (импорт бота),
+  `python scripts/preflight_redis.py` (ping Redis) и `python scripts/preflight_sportmonks.py`
+  (минимальный GET `/fixtures/date/YYYY-MM-DD`)
 
 ### Хранилище
 
@@ -231,8 +235,8 @@ CLI example:
 ## SportMonks API reference
 
 ```bash
-# Список матчей в окне (минимальный include)
-curl "https://api.sportmonks.com/v3/football/fixtures/between/2025-09-26/2025-10-10?api_token=API_TOKEN&include=participants;scores;states&per_page=50&timezone=Europe/Berlin&locale=ru"
+# Расписание на дату (строгий формат YYYY-MM-DD, без include по умолчанию)
+curl "https://api.sportmonks.com/v3/football/fixtures/date/2025-10-01?api_token=API_TOKEN"
 
 # Полная карточка матча для расчётов (xGFixture + lineups.xGLineup)
 curl "https://api.sportmonks.com/v3/football/fixtures/123456?api_token=API_TOKEN&include=participants;scores;events;statistics;lineups.details;formations;states;lineups.xGLineup;xGFixture&timezone=Europe/Berlin&locale=ru"
@@ -296,8 +300,9 @@ Control parameters via environment variables:
 ## SportMonks stub mode
 
 Режим заглушки включается, если установить `SPORTMONKS_STUB=1` или оставить `SPORTMONKS_API_TOKEN`
-пустым/`dummy`. Для реального API необходимо задать токен и выставить `SPORTMONKS_STUB=0`. Клиент
-использует асинхронные запросы с бэкоффом и лимитами RPS.
+пустым/`dummy`. Для боевого API необходимо задать токен и выставить `SPORTMONKS_STUB=0`. Клиент
+делает синхронный GET к SportMonks v3, автоматически подставляет `api_token`, не добавляет
+`include` по умолчанию и логирует тело ответа при ошибках (HTTP ≥ 400) с маскировкой токена.
 
 ## Key environment variables
 
@@ -491,7 +496,8 @@ variable selects which entrypoint runs inside the container:
 Create an `.env` file from `.env.amvera.example` (no secrets committed) and fill in the platform-specific credentials:
 
 - `AMVERA`, `PYTHONUNBUFFERED`, `TZ`, `PORT`, `ENV`, `ROLE`
-- SportMonks & Telegram tokens: `SPORTMONKS_TOKEN`, `TELEGRAM_BOT_TOKEN`
+- SportMonks & Telegram tokens: `SPORTMONKS_API_TOKEN` (или устаревший `SPORTMONKS_API_KEY`),
+  `TELEGRAM_BOT_TOKEN`
 - PostgreSQL routing: `PGDATABASE`, `PGUSER`, `PGPASSWORD`, `PGHOST_RW`, `PGHOST_RO`, `PGHOST_RR`, `PGPORT`
 - Redis connection: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `REDIS_PASSWORD`
 
