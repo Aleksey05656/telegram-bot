@@ -1,3 +1,15 @@
+## [2025-11-12] - Telegram package import fixes
+### Добавлено
+- —
+
+### Изменено
+- `telegram/__init__.py` объявляет публичные модули пакета для корректного разрешения импортов.
+- `telegram/utils/__init__.py` документирует доступные утилиты и экспортирует подпакеты.
+- Подтверждено использование относительных импортов middleware в `telegram/bot.py`.
+
+### Исправлено
+- Ошибка `ModuleNotFoundError: telegram.middlewares` при запуске воркера Amvera.
+
 ## [2025-11-11] - Telegram worker import resilience
 ### Добавлено
 - Документация `docs/deploy-amvera.md` описывает профиль запуска воркера и опциональный префлайт.
