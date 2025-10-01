@@ -19,6 +19,8 @@ from .middlewares import (
     ProcessingTimeMiddleware,
     RateLimitMiddleware,
 )
+# NOTE: относительный импорт предотвращает конфликт с PyPI-пакетами `telegram`
+# и гарантирует использование локальных middleware.
 
 
 class TelegramBot:

@@ -1,3 +1,13 @@
+## Задача: Enforce local telegram package usage (2025-11-13)
+- **Статус**: Завершена
+- **Описание**: Удалить зависимости PyPI `telegram`/`python-telegram-bot`, задокументировать относительные импорты и подтвердить использование локального пакета.
+- **Шаги выполнения**:
+  - [x] Добавлен комментарий в `requirements.txt` с указанием запрета на внешние пакеты `telegram`.
+  - [x] Зафиксирована необходимость относительных импортов middleware в `telegram/bot.py` для использования локального модуля.
+  - [x] Обновлён `telegram/__init__.py` с пояснением экспорта подпакетов и приоритета локальной реализации.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` с документированием изменений.
+- **Зависимости**: requirements.txt, telegram/bot.py, telegram/__init__.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Fix Amvera worker telegram import (2025-11-12)
 - **Статус**: Завершена
 - **Описание**: Устранить ошибку `ModuleNotFoundError: telegram.middlewares` путём корректной упаковки модуля и относительных импортов.

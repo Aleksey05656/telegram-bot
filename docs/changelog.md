@@ -1,3 +1,15 @@
+## [2025-11-13] - Enforce local telegram package usage
+### Добавлено
+- —
+
+### Изменено
+- `requirements.txt` документирует отказ от PyPI-пакетов `telegram` и `python-telegram-bot` в пользу локального пакета.
+- `telegram/bot.py` фиксирует необходимость относительных импортов middleware для предотвращения конфликтов.
+- `telegram/__init__.py` поясняет экспорт подпакетов и приоритет локальной реализации.
+
+### Исправлено
+- Исключены коллизии с PyPI-пакетами `telegram` при импорте middlewares в воркере.
+
 ## [2025-11-12] - Telegram package import fixes
 ### Добавлено
 - —
