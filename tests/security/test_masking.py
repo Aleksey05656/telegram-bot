@@ -75,7 +75,7 @@ async def test_redis_health_check_logs_masked_url(monkeypatch) -> None:
     logger_stub = StubLogger()
     monkeypatch.setattr(redis_factory, "logger", logger_stub)
     monkeypatch.setattr(redis_factory, "from_url", lambda *args, **kwargs: DummyRedis())
-    factory = redis_factory.RedisFactory(url="redis://:secret@localhost:6379/0")
+    factory = redis_factory.RedisFactory(url="redis://:secret@test-redis:6379/0")
     await factory.health_check()
     masked_entries = [entry for entry in logger_stub.records if "url" in entry]
     assert masked_entries

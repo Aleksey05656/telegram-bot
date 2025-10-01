@@ -116,8 +116,8 @@ git push amvera main
 - `TELEGRAM_BOT_TOKEN` — токен из BotFather (обязательный).
 - `DATABASE_URL` / `DATABASE_URL_RO` / `DATABASE_URL_R` — DSN PostgreSQL для записи и чтения. Если переменные не заданы, DSN собирается из `PGUSER`, `PGPASSWORD`, `PGDATABASE`, хостов `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` (или общего `PGHOST`) и `PGPORT`.
 - `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGHOST_RW` / `PGHOST_RO` / `PGHOST_RR` / `PGPORT` — компоненты для сборки DSN, когда явный `DATABASE_URL*` отсутствует.
-- `REDIS_URL` — URL управляемого Redis (приоритетный способ настройки).
-- `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` — fallback-поля для сборки `REDIS_URL`, если он не задан.
+- `REDIS_URL` — URL управляемого Redis (приоритетный способ настройки; worker больше не использует localhost по умолчанию).
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD` — fallback-поля для сборки `REDIS_URL`, если он не задан; `REDIS_SSL=1` переключает схему на `rediss://`.
 - `SPORTMONKS_API_TOKEN` — основной API-токен SportMonks.
 - `SPORTMONKS_TOKEN` / `SPORTMONKS_API_KEY` — устаревшие синонимы токена (при использовании логируется предупреждение).
 - `ENABLE_METRICS` — включает `/metrics` на порту API (`METRICS_PORT` оставлен для внутренних скрейпов и не прокидывается наружу).
@@ -150,7 +150,7 @@ git push amvera main
 - **Script:** `scripts/tg_bot.py`
 - **Runtime:** Python 3.11 (pip toolchain)
 - **Required env:** `ROLE=bot`, `TELEGRAM_BOT_TOKEN`, `PYTHONUNBUFFERED=1`, `LOG_LEVEL=INFO`, `PYTHONPATH=.`
-- **Optional preflight:** `python scripts/preflight_worker.py`
+- **Optional preflight:** `python scripts/preflight_worker.py` (импорт бота) и `python scripts/preflight_redis.py` (ping Redis)
 
 ### Хранилище
 

@@ -2,12 +2,48 @@
 """Модуль для работы с кэшем Redis с поддержкой версионирования и TTL."""
 import json
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from config import get_settings
 from logger import logger
 
 # Получаем настройки
 settings = get_settings()
+
+
+def _redis_url() -> str | None:
+    url = getattr(settings, "REDIS_URL", None)
+    if url:
+        return url
+    host = getattr(settings, "REDIS_HOST", None)
+    if not host:
+        return None
+    port = getattr(settings, "REDIS_PORT", "6379")
+    db = getattr(settings, "REDIS_DB", "0")
+    password = getattr(settings, "REDIS_PASSWORD", None)
+    ssl_flag = getattr(settings, "REDIS_SSL", None)
+    scheme = "rediss" if str(ssl_flag).lower() in {"1", "true"} else "redis"
+    auth = f":{password}@" if password else ""
+    return f"{scheme}://{auth}{host}:{port}/{db}"
+
+
+def _mask_url(url: str) -> str:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    netloc = parts.netloc
+    if "@" in netloc:
+        creds, host_part = netloc.split("@", 1)
+        if ":" in creds:
+            user, _ = creds.split(":", 1)
+            creds = f"{user}:***"
+        elif creds:
+            creds = "***"
+        else:
+            creds = ":***"
+        netloc = f"{creds}@{host_part}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
 class Cache:
@@ -18,16 +54,33 @@ class Cache:
         try:
             import redis
 
-            # Используем URL из settings или fallback на localhost
-            redis_url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+            redis_url = _redis_url()
+            if not redis_url:
+                logger.info("Redis URL не задан, кэш переключён в режим памяти")
+                self.redis_client = None
+                return
             self.redis_client = redis.from_url(
-                redis_url, encoding="utf-8", decode_responses=True
+                redis_url,
+                encoding="utf-8",
+                decode_responses=True,
+                socket_timeout=3,
+                socket_connect_timeout=3,
             )
-            # Простая проверка подключения
             self.redis_client.ping()
-            logger.info(f"✅ Подключение к Redis установлено по адресу {redis_url}")
+            logger.info(
+                "✅ Подключение к Redis установлено (url=%s)",
+                _mask_url(redis_url),
+            )
         except Exception as e:
-            logger.error(f"❌ Не удалось подключиться к Redis: {e}")
+            masked_url = _mask_url(redis_url) if "redis_url" in locals() and redis_url else None
+            message = str(e)
+            if masked_url and "redis_url" in locals() and redis_url:
+                message = message.replace(redis_url, masked_url)
+            logger.warning(
+                "❌ Не удалось подключиться к Redis (url=%s): %s",
+                masked_url,
+                message,
+            )
             self.redis_client = None
 
     def versioned_key(self, prefix: str, *parts) -> str:

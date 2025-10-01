@@ -157,7 +157,7 @@ docker-build:
 docker-run:
 	docker run --rm \
 	-e DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/app \
-	-e REDIS_URL=redis://localhost:6379/0 \
+    -e REDIS_URL=$${REDIS_URL:-} \
 	-e TELEGRAM_BOT_TOKEN=TEST_TELEGRAM_TOKEN \
 	-e APP_VERSION=$(APP_VERSION) \
 	-e GIT_SHA=$(GIT_SHA) \

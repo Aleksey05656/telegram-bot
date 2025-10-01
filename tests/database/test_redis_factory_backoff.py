@@ -109,7 +109,7 @@ async def test_ping_eventually_succeeds_with_backoff_and_jitter(
     monkeypatch.setattr(redis_factory, "from_url", fake_from_url)
 
     factory = redis_factory.RedisFactory(
-        url="redis://:secret@localhost:6379/0",
+        url="redis://:secret@test-redis:6379/0",
         max_retries=5,
         base_delay=0.05,
         max_delay=0.2,
@@ -167,7 +167,7 @@ async def test_ping_failure_masks_dsn_and_raises_after_max_retries(
     monkeypatch.setattr(redis_factory, "logger", stub_logger)
 
     factory = redis_factory.RedisFactory(
-        url="redis://user:secret@localhost:6379/1",
+        url="redis://user:secret@test-redis:6379/1",
         max_retries=2,
         base_delay=0.1,
         max_delay=0.5,

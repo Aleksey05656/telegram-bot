@@ -8,20 +8,26 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import dataclass
 from time import monotonic
 from typing import Any, Awaitable, Callable
 
 from config import get_settings
 
+logger = logging.getLogger(__name__)
+
 try:  # pragma: no cover - optional dependency
     from redis.asyncio import Redis  # type: ignore
-    from redis.asyncio import from_url as redis_from_url  # type: ignore
 except Exception:  # pragma: no cover - redis not installed in test env
-    Redis = Any  # type: ignore
 
-    async def redis_from_url(*_args: Any, **_kwargs: Any) -> "_InMemoryRedis":
-        return _InMemoryRedis()
+    class Redis:  # type: ignore[no-redef]
+        """Minimal shim providing ``from_url`` for offline environments."""
+
+        @staticmethod
+        def from_url(*_args: Any, **_kwargs: Any) -> "_InMemoryRedis":
+            return _InMemoryRedis()
 
 
 @dataclass(slots=True)
@@ -37,7 +43,7 @@ class _InMemoryRedis:
         self._values: dict[str, tuple[str, float | None]] = {}
 
     async def ping(self) -> None:
-        return None
+        return True
 
     async def setex(self, key: str, ttl: int, value: str) -> bool:
         expire_at = monotonic() + ttl if ttl > 0 else None
@@ -66,6 +72,36 @@ class _InMemoryRedis:
     async def close(self) -> None:
         self._values.clear()
         return None
+
+
+def _redis_url() -> str | None:
+    url = os.getenv("REDIS_URL")
+    if url:
+        return url
+    host = os.getenv("REDIS_HOST")
+    if not host:
+        return None
+    port = os.getenv("REDIS_PORT", "6379")
+    db = os.getenv("REDIS_DB", "0")
+    password = os.getenv("REDIS_PASSWORD")
+    scheme = "rediss" if os.getenv("REDIS_SSL") in {"1", "true", "True"} else "redis"
+    auth = f":{password}@" if password else ""
+    return f"{scheme}://{auth}{host}:{port}/{db}"
+
+
+def _safe_url_repr(url: str) -> str:
+    if url.startswith("rediss://"):
+        return "rediss://***"
+    if url.startswith("redis://"):
+        return "redis://***"
+    return "***"
+
+
+def _sanitize_exception(exc: Exception, url: str | None) -> str:
+    message = str(exc)
+    if url:
+        message = message.replace(url, _safe_url_repr(url))
+    return message
 
 
 def _json_default(value: Any) -> str:
@@ -152,19 +188,55 @@ class CacheManager:
         self._entries.clear()
 
     # Redis-specific helpers ----------------------------------------------------
-    async def connect_to_redis(self) -> None:
-        settings = get_settings()
-        redis_url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
-        client = redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
-        if isinstance(client, Awaitable):
-            client = await client  # type: ignore[assignment]
+    async def use_memory(self) -> None:
+        await self._close_redis_client()
+        self.redis_client = _InMemoryRedis()
+
+    async def use_redis(self, client: Any) -> None:
+        await self._close_redis_client()
         self.redis_client = client
-        ping = getattr(client, "ping", None)
-        if callable(ping):
-            result = ping()
-            if isinstance(result, Awaitable):
-                await result
+
+    async def connect_to_redis(self) -> None:
+        url = _redis_url()
+        if not url:
+            logger.info("cache: Redis disabled, using in-memory backend")
+            await self.use_memory()
+            return None
+
+        try:
+            client = Redis.from_url(
+                url,
+                encoding="utf-8",
+                decode_responses=True,
+                socket_timeout=3,
+                socket_connect_timeout=3,
+            )
+            if isinstance(client, Awaitable):
+                client = await client  # type: ignore[assignment]
+            pong = await client.ping()
+            logger.info(
+                "cache: connected to Redis (pong=%s, url=%s)",
+                pong,
+                _safe_url_repr(url),
+            )
+            await self.use_redis(client)
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning(
+                "cache: Redis unavailable, falling back to memory: %s",
+                _sanitize_exception(exc, url),
+            )
+            await self.use_memory()
         return None
+
+    async def _close_redis_client(self) -> None:
+        client = self.redis_client
+        self.redis_client = None
+        if client is not None:
+            closer = getattr(client, "close", None)
+            if callable(closer):
+                result = closer()
+                if isinstance(result, Awaitable):
+                    await result
 
     async def get_lineup_cached(self, match_id: int) -> Any | None:
         key = versioned_key("lineup", match_id)
@@ -201,14 +273,7 @@ class CacheManager:
         return bool(result)
 
     async def close(self) -> None:
-        client = self.redis_client
-        self.redis_client = None
-        if client is not None:
-            closer = getattr(client, "close", None)
-            if callable(closer):
-                result = closer()
-                if isinstance(result, Awaitable):
-                    await result
+        await self._close_redis_client()
         await self.clear()
 
 

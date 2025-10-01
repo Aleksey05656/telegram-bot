@@ -1,3 +1,13 @@
+## Задача: Wire worker to Amvera Redis with preflight (2025-11-14)
+- **Статус**: Завершена
+- **Описание**: Переключить воркер на конфигурацию Redis через `REDIS_URL`, добавить preflight ping и безопасные логи/таймауты без fallback на localhost.
+- **Шаги выполнения**:
+  - [x] Реализована сборка URL и ping/таймауты в `database/cache_postgres.py` с безопасным логированием и fallback на in-memory backend.
+  - [x] Добавлен скрипт `scripts/preflight_redis.py` для выпуска Amvera и логирования маскированного URL.
+  - [x] Обновлены `.env.example`, `README.md` и `scripts/tg_bot.py` с диагностикой переменных окружения и инструкциями Amvera.
+  - [x] Зафиксированы изменения в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: database/cache_postgres.py, database/cache.py, scripts/preflight_redis.py, scripts/tg_bot.py, .env.example, README.md, Makefile, tests/database/test_redis_factory_backoff.py, tests/security/test_masking.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Rename telegram package to tgbotapp (2025-10-01)
 - **Статус**: Завершена
 - **Описание**: Переименовать локальный пакет telegram в tgbotapp, чтобы исключить конфликт с PyPI-пакетом `telegram`, и обновить импорты.

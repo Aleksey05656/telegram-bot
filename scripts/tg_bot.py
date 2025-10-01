@@ -44,6 +44,14 @@ logger.info(
     "tgbotapp.middlewares present? %s",
     importlib.util.find_spec("tgbotapp.middlewares") is not None,
 )
+logger.info(
+    "redis-env: URL=%s HOST=%s PORT=%s DB=%s SSL=%s",
+    bool(os.getenv("REDIS_URL")),
+    os.getenv("REDIS_HOST"),
+    os.getenv("REDIS_PORT"),
+    os.getenv("REDIS_DB"),
+    os.getenv("REDIS_SSL"),
+)
 
 try:  # pragma: no cover - optional build metadata logging
     from app.build_meta import get_build_meta
