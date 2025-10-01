@@ -1,3 +1,18 @@
+## [2025-11-14] - Redis URL preflight and worker hardening
+### Добавлено
+- Скрипт `scripts/preflight_redis.py` выполняет ping Amvera Redis перед релизом и маскирует чувствительные части URL в выводе.
+
+### Изменено
+- `database/cache_postgres.py` читает `REDIS_URL`/`REDIS_HOST`/`REDIS_PORT`/`REDIS_DB`/`REDIS_PASSWORD`/`REDIS_SSL`, выполняет ping при инициализации, настраивает таймауты и логирует безопасные сообщения.
+- `database/cache.py` использует ту же схему конфигурации без fallback на localhost и маскирует URL в логах.
+- `.env.example` документирует Amvera Redis URL и переменную `REDIS_SSL`, убирая дефолт `localhost`.
+- `scripts/tg_bot.py` печатает сводку переменных окружения Redis при старте.
+- `README.md` описывает новый префлайт Redis и запрет на fallback `localhost`.
+- `Makefile` и профильные тесты очищены от значения `localhost:6379`.
+
+### Исправлено
+- При недоступности Redis worker переключается на in-memory backend без аварийного завершения и без утечек секретов в логах.
+
 ## [2025-11-13] - Enforce local telegram package usage
 ### Добавлено
 - —
