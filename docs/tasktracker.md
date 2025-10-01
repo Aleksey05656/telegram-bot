@@ -1,3 +1,18 @@
+## Задача: Harden SportMonks v3 client and diagnostics (2025-10-01)
+- **Статус**: Завершена
+- **Описание**: Обновить клиент SportMonks под v3, строгое форматирование дат, диагностическое логирование
+  и добавить префлайт для API.
+- **Шаги выполнения**:
+  - [x] Переписан `app/integrations/sportmonks_client.py` под `SPORTMONKS_API_TOKEN`, строгий `YYYY-MM-DD`
+    и маскировку токена в логах.
+  - [x] Обновлён `tgbotapp/services.py` для использования `strftime("%Y-%m-%d")` и опциональных include.
+  - [x] Добавлены тесты `tests/integrations/test_sportmonks_date.py` и обновлены `tests/test_sportmonks_stub.py`.
+  - [x] Создан `scripts/preflight_sportmonks.py` и задокументирован в README/deploy руководстве.
+  - [x] Зафиксированы изменения в `.env.example`, `docs/changelog.md`, `docs/tasktracker.md`.
+- **Зависимости**: app/integrations/sportmonks_client.py, tgbotapp/services.py, tests/integrations/test_sportmonks_date.py,
+  tests/test_sportmonks_stub.py, scripts/preflight_sportmonks.py, README.md, .env.example, docs/deploy-amvera.md,
+  docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Wire worker to Amvera Redis with preflight (2025-11-14)
 - **Статус**: Завершена
 - **Описание**: Переключить воркер на конфигурацию Redis через `REDIS_URL`, добавить preflight ping и безопасные логи/таймауты без fallback на localhost.

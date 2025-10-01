@@ -1,3 +1,22 @@
+## [2025-10-01] - SportMonks v3 client hardening
+### Добавлено
+- Интеграционные тесты `tests/integrations/test_sportmonks_date.py` проверяют строгий формат дат,
+  обработку ошибок и маскировку токена в логах.
+- Скрипт `scripts/preflight_sportmonks.py` выполняет минимальный GET `/fixtures/date/YYYY-MM-DD`
+  и печатает статус/тело ответа с маскировкой токена.
+
+### Изменено
+- `app/integrations/sportmonks_client.py` использует `SPORTMONKS_API_TOKEN`, строгий формат дат,
+  минимальные параметры запросов и расширенное логирование ошибок.
+- `tgbotapp/services.py` вызывает `fixtures_by_date` с `strftime("%Y-%m-%d")` и делегирует
+  include через переменную окружения.
+- `README.md`, `.env.example` и `docs/deploy-amvera.md` документируют новый префлайт, строгий
+  формат дат и опциональные include.
+
+### Исправлено
+- Ошибки HTTP ≥ 400 по SportMonks теперь логируются с телом ответа и маскированным токеном, что
+  упрощает диагностику инцидентов.
+
 ## [2025-11-14] - Redis URL preflight and worker hardening
 ### Добавлено
 - Скрипт `scripts/preflight_redis.py` выполняет ping Amvera Redis перед релизом и маскирует чувствительные части URL в выводе.
