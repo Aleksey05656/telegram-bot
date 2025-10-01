@@ -1,4 +1,4 @@
-# @file: telegram/bot.py
+# @file: tgbotapp/bot.py
 # Логика Telegram-бота: инициализация, обработчики, запуск polling.
 import asyncio
 from contextlib import suppress
@@ -19,8 +19,8 @@ from .middlewares import (
     ProcessingTimeMiddleware,
     RateLimitMiddleware,
 )
-# NOTE: относительный импорт предотвращает конфликт с PyPI-пакетами `telegram`
-# и гарантирует использование локальных middleware.
+# NOTE: относительный импорт гарантирует использование локального пакета tgbotapp
+# и предотвращает конфликты с одноимёнными пакетами из PyPI.
 
 
 class TelegramBot:

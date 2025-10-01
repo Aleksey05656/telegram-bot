@@ -25,7 +25,7 @@ from config import settings
 from database.cache_postgres import init_cache, shutdown_cache
 from logger import logger
 from ml.models.poisson_regression_model import poisson_regression_model
-from telegram.bot import get_bot
+from tgbotapp.bot import get_bot
 from workers.retrain_scheduler import schedule_retrain
 from workers.runtime_scheduler import clear_jobs, register as register_runtime_job
 

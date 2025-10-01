@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/predict.py
+@file: tgbotapp/handlers/predict.py
 @description: Handler for /predict command using DI queue adapter.
-@dependencies: aiogram, telegram.dependencies
+@dependencies: aiogram, tgbotapp.dependencies
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from logger import logger
-from telegram.dependencies import BotDependencies
+from tgbotapp.dependencies import BotDependencies
 
 _USAGE_MESSAGE = "Укажите команды в формате «Команда 1 — Команда 2»."
 _MISSING_TEAMS_MESSAGE = "Нужно указать обе команды."

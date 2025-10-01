@@ -20,7 +20,7 @@
 - Подтверждено использование относительных импортов middleware в `telegram/bot.py`.
 
 ### Исправлено
-- Ошибка `ModuleNotFoundError: telegram.middlewares` при запуске воркера Amvera.
+- Ошибка `ModuleNotFoundError: tgbotapp.middlewares (ранее telegram middlewares)` при запуске воркера Amvera.
 
 ## [2025-11-11] - Telegram worker import resilience
 ### Добавлено
@@ -34,17 +34,29 @@
 ### Исправлено
 - Исключены падения воркера из-за отсутствующих метрик/логгера и скрытых проблем импортов.
 
-## [2025-09-30] - Telegram worker bootstrap hardening
+## [2025-10-01] - Rename telegram package to tgbotapp
 ### Добавлено
-- `scripts/preflight_worker.py` выполняет проверку импортов `telegram.bot` и `telegram.middlewares` перед запуском воркера.
+- Обновлён `docs/tasktracker.md` блок с текущей задачей и контрольным списком.
 
 ### Изменено
-- `scripts/tg_bot.py` добавляет корень проекта в `sys.path`, включает fallback-логгер и выводит диагностику наличия `telegram.middlewares`.
+- Директория `telegram/` переименована в `tgbotapp/` для избежания конфликтов с PyPI-пакетами.
+- Импорты во всём проекте обновлены на `tgbotapp.*`, включая скрипты, сервисы и тесты.
+- Скрипты запуска и префлайта проверяют наличие модулей пакета `tgbotapp`.
+
+### Исправлено
+- Исключены импортные коллизии с установленным PyPI-пакетом `telegram` при запуске воркеров и тестов.
+
+## [2025-09-30] - Telegram worker bootstrap hardening
+### Добавлено
+- `scripts/preflight_worker.py` выполняет проверку импортов `tgbotapp.bot` (ранее telegram bot) и `tgbotapp.middlewares` (ранее telegram middlewares) перед запуском воркера.
+
+### Изменено
+- `scripts/tg_bot.py` добавляет корень проекта в `sys.path`, включает fallback-логгер и выводит диагностику наличия `tgbotapp.middlewares` (ранее telegram middlewares).
 - `telegram/bot.py` переключён на относительные импорты, исключая конфликты с PyPI-пакетом `telegram`.
 - `README.md` документирует профиль воркера Amvera и preflight-скрипт.
 
 ### Исправлено
-- Исключено переопределение `telegram.middlewares` в рантайме и падения воркера из-за неправильных путей импорта.
+- Исключено переопределение `tgbotapp.middlewares` (ранее telegram middlewares) в рантайме и падения воркера из-за неправильных путей импорта.
 
 ## [2025-11-10] - ASGI resolution hardening for Amvera
 ### Добавлено
@@ -889,7 +901,7 @@
 - Тесты `tests/bot/test_handlers_smoke.py` и `tests/bot/test_formatting.py` для smoke-проверок и форматирования.
 - README раздел «Команды бота и примеры» с описанием сценариев.
 ### Изменено
-- Регистрация роутеров Telegram переведена на `telegram.handlers.register_handlers` с общим контейнером зависимостей.
+- Регистрация роутеров Telegram переведена на `tgbotapp.handlers.register_handlers` с общим контейнером зависимостей.
 - Команда `/predict` ставит задачи через адаптер `TaskManagerQueue` и проверяет ввод с учётом разных тире.
 ### Исправлено
 - Сообщения об ошибках `/match` и `/predict` приводятся к лаконичным формулировкам («Матч не найден», «Неверный id», «Нужно указать обе команды»).

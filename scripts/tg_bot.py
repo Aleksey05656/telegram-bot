@@ -1,7 +1,7 @@
 """
 @file: scripts/tg_bot.py
 @description: Telegram bot entrypoint with graceful shutdown handling
-@dependencies: telegram.bot, logger
+@dependencies: tgbotapp.bot, logger
 @created: 2025-10-27
 """
 
@@ -41,8 +41,8 @@ logger.info(
     os.getenv("PYTHONPATH", ""),
 )
 logger.info(
-    "telegram.middlewares present? %s",
-    importlib.util.find_spec("telegram.middlewares") is not None,
+    "tgbotapp.middlewares present? %s",
+    importlib.util.find_spec("tgbotapp.middlewares") is not None,
 )
 
 try:  # pragma: no cover - optional build metadata logging
@@ -59,7 +59,7 @@ try:  # pragma: no cover - optional build metadata logging
 except Exception:
     pass
 
-from telegram.bot import TelegramBot
+from tgbotapp.bot import TelegramBot
 
 
 def _install_signal_handlers(stop_event: asyncio.Event) -> None:

@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/help.py
+@file: tgbotapp/handlers/help.py
 @description: Handler for /help command with dependency-aware routing.
-@dependencies: aiogram, telegram.dependencies
+@dependencies: aiogram, tgbotapp.dependencies
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from telegram.dependencies import BotDependencies, CommandInfo
+from tgbotapp.dependencies import BotDependencies, CommandInfo
 
 
 def build_help_text(commands: tuple[CommandInfo, ...] | list[CommandInfo]) -> str:

@@ -1,5 +1,5 @@
 """
-@file: telegram/dependencies.py
+@file: tgbotapp/dependencies.py
 @description: Dependency contracts and builders for Telegram handlers.
 @dependencies: dataclasses, typing, config
 @created: 2025-09-19
@@ -13,7 +13,7 @@ from typing import Any, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 from config import get_settings
-from telegram import services
+from tgbotapp import services
 
 
 class PredictionTaskQueue(Protocol):

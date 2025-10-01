@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/__init__.py
+@file: tgbotapp/handlers/__init__.py
 @description: Router registration for Telegram bot with DI support.
-@dependencies: aiogram, telegram.dependencies
+@dependencies: aiogram, tgbotapp.dependencies
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 from aiogram import Dispatcher
 
 from app.bot import build_bot_router
-from telegram.dependencies import BotDependencies, build_default_dependencies
+from tgbotapp.dependencies import BotDependencies, build_default_dependencies
 
 from . import terms
 

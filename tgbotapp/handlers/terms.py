@@ -1,4 +1,4 @@
-# telegram/handlers/terms.py
+# tgbotapp/handlers/terms.py
 """Обработчик команд /terms и /disclaimer, а также связанных callback-ов."""
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest  # Добавлен импорт
@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from logger import logger
-from telegram.models import CommandWithoutArgs
+from tgbotapp.models import CommandWithoutArgs
 
 # Исправленный импорт кэша
 

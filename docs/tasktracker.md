@@ -1,3 +1,13 @@
+## Задача: Rename telegram package to tgbotapp (2025-10-01)
+- **Статус**: Завершена
+- **Описание**: Переименовать локальный пакет telegram в tgbotapp, чтобы исключить конфликт с PyPI-пакетом `telegram`, и обновить импорты.
+- **Шаги выполнения**:
+  - [x] Переименована директория `telegram/` в `tgbotapp/` с сохранением инициализации пакета.
+  - [x] Обновлены импорты приложения, сервисов и тестов на пространство имён `tgbotapp`.
+  - [x] Актуализированы `scripts/tg_bot.py` и `scripts/preflight_worker.py` для проверки пакета `tgbotapp`.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` под новое название пакета.
+- **Зависимости**: tgbotapp/*, main.py, scripts/tg_bot.py, scripts/preflight_worker.py, app/bot/services.py, tests/bot/*, tests/telegram/*, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Enforce local telegram package usage (2025-11-13)
 - **Статус**: Завершена
 - **Описание**: Удалить зависимости PyPI `telegram`/`python-telegram-bot`, задокументировать относительные импорты и подтвердить использование локального пакета.
@@ -10,12 +20,12 @@
 
 ## Задача: Fix Amvera worker telegram import (2025-11-12)
 - **Статус**: Завершена
-- **Описание**: Устранить ошибку `ModuleNotFoundError: telegram.middlewares` путём корректной упаковки модуля и относительных импортов.
+- **Описание**: Устранить ошибку `ModuleNotFoundError: tgbotapp.middlewares (ранее telegram middlewares)` путём корректной упаковки модуля и относительных импортов.
 - **Шаги выполнения**:
   - [x] Подтвердить использование относительных импортов middleware и вспомогательных функций в `telegram/bot.py`.
   - [x] Добавить экспорты и документацию в `telegram/__init__.py` для явного пакета.
   - [x] Добавить экспорты и документацию в `telegram/utils/__init__.py`.
-  - [x] Убедиться в отсутствии рантайм-стабов `telegram.middlewares` и обновить документацию.
+  - [x] Убедиться в отсутствии рантайм-стабов `tgbotapp.middlewares` (ранее telegram middlewares) и обновить документацию.
 - **Зависимости**: telegram/bot.py, telegram/__init__.py, telegram/utils/__init__.py, docs/changelog.md, docs/tasktracker.md
 
 ## Задача: Telegram worker import resilience (2025-11-11)
@@ -30,9 +40,9 @@
 
 ## Задача: Harden Telegram worker imports (2025-09-30)
 - **Статус**: Завершена
-- **Описание**: Удалить стабы `telegram.middlewares`, выровнять импорты и добавить префлайт Amvera-воркера.
+- **Описание**: Удалить стабы `tgbotapp.middlewares` (ранее telegram middlewares), выровнять импорты и добавить префлайт Amvera-воркера.
 - **Шаги выполнения**:
-  - [x] Доработан `scripts/tg_bot.py` с вставкой корня проекта в `sys.path`, fallback-логгером и диагностикой наличия `telegram.middlewares`.
+  - [x] Доработан `scripts/tg_bot.py` с вставкой корня проекта в `sys.path`, fallback-логгером и диагностикой наличия `tgbotapp.middlewares` (ранее telegram middlewares).
   - [x] Переключён `telegram/bot.py` на относительные импорты middlewares и роутеров.
   - [x] Добавлен `scripts/preflight_worker.py` для проверки импортов перед запуском воркера.
   - [x] Обновлены `README.md`, `docs/changelog.md` и `docs/tasktracker.md`.

@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/model.py
+@file: tgbotapp/handlers/model.py
 @description: Handler for /model command reporting runtime configuration.
-@dependencies: aiogram, telegram.dependencies
+@dependencies: aiogram, tgbotapp.dependencies
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from telegram.dependencies import BotDependencies, ModelMetadata
+from tgbotapp.dependencies import BotDependencies, ModelMetadata
 
 
 def render_model_info(meta: ModelMetadata) -> str:

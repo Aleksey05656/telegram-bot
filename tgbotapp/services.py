@@ -1,5 +1,5 @@
 """
-@file: telegram/services.py
+@file: tgbotapp/services.py
 @description: Default service implementations for Telegram handlers.
 @dependencies: asyncio, math, typing, app.integrations
 @created: 2025-09-19

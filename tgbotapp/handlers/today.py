@@ -1,7 +1,7 @@
 """
-@file: telegram/handlers/today.py
+@file: tgbotapp/handlers/today.py
 @description: Handler for /today command returning fixture list.
-@dependencies: aiogram, telegram.dependencies, telegram.widgets
+@dependencies: aiogram, tgbotapp.dependencies, tgbotapp.widgets
 @created: 2025-09-19
 """
 from __future__ import annotations
@@ -13,8 +13,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from logger import logger
-from telegram.dependencies import BotDependencies
-from telegram.widgets import format_fixture_list
+from tgbotapp.dependencies import BotDependencies
+from tgbotapp.widgets import format_fixture_list
 
 
 async def build_today_response(deps: BotDependencies, now: datetime | None = None) -> str:
