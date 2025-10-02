@@ -19,8 +19,12 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency
-    from redis.asyncio import Redis  # type: ignore
+    import redis.asyncio as redis
 except Exception:  # pragma: no cover - redis not installed in test env
+    redis = None  # type: ignore[assignment]
+
+
+if redis is None:  # pragma: no cover - offline fallback
 
     class Redis:  # type: ignore[no-redef]
         """Minimal shim providing ``from_url`` for offline environments."""
@@ -28,6 +32,13 @@ except Exception:  # pragma: no cover - redis not installed in test env
         @staticmethod
         def from_url(*_args: Any, **_kwargs: Any) -> "_InMemoryRedis":
             return _InMemoryRedis()
+
+    def from_url(*_args: Any, **_kwargs: Any) -> "_InMemoryRedis":  # type: ignore[misc]
+        return _InMemoryRedis()
+
+else:  # pragma: no cover - convenience alias for type checkers
+    Redis = redis.Redis
+    from_url = redis.from_url
 
 
 @dataclass(slots=True)
@@ -75,16 +86,18 @@ class _InMemoryRedis:
 
 
 def _redis_url() -> str | None:
-    url = os.getenv("REDIS_URL")
+    settings_obj = get_settings()
+    url = os.getenv("REDIS_URL") or getattr(settings_obj, "REDIS_URL", None)
     if url:
         return url
-    host = os.getenv("REDIS_HOST")
+    host = os.getenv("REDIS_HOST") or getattr(settings_obj, "REDIS_HOST", None)
     if not host:
         return None
-    port = os.getenv("REDIS_PORT", "6379")
-    db = os.getenv("REDIS_DB", "0")
-    password = os.getenv("REDIS_PASSWORD")
-    scheme = "rediss" if os.getenv("REDIS_SSL") in {"1", "true", "True"} else "redis"
+    port = os.getenv("REDIS_PORT", getattr(settings_obj, "REDIS_PORT", "6379"))
+    db = os.getenv("REDIS_DB", getattr(settings_obj, "REDIS_DB", "0"))
+    password = os.getenv("REDIS_PASSWORD", getattr(settings_obj, "REDIS_PASSWORD", None))
+    ssl_flag = os.getenv("REDIS_SSL", getattr(settings_obj, "REDIS_SSL", None))
+    scheme = "rediss" if str(ssl_flag).lower() in {"1", "true"} else "redis"
     auth = f":{password}@" if password else ""
     return f"{scheme}://{auth}{host}:{port}/{db}"
 
@@ -204,13 +217,7 @@ class CacheManager:
             return None
 
         try:
-            client = Redis.from_url(
-                url,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_timeout=3,
-                socket_connect_timeout=3,
-            )
+            client = from_url(url, encoding="utf-8", decode_responses=True)
             if isinstance(client, Awaitable):
                 client = await client  # type: ignore[assignment]
             pong = await client.ping()

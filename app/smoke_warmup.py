@@ -14,9 +14,9 @@ from typing import Any, Callable
 from .fastapi_compat import APIRouter, JSONResponse
 
 try:  # pragma: no cover - optional dependency guard
-    from redis.asyncio import from_url as redis_from_url
+    import redis.asyncio as redis
 except Exception:  # pragma: no cover - offline fallback
-    redis_from_url = None  # type: ignore[assignment]
+    redis = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - optional dependency guard
     from database.cache_postgres import init_cache
@@ -32,7 +32,7 @@ router = APIRouter()
 
 
 async def _maybe_warm_redis(warmed: list[str]) -> None:
-    if redis_from_url is None:
+    if redis is None:
         return
 
     try:
@@ -50,7 +50,7 @@ async def _maybe_warm_redis(warmed: list[str]) -> None:
 
     client: Any | None = None
     try:
-        client = redis_from_url(redis_url, encoding="utf-8", decode_responses=True)
+        client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
         ping_result = client.ping()
         if inspect.isawaitable(ping_result):
             ping_result = await ping_result

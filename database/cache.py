@@ -1,8 +1,12 @@
 # database/cache.py
 """Модуль для работы с кэшем Redis с поддержкой версионирования и TTL."""
+import asyncio
+import inspect
 import json
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+
+import redis.asyncio as redis
 
 from config import get_settings
 from logger import logger
@@ -52,21 +56,30 @@ class Cache:
     def __init__(self):
         """Инициализация кэша Redis."""
         try:
-            import redis
-
             redis_url = _redis_url()
             if not redis_url:
                 logger.info("Redis URL не задан, кэш переключён в режим памяти")
                 self.redis_client = None
                 return
-            self.redis_client = redis.from_url(
+            async_client = redis.from_url(
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
                 socket_timeout=3,
                 socket_connect_timeout=3,
             )
-            self.redis_client.ping()
+            self._redis_async_client = async_client
+            sync_getter = getattr(async_client, "sync_client", None)
+            client = sync_getter() if callable(sync_getter) else async_client
+            self.redis_client = client
+            ping_result = getattr(client, "ping", lambda: None)()
+            if inspect.isawaitable(ping_result):
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    asyncio.run(ping_result)
+                else:
+                    loop.create_task(ping_result)
             logger.info(
                 "✅ Подключение к Redis установлено (url=%s)",
                 _mask_url(redis_url),

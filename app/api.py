@@ -32,9 +32,9 @@ except Exception:  # pragma: no cover - handled in readiness probe
     asyncpg = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - optional dependency guard
-    from redis.asyncio import from_url as redis_from_url
+    import redis.asyncio as redis
 except Exception:  # pragma: no cover - handled in readiness probe
-    redis_from_url = None  # type: ignore[assignment]
+    redis = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - optional dependency guard
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -104,12 +104,12 @@ async def _check_redis(url: str, timeout: float) -> tuple[str, str | None]:
 
     if not url:
         return "skipped", "redis url not configured"
-    if redis_from_url is None:  # pragma: no cover - dependency missing scenario
+    if redis is None:  # pragma: no cover - dependency missing scenario
         if _is_truthy(os.getenv("FAILSAFE_MODE")) or _is_truthy(os.getenv("USE_OFFLINE_STUBS")):
             return "skipped", "redis.asyncio module is unavailable"
         return "degraded", "redis.asyncio module is unavailable"
 
-    client = redis_from_url(url, encoding="utf-8", decode_responses=True)
+    client = redis.from_url(url, encoding="utf-8", decode_responses=True)
     try:
         await asyncio.wait_for(client.ping(), timeout=timeout)
     except Exception as exc:  # pragma: no cover - network/connectivity issues

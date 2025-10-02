@@ -1,3 +1,13 @@
+## Задача: Redis asyncio migration (2025-10-03)
+- **Статус**: Завершена
+- **Описание**: Перевести модули проекта на использование `redis.asyncio` с мягким префлайтом и маскировкой конфигурации.
+- **Шаги выполнения**:
+  - [x] Заменены импорты Redis на `import redis.asyncio as redis` в рабочих сервисах и утилитах.
+  - [x] Обновлён `workers/task_manager.py` для работы через async-клиент и синхронные очереди `rq`.
+  - [x] Переписан `scripts/preflight_redis.py` с тайм-аутом `ping()` и выводом `[OK]/[warn]` без падения пайплайна.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: database/cache.py, database/cache_postgres.py, workers/task_manager.py, workers/redis_factory.py, app/api.py, app/smoke_warmup.py, scripts/preflight_redis.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Database URL builder for asyncpg (2025-10-02)
 - **Статус**: Завершена
 - **Описание**: Добавить безопасный билдер строки подключения PostgreSQL для asyncpg с приоритетом переменной `DATABASE_URL`.

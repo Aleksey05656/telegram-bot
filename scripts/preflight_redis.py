@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from redis.asyncio import Redis
+import redis.asyncio as redis
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -55,19 +55,34 @@ def _mask_url(url: str) -> str:
 
 async def main() -> None:
     url = build_url()
-    print(f"[preflight] built_url={_mask_url(url) if url else None!r}")
     if not url:
-        print("[preflight] no redis config, skip")
+        print("[warn] redis preflight skipped: configuration missing")
         return
-    client = Redis.from_url(
-        url,
-        decode_responses=True,
-        socket_timeout=3,
-        socket_connect_timeout=3,
-    )
-    pong = await client.ping()
-    print(f"[preflight] redis ping: {pong}")
-    await client.close()
+    masked = _mask_url(url)
+    timeout = float(os.getenv("REDIS_PING_TIMEOUT", "3"))
+    try:
+        client = redis.from_url(
+            url,
+            decode_responses=True,
+            socket_timeout=timeout,
+            socket_connect_timeout=timeout,
+        )
+    except Exception as exc:
+        print(f"[warn] redis preflight failed to initialise client for {masked}: {type(exc).__name__}: {exc}")
+        return
+    try:
+        pong = await asyncio.wait_for(client.ping(), timeout=timeout)
+    except Exception as exc:
+        print(f"[warn] redis ping failed for {masked}: {type(exc).__name__}: {exc}")
+    else:
+        print(f"[OK] redis ping ok for {masked}: {pong}")
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            try:
+                await close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
