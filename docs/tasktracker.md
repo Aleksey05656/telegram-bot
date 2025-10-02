@@ -1453,6 +1453,15 @@
   - [x] Стадия numeric использует `pip.conf` и проверяет отсутствие SKIP у @needs_np
 - **Зависимости**: .github/workflows/ci.yml, docs/changelog.md, docs/tasktracker.md
 
+## Задача: Усиление run_start_check
+- **Статус**: Завершена
+- **Описание**: Маскировать чувствительные токены и запускать префлайты Redis/SportMonks в стартовом скрипте.
+- **Шаги выполнения**:
+  - [x] Добавлена функция маскировки и безопасный вывод переменных окружения.
+  - [x] Интегрированы префлайты Redis и SportMonks с корректной обработкой статусов.
+  - [x] Обновлены документационные файлы changelog/tasktracker.
+- **Зависимости**: scripts/run_start_check.sh, scripts/preflight_redis.py, scripts/preflight_sportmonks.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Sentry фичефлаг и метки метрик
 - **Статус**: Завершена
 - **Описание**: Добавить SENTRY_ENABLED, GIT_SHA, метки service/env/version и счётчик jobs_registered_total.

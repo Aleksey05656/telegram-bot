@@ -1,3 +1,13 @@
+## [2025-10-02] - run_start_check preflight hardening
+### Добавлено
+- Функция `mask` в `scripts/run_start_check.sh` для безопасного вывода значений секретов.
+
+### Изменено
+- Стартовый скрипт выводит маскированные переменные окружения, проверяет `ROLE` и запускает префлайты Redis/SportMonks.
+
+### Исправлено
+- Запуск `ROLE=bot` без токенов теперь завершается ошибкой, обеспечивая предсказуемый фейл старт-чека.
+
 ## [2025-10-02] - SportMonks fixtures_between preflight
 ### Добавлено
 - Проверка `SPORTMONKS_API_TOKEN` и асинхронный вызов `fixtures_between` в `scripts/preflight_sportmonks.py` с маскировкой токена.
