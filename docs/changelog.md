@@ -1,3 +1,16 @@
+## [2025-11-16] - Resilient Telegram polling loop
+### Добавлено
+- Экспоненциальный backoff с джиттером и обработкой `TelegramRetryAfter` в `scripts/tg_bot.py`.
+
+### Изменено
+- Скрипт `scripts/tg_bot.py` использует `Dispatcher.start_polling` с `handle_signals=False`, настраивает `AiohttpSession`
+  и HTML `parse_mode`, добавляет регистрации middlewares и роутеров через `tgbotapp`.
+- Запуск бота теперь управляет graceful shutdown по `SIGINT`/`SIGTERM`, корректно закрывает ресурсы и обновляет
+  состояние `STATE.polling_ready` при перезапусках.
+
+### Исправлено
+- Временные сетевые ошибки и 429 теперь не завершают процесс, скрипт выдерживает рестарты без утечки токена в логах.
+
 ## [2025-10-02] - Telegram bot local rate limiter
 ### Добавлено
 - Асинхронный скользящий rate-limiter `tgbotapp/ratelimiter.py` и обёртка `tgbotapp/sender.py`
