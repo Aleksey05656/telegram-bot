@@ -1,3 +1,13 @@
+## [2025-09-07] - Async SportMonks client for Telegram bot
+### Добавлено
+- Асинхронный клиент `tgbotapp/sportmonks_client.py` с валидацией дат, ограничением диапазона в 100 дней и обработкой 429 с уважением `Retry-After`.
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-11-16] - Resilient Telegram polling loop
 ### Добавлено
 - Экспоненциальный backoff с джиттером и обработкой `TelegramRetryAfter` в `scripts/tg_bot.py`.

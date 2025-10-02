@@ -1,3 +1,12 @@
+## Задача: Async SportMonks client for Telegram bot (2025-09-07)
+- **Статус**: Завершена
+- **Описание**: Добавить строгий асинхронный клиент SportMonks v3 для пакета tgbotapp с поддержкой ретраев и валидации диапазона дат.
+- **Шаги выполнения**:
+  - [x] Реализован `tgbotapp/sportmonks_client.py` с проверкой формата дат, ограничением 100 дней и обработкой HTTP 429 с `Retry-After`.
+  - [x] Настроено безопасное логирование с маскировкой токена и параметрами include/timezone/per_page.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для фиксации изменений.
+- **Зависимости**: tgbotapp/sportmonks_client.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Resilient Telegram polling loop (2025-11-16)
 - **Статус**: Завершена
 - **Описание**: Переписать скрипт запуска бота на aiogram с устойчивостью к 429/5xx, экспоненциальным бэкоффом,
