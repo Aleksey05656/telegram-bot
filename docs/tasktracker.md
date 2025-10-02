@@ -1,3 +1,12 @@
+## Задача: Database URL builder for asyncpg (2025-10-02)
+- **Статус**: Завершена
+- **Описание**: Добавить безопасный билдер строки подключения PostgreSQL для asyncpg с приоритетом переменной `DATABASE_URL`.
+- **Шаги выполнения**:
+  - [x] Реализована функция `build_db_url` в `tgbotapp/db_url.py` с цитированием пароля и fallback на раздельные переменные.
+  - [x] Добавлены тесты `tests/test_db_url.py` для проверки приоритета `DATABASE_URL`, экранирования пароля и обработки неполной конфигурации.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для документирования изменений.
+- **Зависимости**: tgbotapp/db_url.py, tests/test_db_url.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: SportMonks fixtures_between preflight (2025-10-02)
 - **Статус**: Завершена
 - **Описание**: Усилить выпускной префлайт SportMonks проверкой токена и асинхронным запросом расписания на сегодня.

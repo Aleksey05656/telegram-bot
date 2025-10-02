@@ -1,3 +1,14 @@
+## [2025-10-02] - Database URL builder for asyncpg
+### Добавлено
+- Утилита `tgbotapp/db_url.py` для безопасной сборки `postgresql+asyncpg` DSN из переменных окружения и цитирования пароля.
+- Юнит-тесты `tests/test_db_url.py`, подтверждающие приоритет `DATABASE_URL`, экранирование пароля и обработку неполной конфигурации.
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-10-02] - run_start_check preflight hardening
 ### Добавлено
 - Функция `mask` в `scripts/run_start_check.sh` для безопасного вывода значений секретов.
