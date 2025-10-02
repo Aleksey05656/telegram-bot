@@ -1,3 +1,12 @@
+## Задача: GitHub Actions CI matrix (2025-10-02)
+- **Статус**: Завершена
+- **Описание**: Настроить CI в GitHub Actions с матрицей ролей и прогоном make check, smoke и целевых pytest-маркеров.
+- **Шаги выполнения**:
+  - [x] Добавлен workflow `.github/workflows/ci.yml` с матрицей `web`/`worker` и Python 3.11.
+  - [x] Настроены этапы установки зависимостей, `make check`, smoke со временными секретами и выборочный `pytest`.
+  - [x] Обновлена документация (`docs/changelog.md`, `docs/tasktracker.md`).
+- **Зависимости**: .github/workflows/ci.yml, Makefile, scripts/run_start_check.sh, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Redis asyncio migration (2025-10-03)
 - **Статус**: Завершена
 - **Описание**: Перевести модули проекта на использование `redis.asyncio` с мягким префлайтом и маскировкой конфигурации.

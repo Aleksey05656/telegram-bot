@@ -1,3 +1,13 @@
+## [2025-10-02] - GitHub Actions CI matrix
+### Добавлено
+- GitHub Actions workflow `.github/workflows/ci.yml` с матрицей ролей `web`/`worker`, шагами `make check`, smoke и целевой `pytest`-сценой.
+
+### Изменено
+- —
+
+### Исправлено
+- —
+
 ## [2025-10-03] - Redis asyncio migration
 ### Добавлено
 - —
