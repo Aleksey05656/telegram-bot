@@ -1,3 +1,21 @@
+## [2025-10-05] - SportMonks pagination & rate-limit handling
+### Добавлено
+- Интеграционные тесты `tests/integrations/test_sportmonks_date_timezone_and_pagination.py`,
+  `test_sportmonks_between_range_validation.py`, `test_sportmonks_429_retry.py`,
+  `test_auth_header_mode.py` покрывают пагинацию, валидацию диапазонов, режим авторизации и
+  обработку 429 с `Retry-After`.
+- Таблица конфигурации SportMonks и инструкция по запуску префлайта в `README.md`.
+
+### Изменено
+- `app/integrations/sportmonks_client.py` поддерживает `SPORTMONKS_AUTH_MODE`, пагинацию,
+  `per_page`, таймзону, include и экспоненциальный бэкофф с маскировкой токена.
+- `scripts/preflight_sportmonks.py` печатает настройки окружения, маскирует токен и выполняет
+  живой вызов `/fixtures/date/{today}` с агрегацией страниц.
+
+### Исправлено
+- Валидация диапазонов `fixtures_between` и обработка `Retry-After` теперь предотвращают
+  обращения с недопустимыми датами и обеспечивают корректное поведение при лимитах SportMonks.
+
 ## [2025-10-01] - SportMonks v3 client hardening
 ### Добавлено
 - Интеграционные тесты `tests/integrations/test_sportmonks_date.py` проверяют строгий формат дат,

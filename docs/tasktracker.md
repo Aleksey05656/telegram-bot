@@ -1,3 +1,20 @@
+## Задача: SportMonks pagination & retry hardening (2025-10-05)
+- **Статус**: Завершена
+- **Описание**: Добавить пагинацию, режимы авторизации, валидацию диапазонов и обработку 429
+  с `Retry-After` для клиента SportMonks и обновить префлайт/документацию.
+- **Шаги выполнения**:
+  - [x] Расширен `app/integrations/sportmonks_client.py` поддержкой include, timezone, per_page,
+    пагинации и экспоненциального бэкоффа с маскировкой токенов.
+  - [x] Обновлён `scripts/preflight_sportmonks.py` для печати конфигурации и живого вызова
+    `/fixtures/date/{today}`.
+  - [x] Добавлены интеграционные тесты `tests/integrations/test_sportmonks_date_timezone_and_pagination.py`,
+    `test_sportmonks_between_range_validation.py`, `test_sportmonks_429_retry.py`,
+    `test_auth_header_mode.py`.
+  - [x] Актуализирован `README.md` с таблицей переменных окружения и инструкцией префлайта.
+  - [x] Зафиксированы изменения в `docs/changelog.md` и `docs/tasktracker.md`.
+- **Зависимости**: app/integrations/sportmonks_client.py, scripts/preflight_sportmonks.py,
+  README.md, docs/changelog.md, docs/tasktracker.md, tests/integrations/*
+
 ## Задача: Harden SportMonks v3 client and diagnostics (2025-10-01)
 - **Статус**: Завершена
 - **Описание**: Обновить клиент SportMonks под v3, строгое форматирование дат, диагностическое логирование

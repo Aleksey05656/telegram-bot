@@ -301,8 +301,28 @@ Control parameters via environment variables:
 
 Режим заглушки включается, если установить `SPORTMONKS_STUB=1` или оставить `SPORTMONKS_API_TOKEN`
 пустым/`dummy`. Для боевого API необходимо задать токен и выставить `SPORTMONKS_STUB=0`. Клиент
-делает синхронный GET к SportMonks v3, автоматически подставляет `api_token`, не добавляет
-`include` по умолчанию и логирует тело ответа при ошибках (HTTP ≥ 400) с маскировкой токена.
+делает синхронный GET к SportMonks v3, поддерживает пагинацию (`meta.pagination.total_pages`),
+параметры `include`, `timezone`, контролируемый `per_page` и умеет повторять запросы при HTTP 429
+с учётом `Retry-After`. Все URL и сообщения логируются с маскировкой токена.
+
+### Конфигурация SportMonks v3
+
+| Переменная | Назначение | Значение по умолчанию |
+|------------|------------|------------------------|
+| `SPORTMONKS_API_TOKEN` | Основной API-токен SportMonks v3. | — (обязателен для продакшена) |
+| `SPORTMONKS_AUTH_MODE` | Режим авторизации: `query` (добавляет `api_token` в query) или `header` (отправляет `Authorization`). | `query` |
+| `SPORTMONKS_TIMEZONE` | Таймзона для `fixtures/date/{date}` (влияет на отбор матчей). | не задаётся |
+| `SPORTMONKS_PER_PAGE` | Размер страницы для эндпоинтов с пагинацией (1..50). | не задаётся |
+| `SPORTMONKS_INCLUDES` | Список `include` (разделитель `;`). | не задаётся |
+
+Префлайт для проверки токена и лимитов:
+
+```bash
+python scripts/preflight_sportmonks.py
+```
+
+Скрипт печатает выбранный режим авторизации, маскированный токен, таймзону/`per_page` и выполняет
+живой запрос `/fixtures/date/{today}` (UTC) с учётом пагинации.
 
 ## Key environment variables
 
