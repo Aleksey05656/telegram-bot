@@ -1,3 +1,15 @@
+## Задача: Telegram bot local rate limiter (2025-10-02)
+- **Статус**: Завершена
+- **Описание**: Ввести локальный rate-limiter для Telegram-бота с глобальными, чатовым и групповым
+  окнами и заменить отправку сообщений на безопасную обёртку.
+- **Шаги выполнения**:
+  - [x] Реализован `tgbotapp/ratelimiter.py` со скользящими окнами и общим состоянием.
+  - [x] Добавлена обёртка `tgbotapp/sender.py` и обновлены хендлеры `tgbotapp/handlers/*`.
+  - [x] Дополнены тесты `tests/telegram/test_rate_limiter.py` проверками ограничений и safe sender.
+  - [x] Обновлены `tgbotapp/__init__.py`, `docs/changelog.md`, `docs/tasktracker.md`.
+- **Зависимости**: tgbotapp/ratelimiter.py, tgbotapp/sender.py, tgbotapp/handlers/*, tests/telegram/test_rate_limiter.py,
+  tgbotapp/__init__.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: SportMonks pagination & retry hardening (2025-10-05)
 - **Статус**: Завершена
 - **Описание**: Добавить пагинацию, режимы авторизации, валидацию диапазонов и обработку 429

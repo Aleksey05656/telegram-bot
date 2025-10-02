@@ -22,6 +22,7 @@ from config import settings
 from logger import logger
 from tgbotapp.handlers.terms import DISCLAIMER_TEXT
 from tgbotapp.models import CommandWithoutArgs
+from tgbotapp.sender import safe_send_text
 
 
 @dataclass(slots=True)
@@ -141,7 +142,9 @@ def _main_menu_builder() -> InlineKeyboardBuilder:
 async def _send_main_menu(message: Message) -> None:
     try:
         builder = _main_menu_builder()
-        await message.answer(
+        await safe_send_text(
+            message.bot,
+            message.chat.id,
             "🏆 <b>Главное меню Football Predictor Bot</b>\nВыберите действие из меню ниже:",
             reply_markup=builder.as_markup(),
             parse_mode="HTML",
@@ -153,7 +156,12 @@ async def _send_main_menu(message: Message) -> None:
             message.from_user.id,
             exc,
         )
-        await message.answer("❌ Ошибка при отправке меню. Попробуйте позже.", parse_mode="HTML")
+        await safe_send_text(
+            message.bot,
+            message.chat.id,
+            "❌ Ошибка при отправке меню. Попробуйте позже.",
+            parse_mode="HTML",
+        )
 
 
 async def _edit_or_send_main_menu(callback: CallbackQuery) -> None:
@@ -169,9 +177,14 @@ async def _edit_or_send_main_menu(callback: CallbackQuery) -> None:
             callback.from_user.id,
             exc,
         )
-        await callback.message.answer(
-            menu_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-        )
+        if callback.message:
+            await safe_send_text(
+                callback.bot,
+                callback.message.chat.id,
+                menu_text,
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML",
+            )
     await callback.answer()
 
 
@@ -207,7 +220,9 @@ async def cmd_start(message: Message) -> None:
             message.from_user.id,
             message.from_user.username or "N/A",
         )
-        await message.answer(
+        await safe_send_text(
+            message.bot,
+            message.chat.id,
             "👋 <b>Добро пожаловать в Football Predictor Bot!</b>\n\n"
             "🤖 Я использую продвинутые алгоритмы ИИ и статистические модели для "
             "прогнозирования исходов футбольных матчей.\n"
@@ -218,15 +233,18 @@ async def cmd_start(message: Message) -> None:
         )
         await _send_main_menu(message)
     except ValueError as exc:
-        await message.answer(f"❌ {exc}", parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, f"❌ {exc}", parse_mode="HTML")
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error(
             "Ошибка в обработчике /start для пользователя %s: %s",
             message.from_user.id,
             exc,
         )
-        await message.answer(
-            "❌ Произошла ошибка при запуске бота. Попробуйте позже.", parse_mode="HTML"
+        await safe_send_text(
+            message.bot,
+            message.chat.id,
+            "❌ Произошла ошибка при запуске бота. Попробуйте позже.",
+            parse_mode="HTML",
         )
 
 
@@ -273,9 +291,14 @@ async def show_help(callback: CallbackQuery) -> None:
                 callback.from_user.id,
                 exc,
             )
-            await callback.message.answer(
-                help_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    help_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
         await callback.answer()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error("Ошибка в обработчике справки: %s", exc)
@@ -309,9 +332,14 @@ async def show_examples(callback: CallbackQuery) -> None:
                 callback.from_user.id,
                 exc,
             )
-            await callback.message.answer(
-                examples_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    examples_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
         await callback.answer()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error("Ошибка в обработчике примеров: %s", exc)
@@ -336,9 +364,14 @@ async def show_stats(callback: CallbackQuery) -> None:
                 callback.from_user.id,
                 exc,
             )
-            await callback.message.answer(
-                stats_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    stats_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
         await callback.answer()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error("Ошибка в обработчике статистики: %s", exc)
@@ -374,12 +407,15 @@ async def show_terms(callback: CallbackQuery) -> None:
                 callback.from_user.id,
                 exc,
             )
-            await callback.message.answer(
-                terms_text,
-                reply_markup=builder.as_markup(),
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    terms_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
         await callback.answer()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error("Ошибка в обработчике условий: %s", exc)
@@ -405,9 +441,14 @@ async def show_disclaimer(callback: CallbackQuery) -> None:
                 callback.from_user.id,
                 exc,
             )
-            await callback.message.answer(
-                disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    disclaimer_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
         await callback.answer()
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.error("Ошибка в обработчике дисклеймера: %s", exc)

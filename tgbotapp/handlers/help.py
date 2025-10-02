@@ -11,6 +11,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from tgbotapp.dependencies import BotDependencies, CommandInfo
+from tgbotapp.sender import safe_send_text
 
 
 def build_help_text(commands: tuple[CommandInfo, ...] | list[CommandInfo]) -> str:
@@ -27,6 +28,6 @@ def create_router(deps: BotDependencies) -> Router:
 
     @router.message(Command("help"))
     async def handle_help(message: Message) -> None:  # pragma: no cover - executed in runtime
-        await message.answer(help_text, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, help_text, parse_mode="HTML")
 
     return router

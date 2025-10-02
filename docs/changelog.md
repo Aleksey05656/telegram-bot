@@ -1,3 +1,17 @@
+## [2025-10-02] - Telegram bot local rate limiter
+### Добавлено
+- Асинхронный скользящий rate-limiter `tgbotapp/ratelimiter.py` и обёртка `tgbotapp/sender.py`
+  с безопасной отправкой сообщений.
+- Юнит-тесты `tests/telegram/test_rate_limiter.py`, подтверждающие глобальные, чатовые и
+  групповые ограничения, а также обёртку `safe_send_text`.
+
+### Изменено
+- Хендлеры `tgbotapp/handlers/*` переключены на `safe_send_text`, чтобы учитывать новые лимиты
+  перед отправкой сообщений, и пакет `tgbotapp` экспортирует `ratelimiter`/`sender`.
+
+### Исправлено
+- —
+
 ## [2025-10-05] - SportMonks pagination & rate-limit handling
 ### Добавлено
 - Интеграционные тесты `tests/integrations/test_sportmonks_date_timezone_and_pagination.py`,

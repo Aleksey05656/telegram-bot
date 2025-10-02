@@ -11,6 +11,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from tgbotapp.dependencies import BotDependencies, ModelMetadata
+from tgbotapp.sender import safe_send_text
 
 
 def render_model_info(meta: ModelMetadata) -> str:
@@ -34,6 +35,6 @@ def create_router(deps: BotDependencies) -> Router:
 
     @router.message(Command("model"))
     async def handle_model(message: Message) -> None:  # pragma: no cover - executed in runtime
-        await message.answer(model_text, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, model_text, parse_mode="HTML")
 
     return router

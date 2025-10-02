@@ -17,6 +17,7 @@ from aiogram.types import Message
 
 from logger import logger
 from tgbotapp.dependencies import BotDependencies
+from tgbotapp.sender import safe_send_text
 
 _USAGE_MESSAGE = "Укажите команды в формате «Команда 1 — Команда 2»."
 _MISSING_TEAMS_MESSAGE = "Нужно указать обе команды."
@@ -66,7 +67,7 @@ def create_router(deps: BotDependencies) -> Router:
         args = message.text.split(maxsplit=1)
         query = args[1] if len(args) > 1 else ""
         response = await build_predict_response(deps, message.chat.id, query)
-        await message.answer(response, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, response, parse_mode="HTML")
         logger.debug("Predict command processed for chat %s", message.chat.id)
 
     return router

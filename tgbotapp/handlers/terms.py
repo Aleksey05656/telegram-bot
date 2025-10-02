@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from logger import logger
 from tgbotapp.models import CommandWithoutArgs
+from tgbotapp.sender import safe_send_text
 
 # Исправленный импорт кэша
 
@@ -47,18 +48,21 @@ async def cmd_terms(message: Message):
                 "ℹ️ Используйте /terms или /disclaimer для получения информации."
             )
 
-        await message.answer(text_to_send, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, text_to_send, parse_mode="HTML")
         logger.info(
             f"{command.capitalize()} отправлен(-а) пользователю {message.from_user.id}"
         )
     except ValueError as e:
-        await message.answer(f"❌ {e}", parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, f"❌ {e}", parse_mode="HTML")
     except Exception as e:
         logger.error(
             f"Ошибка при отправке {command} пользователю {message.from_user.id}: {e}"
         )
-        await message.answer(
-            "❌ Произошла ошибка при отправке информации.", parse_mode="HTML"
+        await safe_send_text(
+            message.bot,
+            message.chat.id,
+            "❌ Произошла ошибка при отправке информации.",
+            parse_mode="HTML",
         )
 
 
@@ -96,12 +100,15 @@ async def cb_show_terms(callback: CallbackQuery):
             logger.debug(
                 f"Невозможно отредактировать сообщение для /terms (callback) у {callback.from_user.id}: {e}. Отправляем новое."
             )
-            await callback.message.answer(
-                terms_text,
-                reply_markup=builder.as_markup(),
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    terms_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в callback обработчике условий: {e}")
@@ -128,9 +135,14 @@ async def cb_show_disclaimer(callback: CallbackQuery):
             logger.debug(
                 f"Невозможно отредактировать сообщение для /disclaimer (callback) у {callback.from_user.id}: {e}. Отправляем новое."
             )
-            await callback.message.answer(
-                disclaimer_text, reply_markup=builder.as_markup(), parse_mode="HTML"
-            )
+            if callback.message:
+                await safe_send_text(
+                    callback.bot,
+                    callback.message.chat.id,
+                    disclaimer_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
         await callback.answer()
     except Exception as e:
         logger.error(f"Ошибка в callback обработчике дисклеймера: {e}")
