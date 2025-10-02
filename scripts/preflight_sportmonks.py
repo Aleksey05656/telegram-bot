@@ -8,87 +8,89 @@
 """
 from __future__ import annotations
 
-import datetime as _dt
+import asyncio
+from datetime import datetime, timezone
 import os
 import sys
 from pathlib import Path
+from typing import Any
+
+import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.integrations.sportmonks_client import (  # noqa: E402 - runtime import
-    AUTH_MODE_ENV,
-    PER_PAGE_ENV,
-    TIMEZONE_ENV,
-    SportMonksClient,
-    SportMonksError,
-    SportMonksValidationError,
-)
+from tgbotapp.sportmonks_client import SportMonksClient as SportMonks  # noqa: E402
 
 TOKEN_ENV = "SPORTMONKS_API_TOKEN"
-LEGACY_ENV = "SPORTMONKS_API_KEY"
 
 
 def _mask_token(token: str | None) -> str:
     if not token:
         return "<missing>"
-    token = token.strip()
-    if len(token) <= 4:
-        return "***"
-    return f"{token[:2]}***{token[-2:]}"
+    masked_source = token.strip()
+    if not masked_source:
+        return "<missing>"
+    prefix = masked_source[:4]
+    return f"{prefix}***"
 
 
-def _resolve_token() -> str | None:
-    token = os.environ.get(TOKEN_ENV, "").strip()
-    if token:
-        return token
-    legacy = os.environ.get(LEGACY_ENV, "").strip()
-    if legacy:
-        print(
-            "[sportmonks] warning: SPORTMONKS_API_KEY is deprecated; falling back to legacy token",
-            flush=True,
+def _extract_fixtures_count(payload: Any) -> int:
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            return len(data)
+    if isinstance(payload, list):
+        return len(payload)
+    return 0
+
+
+async def _fetch_fixtures_today(token: str) -> int:
+    today = datetime.now(timezone.utc).date().isoformat()
+    async with SportMonks(api_token=token) as client:
+        payload = await client.fixtures_between(
+            today,
+            today,
+            timezone="UTC",
+            per_page=25,
         )
-        return legacy
-    return None
-
-
-def _print_config(token: str | None) -> None:
-    auth_mode = os.getenv(AUTH_MODE_ENV, "query").strip() or "query"
-    timezone = os.getenv(TIMEZONE_ENV) or "<default>"
-    per_page = os.getenv(PER_PAGE_ENV) or "<default>"
-    print(f"[sportmonks] auth_mode={auth_mode}")
-    print(f"[sportmonks] token={_mask_token(token)}")
-    print(f"[sportmonks] timezone={timezone}")
-    print(f"[sportmonks] per_page={per_page}")
+    return _extract_fixtures_count(payload)
 
 
 def main() -> int:
-    token = _resolve_token()
-    _print_config(token)
-
+    token = os.getenv(TOKEN_ENV, "").strip()
     if not token:
-        print("[sportmonks] error: SPORTMONKS_API_TOKEN is required", file=sys.stderr)
+        print(
+            "[ERROR] SPORTMONKS_API_TOKEN is not set. Provide a valid token to query SportMonks.",
+            file=sys.stderr,
+        )
         return 1
-
-    client = SportMonksClient()
-    today = _dt.datetime.now(tz=_dt.timezone.utc).date()
 
     try:
-        fixtures = client.fixtures_by_date(today)
-    except SportMonksValidationError as exc:
-        print(f"[sportmonks] validation error: {exc}", file=sys.stderr)
+        fixtures_today = asyncio.run(_fetch_fixtures_today(token))
+    except ValueError as exc:
+        print(f"[ERROR] SportMonks validation error: {exc}", file=sys.stderr)
         return 1
-    except SportMonksError as exc:
-        print(f"[sportmonks] request failed: {exc}", file=sys.stderr)
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code if exc.response is not None else "unknown"
+        print(f"[ERROR] SportMonks request failed with HTTP status {status}.", file=sys.stderr)
         return 2
+    except httpx.HTTPError as exc:
+        print(
+            f"[ERROR] SportMonks network error: {exc.__class__.__name__}.",
+            file=sys.stderr,
+        )
+        return 2
+    except Exception as exc:  # noqa: BLE001 - fail fast without exposing sensitive data
+        print(
+            f"[ERROR] SportMonks preflight failed unexpectedly: {exc.__class__.__name__}.",
+            file=sys.stderr,
+        )
+        return 3
 
-    count = len(fixtures)
-    sample_ids = [str(item.get("id")) for item in fixtures[:5]]
-    print(
-        f"[sportmonks] fetched {count} fixtures for {today.strftime('%Y-%m-%d')}"
-        + (f"; sample ids={', '.join(sample_ids)}" if sample_ids else ""),
-    )
+    masked_token = _mask_token(token)
+    print(f"[OK] SportMonks token={masked_token}, fixtures_today={fixtures_today}")
     return 0
 
 
