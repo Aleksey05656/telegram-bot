@@ -1,3 +1,14 @@
+## Задача: Resilient Telegram polling loop (2025-11-16)
+- **Статус**: Завершена
+- **Описание**: Переписать скрипт запуска бота на aiogram с устойчивостью к 429/5xx, экспоненциальным бэкоффом,
+  поддержкой HTML parse mode и корректным завершением по сигналам.
+- **Шаги выполнения**:
+  - [x] Реализован новый `scripts/tg_bot.py` с `Dispatcher.start_polling`, `AiohttpSession` и регистрацией middleware/роутеров.
+  - [x] Добавлены обработчики `TelegramRetryAfter`, `RestartingTelegram`, `TelegramNetworkError` с экспоненциальным бэкоффом и джиттером.
+  - [x] Настроено graceful shutdown с очисткой ресурсов и обновлением `STATE.polling_ready`.
+  - [x] Обновлена документация (`docs/changelog.md`, `docs/tasktracker.md`).
+- **Зависимости**: scripts/tg_bot.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Telegram bot local rate limiter (2025-10-02)
 - **Статус**: Завершена
 - **Описание**: Ввести локальный rate-limiter для Telegram-бота с глобальными, чатовым и групповым
