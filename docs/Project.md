@@ -111,6 +111,8 @@ telegram-bot/
 └─ requirements.txt
 ```
 
+Пакет `tgbotapp/` дополнен модулем `sportmonks_client.py`, реализующим асинхронный клиент SportMonks v3 для Telegram-бота с проверкой формата дат, ограничением диапазона до 100 дней, поддержкой include/timezone/per_page и соблюдением `Retry-After` при HTTP 429 с маскировкой токена в логах.
+
 ## 4. Модель и алгоритмы
 ### 4.1 Шаг 1 — Базовые λ
 Реализация: `ml/base_poisson_glm.py`, DI в `RecommendationEngine`.
