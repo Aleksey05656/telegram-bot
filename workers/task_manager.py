@@ -4,8 +4,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Any
 
-import redis
-from redis import Redis
+import redis.asyncio as redis
 from rq import Queue
 from rq.job import Job
 
@@ -20,7 +19,8 @@ class TaskManager:
 
     def __init__(self):
         """Инициализация менеджера задач."""
-        self.redis_conn: Redis | None = None
+        self.redis_conn: Any | None = None
+        self._redis_async_conn: Any | None = None
         self.prediction_queue: Queue | None = None
         self.retraining_queue: Queue | None = None  # Новая очередь для переобучения
         logger.debug("TaskManager: Инициализация экземпляра...")
@@ -47,11 +47,15 @@ class TaskManager:
 
             # Подключение к Redis
             logger.debug(f"TaskManager: Подключение к Redis по URL: {settings.REDIS_URL}")
-            self.redis_conn = Redis.from_url(settings.REDIS_URL, decode_responses=False)
-
-            # Проверка соединения
-            self.redis_conn.ping()
-            logger.info("✅ Подключение к Redis для RQ установлено")
+            async_client = redis.from_url(settings.REDIS_URL, decode_responses=False)
+            self._redis_async_conn = async_client
+            pong = await async_client.ping()
+            sync_factory = getattr(async_client, "sync_client", None)
+            if callable(sync_factory):
+                self.redis_conn = sync_factory()
+            else:
+                self.redis_conn = async_client
+            logger.info("✅ Подключение к Redis для RQ установлено (pong=%s)", pong)
 
             # Создаем очередь RQ с именем 'predictions'
             logger.debug("TaskManager: Создание очереди 'predictions'...")
@@ -72,6 +76,7 @@ class TaskManager:
         except redis.ConnectionError as e:
             logger.error(f"❌ Ошибка подключения к Redis: {e}", exc_info=True)
             self.redis_conn = None
+            self._redis_async_conn = None
             self.prediction_queue = None
             self.retraining_queue = None
             self._update_depth_metric()
@@ -81,6 +86,7 @@ class TaskManager:
                 exc_info=True,
             )
             self.redis_conn = None
+            self._redis_async_conn = None
             self.prediction_queue = None
             self.retraining_queue = None
 

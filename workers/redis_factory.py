@@ -17,10 +17,15 @@ from config import get_settings
 from logger import logger
 
 try:  # pragma: no cover - optional dependency in tests
-    from redis.asyncio import Redis, from_url
+    import redis.asyncio as redis
 except Exception:  # pragma: no cover
+    redis = None  # type: ignore[assignment]
+
+
+if redis is None:  # pragma: no cover - offline fallback
     Redis = Any  # type: ignore[assignment]
-    from_url = None  # type: ignore[assignment]
+else:  # pragma: no cover - type alias for readability
+    Redis = redis.Redis
 
 
 def _mask(url: str) -> str:
@@ -77,7 +82,7 @@ class RedisFactory:
     async def get_client(self) -> Redis | None:
         if self._client is not None:
             return self._client
-        if from_url is None:  # dependency missing
+        if redis is None:  # dependency missing
             logger.warning("redis.asyncio module unavailable; skipping Redis connection")
             return None
         url = self._url()
@@ -86,7 +91,7 @@ class RedisFactory:
         while True:
             client: Redis | None = None
             try:
-                client = from_url(url, encoding="utf-8", decode_responses=True)
+                client = redis.from_url(url, encoding="utf-8", decode_responses=True)
                 await client.ping()
             except Exception as exc:  # pragma: no cover - network dependency in tests
                 if client is not None:
@@ -118,7 +123,7 @@ class RedisFactory:
     async def health_check(self) -> None:
         """Ensure Redis is reachable and responsive."""
 
-        if from_url is None:
+        if redis is None:
             raise RuntimeError("redis.asyncio module is unavailable")
         url = self._url()
         masked_url = _mask(url)

@@ -1,3 +1,14 @@
+## [2025-10-03] - Redis asyncio migration
+### Добавлено
+- —
+
+### Изменено
+- Все модули, использующие Redis, переходят на единый импорт `import redis.asyncio as redis` и при необходимости получают синхронный клиент через `sync_client()`.
+- `scripts/preflight_redis.py` выполняет `ping()` с тайм-аутом, печатает `[OK]/[warn]` и не прерывает пайплайн при недоступности Redis.
+
+### Исправлено
+- `workers/task_manager.py` и `database/cache.py` больше не используют устаревший синхронный клиент и продолжают маскировать Redis URL в логах.
+
 ## [2025-10-02] - Database URL builder for asyncpg
 ### Добавлено
 - Утилита `tgbotapp/db_url.py` для безопасной сборки `postgresql+asyncpg` DSN из переменных окружения и цитирования пароля.
