@@ -14,6 +14,7 @@ from aiogram.types import Message
 
 from logger import logger
 from tgbotapp.dependencies import BotDependencies
+from tgbotapp.sender import safe_send_text
 from tgbotapp.widgets import format_fixture_list
 
 
@@ -37,6 +38,6 @@ def create_router(deps: BotDependencies) -> Router:
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Не удалось получить список матчей: %s", exc)
             text = "❌ Не удалось получить список матчей."
-        await message.answer(text, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, text, parse_mode="HTML")
 
     return router

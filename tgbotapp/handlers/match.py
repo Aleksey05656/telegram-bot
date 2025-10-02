@@ -12,6 +12,7 @@ from aiogram.types import Message
 
 from logger import logger
 from tgbotapp.dependencies import BotDependencies
+from tgbotapp.sender import safe_send_text
 from tgbotapp.services import MatchNotFoundError
 from tgbotapp.widgets import format_prediction
 
@@ -28,22 +29,26 @@ def create_router(deps: BotDependencies) -> Router:
     async def handle_match(message: Message) -> None:  # pragma: no cover - executed in runtime
         args = message.text.split(maxsplit=1)
         if len(args) < 2:
-            await message.answer("Неверный id")
+            await safe_send_text(message.bot, message.chat.id, "Неверный id")
             return
         try:
             fixture_id = int(args[1])
         except ValueError:
-            await message.answer("Неверный id")
+            await safe_send_text(message.bot, message.chat.id, "Неверный id")
             return
         try:
             text = await build_match_response(deps, fixture_id)
         except MatchNotFoundError:
-            await message.answer("Матч не найден")
+            await safe_send_text(message.bot, message.chat.id, "Матч не найден")
             return
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Ошибка при получении прогноза для %s: %s", fixture_id, exc)
-            await message.answer("❌ Не удалось получить прогноз. Попробуйте позже.")
+            await safe_send_text(
+                message.bot,
+                message.chat.id,
+                "❌ Не удалось получить прогноз. Попробуйте позже.",
+            )
             return
-        await message.answer(text, parse_mode="HTML")
+        await safe_send_text(message.bot, message.chat.id, text, parse_mode="HTML")
 
     return router
