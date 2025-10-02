@@ -1,3 +1,12 @@
+## Задача: SportMonks fixtures_between preflight (2025-10-02)
+- **Статус**: Завершена
+- **Описание**: Усилить выпускной префлайт SportMonks проверкой токена и асинхронным запросом расписания на сегодня.
+- **Шаги выполнения**:
+  - [x] Добавлена проверка `SPORTMONKS_API_TOKEN` и маскировка токена при выводе скрипта.
+  - [x] Настроен вызов `fixtures_between` через клиента `tgbotapp.sportmonks_client.SportMonks` с параметрами UTC/25.
+  - [x] Обновлены `docs/changelog.md` и `docs/tasktracker.md` для фиксации изменений.
+- **Зависимости**: scripts/preflight_sportmonks.py, tgbotapp/sportmonks_client.py, docs/changelog.md, docs/tasktracker.md
+
 ## Задача: Async SportMonks client for Telegram bot (2025-09-07)
 - **Статус**: Завершена
 - **Описание**: Добавить строгий асинхронный клиент SportMonks v3 для пакета tgbotapp с поддержкой ретраев и валидации диапазона дат.

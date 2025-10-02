@@ -1,3 +1,13 @@
+## [2025-10-02] - SportMonks fixtures_between preflight
+### Добавлено
+- Проверка `SPORTMONKS_API_TOKEN` и асинхронный вызов `fixtures_between` в `scripts/preflight_sportmonks.py` с маскировкой токена.
+
+### Изменено
+- Скрипт префлайта SportMonks использует клиента `tgbotapp.sportmonks_client.SportMonks` и печатает итоговую сводку `[OK]` с количеством матчей за сегодня.
+
+### Исправлено
+- Сообщения об ошибках префлайта стали лаконичными и не раскрывают токены при отсутствии переменной окружения или сбоях запроса.
+
 ## [2025-09-07] - Async SportMonks client for Telegram bot
 ### Добавлено
 - Асинхронный клиент `tgbotapp/sportmonks_client.py` с валидацией дат, ограничением диапазона в 100 дней и обработкой 429 с уважением `Retry-After`.
